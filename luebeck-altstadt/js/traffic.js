@@ -204,7 +204,7 @@ export class Traffic {
     h.root.position.set(0, 0, 0); h.root.rotation.set(0, b.yaw, 0); h.root.updateMatrixWorld(true);
     const hips = B.Hips.getWorldPosition(new THREE.Vector3());
     h.root.position.copy(seatW).sub(hips).add(new THREE.Vector3(0, 0.08, 0)); h.root.updateMatrixWorld(true);
-    B.Spine.rotation.x += 0.12; B.Spine1.rotation.x += 0.08; B.Hips.updateMatrixWorld(true);
+    B.Spine.rotation.set(0.12, 0, 0); B.Spine1.rotation.set(0.08, 0, 0);   // absolute, not +=: the built-in idle clip has no Spine track, so += accumulated every frame and spun the rider B.Hips.updateMatrixWorld(true);
     const fwd = new THREE.Vector3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
     const ped = b.pedals.map((p) => p.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.05, 0)));
     const grip = b.grips.map((g) => b.steer.localToWorld(g.clone()));

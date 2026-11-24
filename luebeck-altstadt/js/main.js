@@ -459,6 +459,10 @@ function inputVec() {
 
 /* ------------------------------------------------------------ mode switching */
 const prompt = $('#prompt');
+const REACH = TOUCH ? 4.0 : 2.6;   // easier to reach with a thumb stick
+// on phones the prompt itself is the button (there is no E key)
+prompt.addEventListener('click', (e) => { e.stopPropagation(); if (prompt.dataset.act === 'eagle') { callEagle(); return; } interact(); });
+for (const ev of ['pointerdown', 'touchstart']) prompt.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
 function interact() {
   if (P.mode === 'eagle') { landEagle(); return; }
   if (P.mode === 'walk' && eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9) { P.mode = 'eagleMount'; P.t = 0; P.from = { x: P.x, z: P.z }; return; }
@@ -466,8 +470,8 @@ function interact() {
     const dBike = Math.hypot(P.x - bike.x, P.z - bike.z);
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
     const dCar = Math.hypot(P.x - door.x, P.z - door.z);
-    if (dBike < 2.2 && dBike <= dCar) { P.mode = 'mountBike'; P.t = 0; P.from = { x: P.x, z: P.z, yaw: P.yaw }; }
-    else if (dCar < 2.0) { P.mode = 'enterCar'; P.t = 0; P.from = { x: P.x, z: P.z, yaw: P.yaw }; }
+    if (dBike < REACH && dBike <= dCar) { P.mode = 'mountBike'; P.t = 0; P.from = { x: P.x, z: P.z, yaw: P.yaw }; }
+    else if (dCar < REACH) { P.mode = 'enterCar'; P.t = 0; P.from = { x: P.x, z: P.z, yaw: P.yaw }; }
   } else if (P.mode === 'bike' && Math.abs(bike.v) < 1.5) {
     const spot = safeSpot(bike.x, bike.z, bike.yaw, [[-0.9, 0], [0.9, 0], [-0.9, -0.6]]);
     if (spot) { P.mode = 'dismountBike'; P.t = 0; P.to = spot; bike.v = 0; } else toast('這裡沒有安全的位置下車');
@@ -560,7 +564,7 @@ function seatHuman(seatWorld, yaw, legTargets, handTargets, kneePole, elbowPole,
   H.root.position.set(0, 0, 0); H.root.rotation.set(0, yaw, lean); H.root.updateMatrixWorld(true);
   const hips = B.Hips.getWorldPosition(new THREE.Vector3());
   H.root.position.copy(seatWorld).sub(hips).add(new THREE.Vector3(0, 0.08, 0)); H.root.updateMatrixWorld(true);
-  B.Spine.rotation.x += 0.12; B.Spine1.rotation.x += 0.08; B.Hips.updateMatrixWorld(true);
+  B.Spine.rotation.set(0.12, 0, 0); B.Spine1.rotation.set(0.08, 0, 0);   // absolute, not +=: the built-in idle clip has no Spine track, so += accumulated every frame and spun the rider B.Hips.updateMatrixWorld(true);
   twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, legTargets[0], kneePole[0]);
   twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, legTargets[1], kneePole[1]);
   twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, handTargets[0], elbowPole[0]);
@@ -629,7 +633,7 @@ function eagleStep(dt) {
     if (Math.hypot(nx - E.x, nz - E.z) > 0.01) E.yaw = Math.atan2(nx - E.x, nz - E.z);
     E.pitch = k < 0.85 ? 0.15 : -0.35 * (k - 0.85) / 0.15; E.x = nx; E.y = ny; E.z = nz;
     E.animate(dt, k > 0.82 ? 1 : 0.35, THREE.MathUtils.clamp((k - 0.7) / 0.3, 0, 1));
-    if (k >= 1) { E.state = 'perched'; E.pitch = 0; E.yaw = P.yaw; toast('按 E 或「上／下車」騎上黑鷹'); }
+    if (k >= 1) { E.state = 'perched'; E.pitch = 0; E.yaw = P.yaw; toast(TOUCH ? '點畫面下方的按鈕騎上黑鷹' : '按 E 騎上黑鷹'); }
   } else if (E.state === 'perched') {
     E.animate(dt, 0.02, 1, 0.4);
   } else if (E.state === 'land') {
@@ -721,6 +725,12 @@ function drawMini() {
   const W = mini.width, span = 380 * MAP.k;
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
   for (const l of LM.landmarks) { const sx = (MAP.X(l.local_xz_m[0]) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(l.local_xz_m[1]) - MAP.Z(P.z)) / span * W + W / 2; if (sx < 0 || sy < 0 || sx > W || sy > W) continue; mctx.fillStyle = '#a8432a'; mctx.beginPath(); mctx.arc(sx, sy, 5, 0, 7); mctx.fill(); }
+  // your bicycle (green), car (blue) and the eagle (black) so they're easy to find
+  const mark = (x, z, col, label) => { const sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; const cx = Math.max(12, Math.min(W - 12, sx)), cy = Math.max(12, Math.min(W - 12, sy));
+    mctx.fillStyle = col; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3; mctx.beginPath(); mctx.arc(cx, cy, 11, 0, 7); mctx.fill(); mctx.stroke(); mctx.fillStyle = '#fff'; mctx.font = 'bold 13px sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle'; mctx.fillText(label, cx, cy + 1); };
+  if (P.mode !== 'bike') mark(bike.x, bike.z, '#2f7a4b', '單');
+  if (P.mode !== 'car') mark(car.x, car.z, '#2b4a8b', '車');
+  if (eagle.state === 'perched' || eagle.state === 'arrive') mark(eagle.x, eagle.z, '#111', '鷹');
   const vy = P.mode === 'eagle' ? eagle.yaw : P.mode === 'car' ? car.yaw : P.mode === 'bike' ? bike.yaw : P.yaw;
   mctx.save(); mctx.translate(W / 2, W / 2); mctx.rotate(-vy + Math.PI); mctx.fillStyle = '#1d1a17'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3;
   mctx.beginPath(); mctx.moveTo(0, -14); mctx.lineTo(10, 11); mctx.lineTo(0, 5); mctx.lineTo(-10, 11); mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
@@ -755,11 +765,14 @@ function frame() {
   // prompts
   if (P.mode === 'walk') {
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
-    const nb = Math.hypot(P.x - bike.x, P.z - bike.z) < 2.2, nc = Math.hypot(P.x - door.x, P.z - door.z) < 2.0;
-    prompt.textContent = nb ? 'E　騎上腳踏車' : nc ? 'E　坐進駕駛座' : ''; prompt.hidden = !(nb || nc);
-  } else if (P.mode === 'eagle') { prompt.textContent = eagle.state === 'land' ? '降落中…' : `高度 ${Math.round(eagle.y)} m · ${Math.round(eagle.v * 3.6)} km/h　·　W/S 爬升／下降　A/D 轉彎　Shift 加速　空白 減速　E 降落`; prompt.hidden = false;
-  } else if (P.mode === 'bike') { prompt.textContent = `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　W 踩踏　S 煞車　A/D 轉向　E 下車`; prompt.hidden = false; }
-  else if (P.mode === 'car') { prompt.textContent = `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
+    const nb = Math.hypot(P.x - bike.x, P.z - bike.z) < REACH, nc = Math.hypot(P.x - door.x, P.z - door.z) < REACH, ne = eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9;
+    const key = TOUCH ? '👆 點這裡　' : 'E　';
+    prompt.textContent = ne ? key + '騎上黑鷹' : nb ? key + '騎上腳踏車' : nc ? key + '坐進駕駛座' : '';
+    prompt.dataset.act = ''; prompt.hidden = !(nb || nc || ne);
+    prompt.classList.toggle('tap', TOUCH && !prompt.hidden);
+  } else if (P.mode === 'eagle') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = eagle.state === 'land' ? '降落中…' : TOUCH ? `高度 ${Math.round(eagle.y)} m · 搖桿上下＝爬升／下降　👆 點這裡降落` : `高度 ${Math.round(eagle.y)} m · ${Math.round(eagle.v * 3.6)} km/h　·　W/S 爬升／下降　A/D 轉彎　Shift 加速　空白 減速　E 降落`; prompt.hidden = false;
+  } else if (P.mode === 'bike') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = TOUCH ? `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　搖桿往上踩踏、往下煞車　👆 點這裡下車` : `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　W 踩踏　S 煞車　A/D 轉向　E 下車`; prompt.hidden = false; }
+  else if (P.mode === 'car') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = TOUCH ? `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h　·　👆 點這裡下車` : `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else prompt.hidden = true;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
   if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }
@@ -782,6 +795,7 @@ const go = $('#go'); go.disabled = false; go.focus();
 go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); canvas.focus(); });
 window.__lub = {
   eagle, callEagle,
+  loadAround: async (x, z, r = 300) => { for (const k of tilesAround(x, z, r)) await loadTile(k); },
   start: () => { started = true; $('#intro').classList.add('off'); }, P, bike, car, hero, keys, interact, traffic,
   teleport: (x, z, yaw) => { P.x = x; P.z = z; if (yaw !== undefined) { P.yaw = yaw; camYaw = yaw + Math.PI; } camera.userData.init = false; },
   setCam: (y, p, d) => { camYaw = y; camPitch = p; camDist = d; camera.userData.init = false; },

@@ -18,13 +18,14 @@ function restWorld() {
 }
 const RW = restWorld();
 
-/* ---------- geometry: rigid parts, each skinned to one bone ---------- */
-function part(geo, bone, color, list) { list.push({ geo: geo.index ? geo.toNonIndexed() : geo, bone: NAMES.indexOf(bone), color }); }
-function limb(a, b, r0, r1, seg = 10) {   // tapered capsule from a to b
+/* ---------- geometry: parts skinned to bones, limbs blend into the next bone near the joint ---------- */
+// part(geo, bone, color) → rigid; partL(...) → limb from joint a to joint b, weights fade from bone to child bone at b
+function part(geo, bone, color, list, child = null, a = null, b = null) { list.push({ geo: geo.index ? geo.toNonIndexed() : geo, bone: NAMES.indexOf(bone), child: child ? NAMES.indexOf(child) : -1, a, b, color }); }
+function limb(a, b, r0, r1, seg = 14, squash = 1) {   // tapered capsule from a to b (squash < 1 flattens front-back)
   const v = new THREE.Vector3().subVectors(new THREE.Vector3(...b), new THREE.Vector3(...a)), L = v.length();
-  const g = new THREE.CylinderGeometry(r1, r0, L, seg, 3, false);
-  const cap0 = new THREE.SphereGeometry(r0, seg, 6).translate(0, -L / 2, 0), cap1 = new THREE.SphereGeometry(r1, seg, 6).translate(0, L / 2, 0);
-  const m = merge([g, cap0, cap1]);
+  const g = new THREE.CylinderGeometry(r1, r0, L, seg, 6, true);
+  const cap0 = new THREE.SphereGeometry(r0, seg, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2).translate(0, -L / 2, 0), cap1 = new THREE.SphereGeometry(r1, seg, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, L / 2, 0);
+  const m = merge([g, cap0, cap1]); m.scale(1, 1, squash);
   m.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()));
   m.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
   return m;
@@ -33,43 +34,89 @@ function merge(list) {
   const pos = [], nor = []; for (let g of list) { g = g.index ? g.toNonIndexed() : g; pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); }
   const m = new THREE.BufferGeometry(); m.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return m;
 }
+function lathe(points, seg = 24) { return new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), seg); }
 function bodyGeometry(look) {
-  const P = [], w = RW, f = look.build;   // build: 0.9 (slim) – 1.15 (broad)
+  const P = [], w = RW, f = look.build, fem = !!look.fem;
   const { skin, top, bottom, shoes, hair } = look;
-  // torso: pelvis + waist + chest as soft ellipsoids
-  const ell = (rx, ry, rz) => new THREE.SphereGeometry(1, 18, 12).scale(rx, ry, rz);
-  part(ell(0.17 * f, 0.13, 0.12).translate(0, w.Hips[1] - 0.02, 0), 'Hips', bottom, P);
-  part(ell(0.155 * f, 0.15, 0.11).translate(0, w.Spine[1] + 0.06, 0.005), 'Spine', top, P);
-  part(ell(0.19 * f, 0.17, 0.125).translate(0, w.Spine1[1] + 0.07, 0.0), 'Spine1', top, P);
-  if (look.longCoat) part(limb([0, w.Hips[1] + 0.05, 0], [0, w.Hips[1] - 0.32, 0], 0.17 * f, 0.19 * f, 16), 'Hips', top, P);
-  // neck & head
-  part(limb([0, w.Neck[1] - 0.04, 0], [0, w.Head[1] + 0.02, 0.01], 0.05, 0.048), 'Neck', skin, P);
-  part(ell(0.085, 0.108, 0.098).translate(0, w.Head[1] + 0.11, 0.015), 'Head', skin, P);
-  part(new THREE.SphereGeometry(0.016, 8, 6).scale(1, 1, 1.4).translate(0, w.Head[1] + 0.1, 0.11), 'Head', skin, P);           // nose
-  for (const s of [-1, 1]) part(new THREE.SphereGeometry(0.02, 8, 6).scale(0.6, 1, 0.6).translate(s * 0.085, w.Head[1] + 0.11, 0.01), 'Head', skin, P); // ears
-  part(new THREE.SphereGeometry(1, 18, 12, 0, Math.PI * 2, 0, Math.PI * (look.longHair ? 0.72 : 0.55)).scale(0.092, 0.115, 0.104).translate(0, w.Head[1] + 0.12, 0.005), 'Head', hair, P);
-  if (look.longHair) part(limb([0, w.Head[1] + 0.12, -0.04], [0, w.Head[1] - 0.12, -0.07], 0.085, 0.07), 'Head', hair, P);
-  if (look.cap) part(new THREE.CylinderGeometry(0.098, 0.1, 0.06, 16).translate(0, w.Head[1] + 0.19, 0.01), 'Head', look.cap, P);
-  // arms
-  for (const sd of ['Left', 'Right']) {
-    const A = w[sd + 'Arm'], F = w[sd + 'ForeArm'], H = w[sd + 'Hand'];
-    part(limb(A, F, 0.052 * f, 0.044 * f), sd + 'Arm', top, P);
-    part(limb(F, H, 0.041, 0.034), sd + 'ForeArm', look.shortSleeve ? skin : top, P);
-    part(ell(0.035, 0.07, 0.022).translate(H[0], H[1] - 0.05, H[2]), sd + 'Hand', skin, P);
-    // legs
-    const U = w[sd + 'UpLeg'], K = w[sd + 'Leg'], Ft = w[sd + 'Foot'];
-    part(limb(U, K, 0.08 * f, 0.058), sd + 'UpLeg', look.skirt ? top : bottom, P);
-    part(limb(K, Ft, 0.054, 0.042), sd + 'Leg', look.skirt ? skin : bottom, P);
-    part(new THREE.BoxGeometry(0.09, 0.07, 0.25, 2, 1, 3).translate(Ft[0], Ft[1] - 0.035, Ft[2] + 0.06), sd + 'Foot', shoes, P);
+  const dark = (c, k = 0.6) => new THREE.Color(c).multiplyScalar(k).getHex();
+  const ell = (rx, ry, rz, ws = 20, hs = 14) => new THREE.SphereGeometry(1, ws, hs).scale(rx, ry, rz);
+  // --- torso: one smooth lathe from hip to shoulders, flattened front-back; waist narrower for 'fem'
+  const hy = w.Hips[1], sy = w.Spine1[1], ny = w.Neck[1];
+  const pelvis = lathe([[0.001, hy - 0.12], [0.15 * f, hy - 0.1], [0.165 * f, hy - 0.02], [(fem ? 0.135 : 0.15) * f, hy + 0.08]], 22); pelvis.scale(1, 1, 0.72);
+  part(pelvis, 'Hips', look.skirt ? top : bottom, P);
+  const waist = lathe([[(fem ? 0.135 : 0.15) * f, hy + 0.07], [(fem ? 0.125 : 0.145) * f, w.Spine[1] + 0.08], [0.16 * f, sy]], 22); waist.scale(1, 1, 0.7);
+  part(waist, 'Spine', top, P);
+  const chest = lathe([[0.16 * f, sy - 0.01], [0.185 * f, sy + 0.09], [0.19 * f, sy + 0.16], [0.13 * f, ny - 0.005], [0.055, ny + 0.01]], 22); chest.scale(1, 1, 0.68);
+  part(chest, 'Spine1', top, P);
+  if (fem) part(ell(0.15 * f, 0.06, 0.04).translate(0, sy + 0.07, 0.085), 'Spine1', top, P);   // soft bust line
+  // clothing details: collar, placket/zip line, hem band, belt
+  part(new THREE.TorusGeometry(0.06, 0.014, 6, 18).rotateX(Math.PI / 2).translate(0, ny - 0.005, 0.005), 'Spine1', look.collar ?? dark(top, 0.85), P);
+  if (look.jacket) { part(new THREE.BoxGeometry(0.012, 0.36, 0.01).translate(0, sy, 0.13 * f), 'Spine1', dark(top, 0.55), P); part(new THREE.BoxGeometry(0.012, 0.2, 0.01).translate(0, w.Spine[1] + 0.04, 0.11 * f), 'Spine', dark(top, 0.55), P); }
+  part(lathe([[0.152 * f, hy + 0.035], [0.152 * f, hy + 0.07]], 22).scale(1, 1, 0.73), 'Hips', look.skirt ? top : 0x2a2420, P);   // belt / waistband
+  if (look.longCoat) part(lathe([[0.17 * f, hy + 0.05], [0.2 * f, hy - 0.2], [0.23 * f, hy - 0.42]], 22).scale(1, 1, 0.8), 'Hips', top, P);
+  if (look.skirt) part(lathe([[0.15 * f, hy + 0.03], [0.22 * f, hy - 0.2], [0.27 * f, hy - 0.4]], 22).scale(1, 1, 0.85), 'Hips', top, P);
+  // --- neck & head
+  part(limb([0, ny - 0.03, 0], [0, w.Head[1] + 0.02, 0.008], 0.056, 0.05), 'Neck', skin, P, 'Head', [0, ny, 0], w.Head);
+  const H0 = w.Head[1] + 0.085, HZ = 0.018;
+  const skull = ell(0.084, 0.105, 0.097, 24, 18); { const p = skull.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i), z = p.getZ(i); if (y < 0 && z > 0) p.setX(i, p.getX(i) * (1 + y * 3.2)); } skull.computeVertexNormals(); }   // narrower jaw & chin
+  part(skull.translate(0, H0, HZ), 'Head', skin, P);
+  part(ell(0.011, 0.02, 0.012).translate(0, H0 - 0.006, HZ + 0.091), 'Head', skin, P);                                      // nose bridge
+  part(ell(0.013, 0.009, 0.01).translate(0, H0 - 0.026, HZ + 0.094), 'Head', skin, P);                                       // nose tip
+  part(ell(0.021, 0.005, 0.006).translate(0, H0 - 0.052, HZ + 0.086), 'Head', look.lips ?? dark(skin, 0.7), P);             // mouth
+  part(ell(0.026, 0.014, 0.016).translate(0, H0 - 0.078, HZ + 0.068), 'Head', skin, P);                                        // chin
+  for (const sd of [-1, 1]) {
+    part(ell(0.013, 0.008, 0.005).translate(sd * 0.031, H0 + 0.012, HZ + 0.084), 'Head', 0xf4f1ea, P);                       // eye white
+    part(ell(0.0065, 0.0065, 0.004).translate(sd * 0.031, H0 + 0.012, HZ + 0.088), 'Head', look.eyes ?? 0x3b2a1e, P);          // iris
+    part(new THREE.BoxGeometry(0.03, 0.006, 0.01).rotateZ(sd * -0.15).translate(sd * 0.034, H0 + 0.034, HZ + 0.088), 'Head', dark(hair, 0.9), P);   // eyebrow
+    part(ell(0.012, 0.024, 0.014).translate(sd * 0.083, H0, HZ - 0.005), 'Head', skin, P);                                   // ear
   }
-  if (look.skirt) part(new THREE.CylinderGeometry(0.17 * f, 0.27 * f, 0.42, 18, 1, true).translate(0, w.Hips[1] - 0.2, 0), 'Hips', top, P);
-  if (look.bag) part(new THREE.BoxGeometry(0.26, 0.32, 0.12).translate(0, w.Spine1[1] + 0.02, -0.17), 'Spine1', look.bag, P);
-  // assemble skinned geometry
-  const pos = [], nor = [], col = [], si = [], sw = [];
+  // hair styles: 0 short crop, 1 side part, 2 bob, 3 long, 4 bun, 5 bald-ish
+  const hs = look.hairStyle ?? 0, crown = (thetaLen, sx = 1.08, sy2 = 1.08, sz = 1.1) => new THREE.SphereGeometry(1, 22, 14, 0, Math.PI * 2, 0, Math.PI * thetaLen).rotateX(-0.42).scale(0.084 * sx, 0.105 * sy2, 0.097 * sz).translate(0, H0 + 0.006, HZ - 0.006);
+  if (hs !== 5) part(crown(hs >= 2 ? 0.44 : 0.38), 'Head', hair, P);
+  if (hs === 1) part(ell(0.06, 0.018, 0.035).rotateZ(0.25).translate(0.02, H0 + 0.075, HZ + 0.06), 'Head', hair, P);           // fringe swept
+  if (hs === 2) { const bob = lathe([[0.094, H0 + 0.04], [0.098, H0 - 0.03], [0.088, H0 - 0.075]], 20, ); bob.scale(1, 1, 1.05); bob.translate(0, 0, HZ - 0.02); const pp = bob.attributes.position; for (let i = 0; i < pp.count; i++) if (pp.getZ(i) > HZ + 0.03) pp.setZ(i, HZ + 0.03 - (pp.getZ(i) - HZ - 0.03) * 0.0); part(bob, 'Head', hair, P); }
+  if (hs === 3) part(limb([0, H0 + 0.02, HZ - 0.06], [0, H0 - 0.2, HZ - 0.08], 0.085, 0.06, 14, 0.6), 'Head', hair, P);
+  if (hs === 4) part(new THREE.SphereGeometry(0.045, 14, 10).translate(0, H0 + 0.07, HZ - 0.1), 'Head', hair, P);
+  if (look.glasses) for (const sd of [-1, 1]) part(new THREE.TorusGeometry(0.018, 0.0025, 4, 14).translate(sd * 0.032, H0 + 0.012, HZ + 0.097), 'Head', 0x1a1a1a, P);
+  if (look.cap) { part(crown(0.42, 1.14, 1.05, 1.14), 'Head', look.cap, P); part(ell(0.07, 0.008, 0.05).translate(0, H0 + 0.055, HZ + 0.11), 'Head', look.cap, P); }
+  // --- arms (sleeve, cuff, hand with thumb)
+  for (const sd of ['Left', 'Right']) {
+    const s = sd === 'Left' ? 1 : -1, A = w[sd + 'Arm'], F = w[sd + 'ForeArm'], Hn = w[sd + 'Hand'];
+    part(ell(0.056 * f, 0.05, 0.055).translate(A[0] - s * 0.012, A[1] - 0.012, A[2]), 'Spine1', top, P);                         // shoulder cap
+    part(limb(A, F, 0.05 * f, 0.041 * f), sd + 'Arm', top, P, sd + 'ForeArm', A, F);
+    const sleeveEnd = look.shortSleeve ? [A[0] + (F[0] - A[0]) * 0.45, A[1] + (F[1] - A[1]) * 0.45, A[2]] : null;
+    if (look.shortSleeve) { part(limb(sleeveEnd, F, 0.036, 0.035), sd + 'Arm', skin, P, sd + 'ForeArm', A, F); part(limb(F, Hn, 0.036, 0.029), sd + 'ForeArm', skin, P, sd + 'Hand', F, Hn); }
+    else { part(limb(F, Hn, 0.04, 0.034), sd + 'ForeArm', top, P, sd + 'Hand', F, Hn); part(new THREE.TorusGeometry(0.033, 0.007, 5, 14).rotateX(Math.PI / 2).translate(Hn[0], Hn[1] + 0.025, Hn[2]), sd + 'ForeArm', dark(top, 0.8), P); }
+    part(ell(0.028, 0.052, 0.014).translate(Hn[0], Hn[1] - 0.045, Hn[2]), sd + 'Hand', skin, P);                               // palm
+    part(ell(0.025, 0.035, 0.012).translate(Hn[0], Hn[1] - 0.105, Hn[2] + 0.004), sd + 'Hand', skin, P);                      // fingers
+    part(limb([Hn[0] + s * -0.0, Hn[1] - 0.02, Hn[2] + 0.018], [Hn[0], Hn[1] - 0.065, Hn[2] + 0.032], 0.009, 0.008, 8), sd + 'Hand', skin, P);   // thumb
+    // --- legs (trousers with cuff, shoe with sole and toe)
+    const U = w[sd + 'UpLeg'], K = w[sd + 'Leg'], Ft = w[sd + 'Foot'];
+    const legTop = look.skirt ? skin : bottom;
+    part(limb(U, K, (fem ? 0.084 : 0.08) * f, 0.056), sd + 'UpLeg', look.skirt && !look.tights ? skin : legTop, P, sd + 'Leg', U, K);
+    part(limb(K, Ft, 0.054, 0.04), sd + 'Leg', look.skirt ? (look.tights ?? skin) : bottom, P, sd + 'Foot', K, Ft);
+    part(ell(0.05, 0.05, 0.055).translate(K[0], K[1], K[2] + 0.01), sd + 'Leg', look.skirt ? (look.tights ?? skin) : bottom, P);   // knee
+    if (!look.skirt) part(lathe([[0.046, Ft[1] + 0.05], [0.05, Ft[1] + 0.02]], 14).translate(Ft[0], 0, Ft[2]), sd + 'Leg', dark(bottom, 0.8), P);   // trouser cuff
+    const shoe = ell(0.048, 0.042, 0.13, 16, 10); { const p = shoe.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) < -0.01) p.setY(i, -0.01); shoe.computeVertexNormals(); }
+    part(shoe.translate(Ft[0], Ft[1] - 0.035, Ft[2] + 0.055), sd + 'Foot', shoes, P);
+    part(new THREE.BoxGeometry(0.095, 0.018, 0.26).translate(Ft[0], Ft[1] - 0.052, Ft[2] + 0.055), sd + 'Foot', look.sole ?? 0xe8e4dc, P);   // sole
+  }
+  if (look.bag) { part(new THREE.BoxGeometry(0.27, 0.33, 0.12).translate(0, sy + 0.02, -0.16), 'Spine1', look.bag, P); for (const sd of [-1, 1]) part(new THREE.BoxGeometry(0.018, 0.22, 0.008).rotateX(0.2).translate(sd * 0.085, sy + 0.1, 0.115), 'Spine1', dark(look.bag, 0.8), P); }
+  if (look.scarf) part(new THREE.TorusGeometry(0.072, 0.024, 8, 18).rotateX(Math.PI / 2).translate(0, ny + 0.005, 0.005), 'Spine1', look.scarf, P);
+  // --- assemble skinned geometry; limb vertices near the child joint blend 50/50 into the child bone (smooth elbows & knees)
+  const pos = [], nor = [], col = [], si = [], sw = [], tmp = new THREE.Vector3();
   for (const p of P) {
-    const g = p.geo, c = new THREE.Color(p.color);
-    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
-    for (let i = 0; i < g.attributes.position.count; i++) { col.push(c.r, c.g, c.b); si.push(p.bone, 0, 0, 0); sw.push(1, 0, 0, 0); }
+    const g = p.geo, c = new THREE.Color(p.color), pa = g.attributes.position;
+    pos.push(...pa.array); nor.push(...g.attributes.normal.array);
+    let ax = null; if (p.child >= 0) { ax = new THREE.Vector3(p.b[0] - p.a[0], p.b[1] - p.a[1], p.b[2] - p.a[2]); }
+    const L2 = ax ? ax.lengthSq() : 1;
+    // tiny per-part tint jitter so fabric and skin don't look flat
+    for (let i = 0; i < pa.count; i++) {
+      const j = 1 + (Math.sin(i * 12.9898 + p.bone * 7.1) * 0.5) * 0.04; col.push(c.r * j, c.g * j, c.b * j);
+      let wc = 0;
+      if (ax) { tmp.fromBufferAttribute(pa, i); const t = ((tmp.x - p.a[0]) * ax.x + (tmp.y - p.a[1]) * ax.y + (tmp.z - p.a[2]) * ax.z) / L2; wc = THREE.MathUtils.smoothstep(t, 0.78, 1.12) * 0.5; }
+      if (wc > 0.001) { si.push(p.bone, p.child, 0, 0); sw.push(1 - wc, wc, 0, 0); } else { si.push(p.bone, 0, 0, 0); sw.push(1, 0, 0, 0); }
+    }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -114,12 +161,15 @@ const HAIR = [0x2a1d15, 0x4a3424, 0xb89668, 0x141414, 0x7a4b2a, 0xcfcac2, 0x8f8a
 const SHOES = [0x1a1a1a, 0x3b2618, 0xe8e6e0, 0x5a4636];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 export function randomLook() {
-  const r = Math.random();
-  return { skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair: pick(HAIR), shoes: pick(SHOES), build: 0.92 + Math.random() * 0.2,
-    longHair: r < 0.4, skirt: r < 0.15, shortSleeve: Math.random() < 0.35, longCoat: Math.random() < 0.15, cap: Math.random() < 0.1 ? pick([0x1f2a3a, 0x7a2e2a, 0xd9d3c6]) : null,
-    bag: Math.random() < 0.25 ? pick([0x3b2618, 0x1f1f22, 0x6b4a32]) : null, height: 0.92 + Math.random() * 0.14 };
+  const fem = Math.random() < 0.5, skirt = fem && Math.random() < 0.3, hair = pick(HAIR);
+  return { fem, skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair, shoes: pick(SHOES), build: (fem ? 0.9 : 0.98) + Math.random() * 0.14,
+    hairStyle: fem ? pick([2, 3, 3, 4, 1]) : pick([0, 0, 1, 1, 5]), skirt, tights: skirt && Math.random() < 0.5 ? 0x1e1e22 : null,
+    shortSleeve: Math.random() < 0.3, jacket: Math.random() < 0.4, longCoat: !skirt && Math.random() < 0.12, glasses: Math.random() < 0.2,
+    cap: Math.random() < 0.08 ? pick([0x1f2a3a, 0x7a2e2a, 0xd9d3c6]) : null, scarf: Math.random() < 0.12 ? pick([0x9a2a2a, 0xd9c7a0, 0x2b4a6b]) : null,
+    bag: Math.random() < 0.25 ? pick([0x3b2618, 0x1f1f22, 0x6b4a32]) : null, sole: pick([0xe8e4dc, 0x1a1a1a, 0x5a4636]), eyes: pick([0x3b2a1e, 0x2f4a6b, 0x4a5a3a, 0x1e1a16]),
+    height: (fem ? 0.93 : 1.0) + Math.random() * 0.1 };
 }
-export const PLAYER_LOOK = { skin: 0xe2b38f, top: 0xa8432a, bottom: 0x2b3140, hair: 0x3b2a1e, shoes: 0x1a1a1a, build: 1, shortSleeve: false, bag: 0x4a3b2c, height: 1 };
+export const PLAYER_LOOK = { skin: 0xe2b38f, top: 0xa8432a, bottom: 0x2b3140, hair: 0x3b2a1e, shoes: 0x3b2618, sole: 0xe8e4dc, build: 1, hairStyle: 1, jacket: true, scarf: 0xd9c7a0, bag: 0x4a3b2c, height: 1, eyes: 0x2f4a6b };
 
 export function createMannequin(scene, look = randomLook()) {
   const bones = {}, list = [];
@@ -127,7 +177,7 @@ export function createMannequin(scene, look = randomLook()) {
     const b = new THREE.Bone(); b.name = 'mixamorig' + n; const [p, x, y, z] = REST[n]; b.position.set(x, y, z);
     if (p) bones[p].add(b); bones[n] = b; list.push(b);
   }
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78 });
+  const mat = new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, vertexColors: true, roughness: 0.72, sheen: 0.4, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x888888) });   // sheen = soft fabric / skin rim
   const mesh = new THREE.SkinnedMesh(bodyGeometry(look), mat);
   mesh.add(bones.Hips); mesh.updateMatrixWorld(true); mesh.bind(new THREE.Skeleton(list));
   mesh.castShadow = true; mesh.frustumCulled = false;

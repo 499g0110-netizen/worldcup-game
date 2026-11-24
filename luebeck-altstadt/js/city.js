@@ -209,7 +209,8 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
         // storey band above the ground floor
         if (eave - minH > 6.5 && !brick) frameBox(wallAcc, x1, 0, z1, ux, uz, 0, L, minH + 3.1, minH + 3.26, -0.02, 0.07, corn);
       }
-      if (ridge && roofH > 2) {
+      const boxy = rectish && rectish.rect / area < 1.1;   // only near-rectangular outlines get gable dressing (irregular ones put it in mid-air)
+      if (ridge && roofH > 2 && boxy) {
         const ends = [-1, 1].map((sg) => [ridge.cx + ridge.ux * sg * ridge.len / 2, ridge.cz + ridge.uz * sg * ridge.len / 2, sg]);
         // Lübeck stepped gables ("Treppengiebel") on brick houses facing the street with their narrow side
         if (brick && ridge.wid < 17 && hash(seed * 17) < 0.8) {
@@ -332,7 +333,7 @@ export function roadSurface(r) {
   return 'pave';
 }
 export function buildRoads(data) {
-  const accs = { asphalt: new Acc(), cobble: new Acc(), pave: new Acc(), kerb: new Acc() }, C = new THREE.Color(1, 1, 1);
+  const accs = { asphalt: new Acc(), cobble: new Acc(), pave: new Acc(), kerb: new Acc(), marking: new Acc() }, C = new THREE.Color(1, 1, 1);
   const KERB = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified']);
   const order = { pave: 0.02, cobble: 0.035, asphalt: 0.05 };
   const graph = [];                       // drivable / walkable polylines for AI & bridges
@@ -369,6 +370,32 @@ export function buildRoads(data) {
         else { K.tri(f1, t3, f2, [s, 0], [s + L, ky], [s + L, 0], C); K.tri(f1, t4, t3, [s, 0], [s, ky], [s + L, ky], C); }
       }
       s += L;
+    }
+    // ---- road markings (white, per German StVO): centre line + edge lines on asphalt roads with car traffic
+    if (surf === 'asphalt' && /primary|secondary|tertiary|unclassified|residential|trunk/.test(r.k) && w >= 5.5) {
+      const Mk = accs.marking, my = y + 0.008, oneway = r.o === 'yes' || r.o === '-1';
+      const major = /primary|secondary|trunk/.test(r.k);
+      const strip = (lat, hw, dash, gap) => {   // lat = lateral offset (m), hw = half width, dash/gap in metres (0 = solid)
+        let s2 = 0;
+        for (let i = 0; i < n - 1; i++) {
+          const x1 = p[2 * i], z1 = p[2 * i + 1], x2 = p[2 * i + 2], z2 = p[2 * i + 3], L = Math.hypot(x2 - x1, z2 - z1); if (L < 0.01) continue;
+          const ux = (x2 - x1) / L, uz = (z2 - z1) / L, nx = -uz, nz = ux;
+          const seg = (a0, a1) => {
+            const P1 = [x1 + ux * a0 + nx * (lat - hw), my, z1 + uz * a0 + nz * (lat - hw)], P2 = [x1 + ux * a1 + nx * (lat - hw), my, z1 + uz * a1 + nz * (lat - hw)];
+            const P3 = [x1 + ux * a1 + nx * (lat + hw), my, z1 + uz * a1 + nz * (lat + hw)], P4 = [x1 + ux * a0 + nx * (lat + hw), my, z1 + uz * a0 + nz * (lat + hw)];
+            const up = ((P2[2] - P1[2]) * (P3[0] - P1[0]) - (P2[0] - P1[0]) * (P3[2] - P1[2])) > 0;
+            if (up) { Mk.tri(P1, P2, P3, [0, 0], [1, 0], [1, 1], C); Mk.tri(P1, P3, P4, [0, 0], [1, 1], [0, 1], C); } else { Mk.tri(P1, P3, P2, [0, 0], [1, 1], [1, 0], C); Mk.tri(P1, P4, P3, [0, 0], [0, 1], [1, 1], C); }
+          };
+          if (!dash) seg(0, L);
+          else { const per = dash + gap; let a0 = (per - (s2 % per)) % per - per; for (; a0 < L; a0 += per) { const b0 = Math.max(0, a0), b1 = Math.min(L, a0 + dash); if (b1 > b0) seg(b0, b1); } }
+          s2 += L;
+        }
+      };
+      if (!oneway) {
+        if (major && w >= 9) { strip(0.12, 0.06, 0, 0); strip(-0.12, 0.06, 0, 0); }      // double solid (Doppelte durchgezogene Linie)
+        else strip(0, 0.06, 3, 6);                                                             // Leitlinie: 3 m dash, 6 m gap
+      }
+      if (major) for (const sd of [1, -1]) strip(sd * (w / 2 - 0.45), 0.08, 0, 0);            // solid edge lines (Fahrbahnbegrenzung)
     }
     graph.push({ p, w, k: r.k, b: r.b, n: r.n, surf });
   }

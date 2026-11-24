@@ -64,6 +64,11 @@ export function makeFacade(base) {
         diffuseColor.rgb = mix(diffuseColor.rgb, winCol, inWin);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16,0.12,0.09), isDoor);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, vous);
+        // rain streaks running down from each window sill, and a darker weathered band under the eaves
+        float under = step(0.33, bu) * step(bu, 0.67) * (1.0 - step(0.27, fv)) * vWall.y * step(0.5, style);
+        float drip = hash12(vec2(floor(bu * 18.0), bayI)) * smoothstep(0.27, 0.0, fv);
+        diffuseColor.rgb *= 1.0 - under * drip * 0.22;
+        diffuseColor.rgb *= 1.0 - 0.1 * smoothstep(vWall.z - 1.2, vWall.z, vM.y) * step(0.5, vWall.y);
         // plinth and street grime
         float plinth = 1.0 - step(0.55, vM.y);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.38,0.37,0.36), plinth * (1.0 - hole));
@@ -98,6 +103,7 @@ export function makeMaterials(dir = 'assets/tex') {
   M.wood = pbr('dark_wooden_planks', 1.2);
   M.quay = pbr('granite_tile', 2.0, { color: 0xb9b2a8 });
   M.kerb = pbr('granite_tile', 0.9, { color: 0xc8c4bd });
+  M.marking = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });   // thermoplastic road paint
   for (const k of ['cobble', 'asphalt', 'pave']) { M[k].polygonOffset = true; M[k].polygonOffsetFactor = -1 - (k === 'asphalt' ? 2 : k === 'cobble' ? 1 : 0); M[k].polygonOffsetUnits = -1; }
   M.grass.polygonOffset = true; M.grass.polygonOffsetFactor = -0.5;
   M.water = new THREE.MeshPhysicalMaterial({ color: 0x1c3236, roughness: 0.04, metalness: 0, envMapIntensity: 1.0, ior: 1.33, normalScale: new THREE.Vector2(0.35, 0.35) });
