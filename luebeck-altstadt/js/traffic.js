@@ -50,8 +50,8 @@ export class Traffic {
   constructor(scene, roads, { touch, isFree }) {
     this.scene = scene; this.roads = roads; this.isFree = isFree;
     this.R = touch ? 110 : 180;
-    this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1 } : { ped: 24, car: 12, bike: 6, bus: 3 };
-    this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [] };
+    this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1, group: 3, bench: 3 } : { ped: 24, car: 12, bike: 6, bus: 3, group: 7, bench: 7 };
+    this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [] };
     this.ends = new Map(); this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }
   setHuman(h) { this.human = h; }
@@ -66,12 +66,29 @@ export class Traffic {
       }
     }
   }
-  allowed(kind, r) { return kind === 'bus' ? BUS_ROADS.has(r.k) && !r.b : kind === 'car' ? CAR_ROADS.has(r.k) && !r.b : kind === 'bike' ? BIKE_ROADS.has(r.k) : !NO_WALK.has(r.k); }
+  allowed(kind, r) { if (kind === 'group' || kind === 'bench') return ['pedestrian', 'living_street', 'footway', 'residential'].includes(r.k) && !r.b;
+    return kind === 'bus' ? BUS_ROADS.has(r.k) && !r.b : kind === 'car' ? CAR_ROADS.has(r.k) && !r.b : kind === 'bike' ? BIKE_ROADS.has(r.k) : !NO_WALK.has(r.k); }
 
   /* ---- construction (pooled) ---- */
   make(kind) {
     const pooled = this.pool[kind].pop(); if (pooled) { pooled.obj.visible = true; return pooled; }
     if (kind === 'bus') { const b = makeBus(this.scene); return { kind, obj: b.g, bus: b }; }
+    if (kind === 'group') {   // 2–3 people standing and talking
+      const obj = new THREE.Group(); this.scene.add(obj); const n = 2 + (Math.random() < 0.4 ? 1 : 0), people = [];
+      for (let i = 0; i < n; i++) { const h = createMannequin(this.scene); h.root.removeFromParent(); obj.add(h.root); const a = Math.PI / 2 + i / n * Math.PI * 2; h.root.position.set(Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6); h.root.rotation.y = a + Math.PI; h.talk = Math.random() * 6; people.push(h); }
+      return { kind, obj, people };
+    }
+    if (kind === 'bench') {   // wooden park bench with one or two people sitting
+      const obj = new THREE.Group(); this.scene.add(obj);
+      const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.75 }), iron = new THREE.MeshStandardMaterial({ color: 0x1f2326, roughness: 0.5, metalness: 0.6 });
+      for (let k = 0; k < 3; k++) { const sl = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 0.12), wood); sl.position.set(0, 0.45, -0.14 + k * 0.14); obj.add(sl); }
+      for (let k = 0; k < 2; k++) { const bk = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.03), wood); bk.position.set(0, 0.6 + k * 0.16, -0.26); bk.rotation.x = -0.15; obj.add(bk); }
+      for (const x of [-0.8, 0.8]) { const lg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.45, 0.45), iron); lg.position.set(x, 0.225, -0.05); obj.add(lg); }
+      obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      const people = []; const n = Math.random() < 0.5 ? 2 : 1;
+      for (let i = 0; i < n; i++) { const h = createMannequin(this.scene); h.root.removeFromParent(); obj.add(h.root); h.seatX = n === 1 ? 0 : (i ? 0.45 : -0.45); h.talk = Math.random() * 6; people.push(h); }
+      return { kind, obj, people };
+    }
     if (kind === 'car') {
       const c = makeCar(this.scene); const col = pick(PAINT);
       c.body.traverse((o) => { if (o.isMesh && o.material.clearcoat === 1 && o.material.metalness === 0.6) o.material.color.setHex(col); });
@@ -94,6 +111,12 @@ export class Traffic {
     for (let tries = 0; tries < 6; tries++) {
       const r = pick(cand), s = rnd(0, r.len), p = along(r, s), d = Math.hypot(p.x - px, p.z - pz);
       if (d < 35 || d > this.R) continue;        // never pop in right next to the player
+      if (kind === 'group' || kind === 'bench') {
+        const a = this.make(kind), w = r.w || 5, off = Math.max(1.2, w / 2 - (kind === 'bench' ? 0.6 : 1.0)) * (Math.random() < 0.5 ? -1 : 1);
+        a.x = p.x - p.dz * off; a.z = p.z + p.dx * off; a.yaw = Math.atan2(p.dx, p.dz) + (off > 0 ? -Math.PI / 2 : Math.PI / 2); a.v = 0; a.static = true;
+        if (this.isFree && !this.isFree(a.x, a.z)) { this.release(a); continue; }
+        a.obj.position.set(a.x, 0, a.z); a.obj.rotation.y = a.yaw; a.obj.visible = true; this.agents.push(a); return;
+      }
       const a = this.make(kind);
       Object.assign(a, { r, s, dir: Math.random() < 0.5 ? 1 : -1, v: 0, x: p.x, z: p.z, yaw: 0,
         vmax: kind === 'bus' ? rnd(6, 7.5) : kind === 'car' ? rnd(6, 9) : kind === 'bike' ? rnd(3.5, 5.2) : rnd(1.1, 1.5),
@@ -127,12 +150,21 @@ export class Traffic {
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
       this.spawnT = 0.4;
-      const count = { ped: 0, car: 0, bike: 0, bus: 0 }; for (const a of this.agents) count[a.kind]++;
-      for (const k of ['ped', 'car', 'bike', 'bus']) if (count[k] < this.want[k]) { this.spawn(k, px, pz); break; }
+      const count = { ped: 0, car: 0, bike: 0, bus: 0, group: 0, bench: 0 }; for (const a of this.agents) count[a.kind]++;
+      for (const k of ['ped', 'group', 'bench', 'car', 'bike', 'bus']) if (count[k] < this.want[k]) { this.spawn(k, px, pz); break; }
     }
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
       if (Math.hypot(a.x - px, a.z - pz) > this.R + 40) { this.release(a); this.agents.splice(i, 1); continue; }
+      if (a.static) {
+        const far = Math.hypot(a.x - px, a.z - pz) > 70; if (far && (frame + i) % 4) continue;
+        for (const h of a.people) {
+          h.talk += dt; const gest = Math.max(0, Math.sin(h.talk * 0.9)) ** 3;
+          if (a.kind === 'bench') this.sit(h, a.obj, dt * (far ? 4 : 1));
+          else { h.mixer.update(dt * (far ? 4 : 1)); if (h.bones.RightForeArm) { h.bones.RightForeArm.rotation.x -= gest * 0.9; h.bones.RightArm.rotation.x -= gest * 0.35; } h.bones.Head.rotation.y += Math.sin(h.talk * 0.7) * 0.25; }
+        }
+        continue;
+      }
       // look ahead: player, the player's vehicle, other agents
       const hx = Math.sin(a.yaw), hz = Math.cos(a.yaw), look = a.kind === 'bus' ? 12 : a.kind === 'car' ? 7 : a.kind === 'bike' ? 4 : 1.4;
       let blocked = false;
@@ -181,10 +213,23 @@ export class Traffic {
     twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, ped[1], knee(-1)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, ped[0], knee(1));
     twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, grip[1], elb(-1)); twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, grip[0], elb(1));
   }
+  sit(h, bench, dt) {
+    h.mixer.update(dt); h.A.idle.setEffectiveWeight(1); h.A.walk.setEffectiveWeight(0); h.A.run.setEffectiveWeight(0);
+    const B = h.bones; h.root.position.set(0, 0, 0); h.root.rotation.set(0, 0, 0); bench.updateMatrixWorld(true);
+    const seat = bench.localToWorld(new THREE.Vector3(h.seatX, 0.5, -0.04)); h.root.updateMatrixWorld(true);
+    const hipsW = B.Hips.getWorldPosition(new THREE.Vector3()), local = h.root.worldToLocal(seat.clone()), hl = h.root.worldToLocal(hipsW.clone());
+    h.root.position.add(local.sub(hl)); h.root.updateMatrixWorld(true);
+    const L = (x, y, z) => bench.localToWorld(new THREE.Vector3(h.seatX + x, y, z));
+    twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, L(0.12, 0.08, 0.42), L(0.14, 0.9, 1.5));
+    twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, L(-0.12, 0.08, 0.42), L(-0.14, 0.9, 1.5));
+    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, L(0.18, 0.55, 0.22), L(0.6, 0.6, -0.3));
+    twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, L(-0.18, 0.55, 0.22), L(-0.6, 0.6, -0.3));
+    B.Head.rotation.y = Math.sin(h.talk * 0.5) * 0.4; B.Head.updateMatrixWorld(true);
+  }
   // keep the walking player out of pedestrians and parked/moving vehicles
   pushPlayer(x, z, rad) {
     for (const a of this.agents) {
-      const r = a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : 0;
+      const r = a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : a.kind === 'group' ? 0.9 : a.kind === 'bench' ? 0.95 : 0;
       if (r) { const dx = x - a.x, dz = z - a.z, d = Math.hypot(dx, dz), m = r + rad; if (d < m && d > 1e-6) { x = a.x + dx / d * m; z = a.z + dz / d * m; } continue; }
       const co = Math.cos(a.yaw), si = Math.sin(a.yaw), dx = x - a.x, dz = z - a.z;
       let lx = dx * co - dz * si, lz = dx * si + dz * co; const hx = (a.kind === 'bus' ? 1.3 : 0.95) + rad, hz = (a.kind === 'bus' ? 6.1 : 2.1) + rad;
@@ -192,5 +237,5 @@ export class Traffic {
     }
     return [x, z];
   }
-  hitsVehicle(x, z, rad) { for (const a of this.agents) if (a.kind !== 'ped' && Math.hypot(x - a.x, z - a.z) < rad + (a.kind === 'bus' ? 4.5 : 0)) return true; return false; }
+  hitsVehicle(x, z, rad) { for (const a of this.agents) if (a.kind !== 'ped' && !a.static && Math.hypot(x - a.x, z - a.z) < rad + (a.kind === 'bus' ? 4.5 : 0)) return true; return false; }
 }

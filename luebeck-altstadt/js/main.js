@@ -14,6 +14,7 @@ import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './act
 import { InfoCards } from './ui.js';
 import { Traffic } from './traffic.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
+import { makeEagle } from './eagle.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -306,7 +307,7 @@ async function loadTile(k) {
     await addTileToScene(t);
   } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
 }
-function queueAround(x, z) { for (const k of tilesAround(x, z, STREAM_R)) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
+function queueAround(x, z) { for (const k of tilesAround(x, z, P.mode === 'eagle' ? STREAM_R * 1.8 : STREAM_R)) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
 async function pumpTiles() {
   if (streaming) return; streaming = true;
   while (tileQueue.length) {
@@ -386,7 +387,7 @@ if (!TOUCH && qName !== 'low' && !refMode) {
     .catch((err) => { $('#charload').textContent = ''; console.warn('detailed character not loaded, keeping the built-in one', err); }), 4000);
 }
 function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
-const traffic = new Traffic(scene, roads, { touch: TOUCH });
+const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) });
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
@@ -419,7 +420,7 @@ addEventListener('keydown', (e) => {
   if (e.target.closest?.('input,select,textarea')) return;
   const k = e.key.toLowerCase(); keys.add(k);
   if (!started) return;
-  if (k === 'e') interact(); else if (k === 't') { timeIdx = (timeIdx + 1) % TIMES.length; applyTime(timeIdx); }
+  if (k === 'e') interact(); else if (k === 'f') callEagle(); else if (k === 't') { timeIdx = (timeIdx + 1) % TIMES.length; applyTime(timeIdx); }
   else if (k === 'v') { firstPerson = !firstPerson; } else if (k === 'f3') { $('#perf').hidden = !$('#perf').hidden; e.preventDefault(); }
   if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
 });
@@ -444,6 +445,7 @@ for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, (e)
 $('#bAct').addEventListener('click', () => interact());
 $('#bTime').addEventListener('click', () => { timeIdx = (timeIdx + 1) % TIMES.length; applyTime(timeIdx); });
 $('#bView').addEventListener('click', () => { firstPerson = !firstPerson; });
+$('#bEagle').addEventListener('click', () => callEagle());
 $('#qSel').value = qName;
 $('#qSel').addEventListener('change', (e) => { try { localStorage.setItem('lub-q', e.target.value); } catch { /* storage blocked */ } const u = new URL(location.href); u.searchParams.set('q', e.target.value); location.href = u.toString(); });
 
@@ -458,6 +460,8 @@ function inputVec() {
 /* ------------------------------------------------------------ mode switching */
 const prompt = $('#prompt');
 function interact() {
+  if (P.mode === 'eagle') { landEagle(); return; }
+  if (P.mode === 'walk' && eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9) { P.mode = 'eagleMount'; P.t = 0; P.from = { x: P.x, z: P.z }; return; }
   if (P.mode === 'walk') {
     const dBike = Math.hypot(P.x - bike.x, P.z - bike.z);
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
@@ -606,12 +610,97 @@ function transitionStep(dt) {
   }
 }
 
+
+/* ------------------------------------------------------------ black eagle: call (F), ride, land (E) */
+const eagle = makeEagle(scene);
+function callEagle() {
+  if (P.mode !== 'walk' || eagle.state !== 'hidden') { if (eagle.state !== 'hidden' && P.mode === 'walk') toast('黑鷹已經在路上了'); return; }
+  const a = P.yaw + 0.6, sx = P.x + Math.sin(a) * 220, sz = P.z + Math.cos(a) * 220;
+  Object.assign(eagle, { state: 'arrive', t: 0, from: { x: sx, y: 90, z: sz }, x: sx, y: 90, z: sz, pitch: 0, bank: 0, v: 0 });
+  eagle.g.visible = true; toast('黑鷹正在飛來…');
+}
+const eagleSide = () => ({ x: P.x + Math.cos(P.yaw) * 3.2, z: P.z - Math.sin(P.yaw) * 3.2 });   // lands at the player's right
+function eagleStep(dt) {
+  const E = eagle;
+  if (E.state === 'hidden') return;
+  if (E.state === 'arrive') {
+    E.t += dt / 6; const k = Math.min(1, E.t), T = eagleSide(), e = 1 - (1 - k) ** 2;
+    const nx = THREE.MathUtils.lerp(E.from.x, T.x, e), nz = THREE.MathUtils.lerp(E.from.z, T.z, e), ny = E.from.y * (1 - k) ** 1.6;
+    if (Math.hypot(nx - E.x, nz - E.z) > 0.01) E.yaw = Math.atan2(nx - E.x, nz - E.z);
+    E.pitch = k < 0.85 ? 0.15 : -0.35 * (k - 0.85) / 0.15; E.x = nx; E.y = ny; E.z = nz;
+    E.animate(dt, k > 0.82 ? 1 : 0.35, THREE.MathUtils.clamp((k - 0.7) / 0.3, 0, 1));
+    if (k >= 1) { E.state = 'perched'; E.pitch = 0; E.yaw = P.yaw; toast('按 E 或「上／下車」騎上黑鷹'); }
+  } else if (E.state === 'perched') {
+    E.animate(dt, 0.02, 1, 0.4);
+  } else if (E.state === 'land') {
+    E.t += dt / E.dur; const k = Math.min(1, E.t), e = k * k * (3 - 2 * k);
+    E.x = THREE.MathUtils.lerp(E.from.x, E.to.x, e); E.z = THREE.MathUtils.lerp(E.from.z, E.to.z, e); E.y = E.from.y * (1 - e);
+    E.pitch = -0.25 * Math.sin(k * Math.PI); E.bank *= 0.95; E.v = 12 * (1 - k);
+    E.animate(dt, k > 0.7 ? 1 : 0.3, THREE.MathUtils.clamp((k - 0.6) / 0.4, 0, 1));
+    if (k >= 1) {   // touchdown: rider steps off to the eagle's left, eagle leaves
+      const sx = E.x - Math.cos(E.yaw) * 2.6, sz = E.z + Math.sin(E.yaw) * 2.6;
+      Object.assign(P, { x: sx, z: sz, y: 0, yaw: E.yaw, speed: 0, mode: 'walk' }); H.root.rotation.set(0, P.yaw, 0);
+      E.state = 'leave'; E.t = 0;
+    }
+  } else if (E.state === 'leave') {
+    E.t += dt; E.v = Math.min(24, 6 + E.t * 6); E.pitch = -0.3; E.y += (4 + E.t * 2) * dt;
+    E.x += Math.sin(E.yaw) * E.v * dt; E.z += Math.cos(E.yaw) * E.v * dt; E.animate(dt, 1, Math.max(0, 1 - E.t));
+    if (E.t > 9) { E.state = 'hidden'; E.g.visible = false; }
+  }
+  if (E.state !== 'fly') E.place();
+}
+function eagleMountStep(dt) {
+  P.t += dt; const k = Math.min(1, P.t / 0.9), T = { x: eagle.x + Math.cos(eagle.yaw) * -1.6, z: eagle.z - Math.sin(eagle.yaw) * -1.6 };
+  P.x = THREE.MathUtils.lerp(P.from.x, T.x, k); P.z = THREE.MathUtils.lerp(P.from.z, T.z, k);
+  H.root.position.set(P.x, 0, P.z); H.root.rotation.set(0, eagle.yaw, 0); updateLocomotion(H, 1.2, dt);
+  if (k >= 1) { P.mode = 'eagle'; Object.assign(eagle, { state: 'fly', v: 9, vy: 7 }); }
+}
+function flyStep(dt) {
+  const E = eagle, [ix, iz] = inputVec(), boost = keys.has('shift'), slow = keys.has(' ');
+  const vT = slow ? 9 : boost ? 38 : 20; E.v += (vT - E.v) * (1 - Math.exp(-dt * 1.1));
+  E.bank += (ix * 0.6 - E.bank) * (1 - Math.exp(-dt * 3));
+  E.yaw -= E.bank * 1.15 * dt * Math.sqrt(E.v / 20);
+  let vyT = iz * 11; if (E.y < 12) vyT = Math.max(vyT, 6);   // take-off assist
+  E.vy += (vyT - E.vy) * (1 - Math.exp(-dt * 2));
+  if (insideBuilding(E.x + Math.sin(E.yaw) * 8, E.z + Math.cos(E.yaw) * 8, E.y - 4)) E.vy = Math.max(E.vy, 9);   // pull up over roofs
+  E.y = THREE.MathUtils.clamp(E.y + E.vy * dt, 4, 420);
+  E.x = THREE.MathUtils.clamp(E.x + Math.sin(E.yaw) * E.v * dt, -2300, 2300); E.z = THREE.MathUtils.clamp(E.z + Math.cos(E.yaw) * E.v * dt, -2300, 2300);
+  E.pitch = -Math.atan2(E.vy, Math.max(6, E.v)) * 0.8;
+  const flap = E.vy > 2 || E.v < 14 ? 1 : boost ? 0.6 : 0.18 + 0.2 * Math.max(0, Math.sin(simT * 0.4));
+  E.animate(dt, flap, 0); E.place();
+}
+function landEagle() {
+  const E = eagle; if (E.state !== 'fly') return;
+  // prefer the nearest street ahead (streets are open ground in the dense old town), else any free spot
+  { const ax = E.x + Math.sin(E.yaw) * Math.max(15, E.y * 0.8), az = E.z + Math.cos(E.yaw) * Math.max(15, E.y * 0.8);
+    const r = nearestRoadPoint(ax, az, ['pedestrian', 'living_street', 'residential', 'tertiary', 'secondary', 'primary', 'unclassified', 'service', 'footway']);
+    if (r && Math.hypot(r.x - ax, r.z - az) < 160 && !insideBuilding(r.x, r.z) && walkableC(r.x, r.z)) {
+      Object.assign(E, { state: 'land', t: 0, dur: Math.max(3, Math.min(10, Math.hypot(r.x - E.x, r.z - E.z, E.y) / 10)), from: { x: E.x, y: E.y, z: E.z }, to: { x: r.x, z: r.z } });
+      E.yaw = Math.atan2(r.x - E.x, r.z - E.z); return;
+    } }
+  for (const ahead of [Math.max(15, E.y * 1.2), 10, 0, 30, 50]) for (const side of [0, 8, -8, 16, -16]) {
+    const tx = E.x + Math.sin(E.yaw) * ahead + Math.cos(E.yaw) * side, tz = E.z + Math.cos(E.yaw) * ahead - Math.sin(E.yaw) * side;
+    let ok = walkableC(tx, tz); for (const [ox, oz] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]]) if (ok && insideBuilding(tx + ox, tz + oz)) ok = false;
+    if (ok) { Object.assign(E, { state: 'land', t: 0, dur: Math.max(3, Math.min(9, Math.hypot(ahead, E.y) / 9)), from: { x: E.x, y: E.y, z: E.z }, to: { x: tx, z: tz } }); return; }
+  }
+  toast('下面沒有可以降落的空地，再飛一段試試');
+}
+function poseOnEagle(dt) {
+  H.mixer.update(dt); for (const k of ['idle', 'walk', 'run']) H.A[k].setEffectiveWeight(k === 'idle' ? 1 : 0);
+  const g = eagle.g; g.updateMatrixWorld(true);
+  const seatW = g.localToWorld(eagle.seat.clone());
+  const L = (x, y, z) => g.localToWorld(new THREE.Vector3(x, y, z));
+  seatHuman(seatW, eagle.yaw, [L(0.85, 0.15, 0.7), L(-0.85, 0.15, 0.7)], [L(0.22, 1.05, 1.9), L(-0.22, 1.05, 1.9)],
+    [L(1.8, 0.8, 2.2), L(-1.8, 0.8, 2.2)], [L(1.5, 0.5, 0.6), L(-1.5, 0.5, 0.6)], eagle.bank);
+}
+
 /* ------------------------------------------------------------ camera */
 const camPos = new THREE.Vector3(), headV = new THREE.Vector3(), camLook = new THREE.Vector3();
 function camOccluded(x, y, z) { return y < 0.25 || insideBuilding(x, z, y); }
 function updateCamera(dt) {
   let fx = P.x, fz = P.z, fy = 1.55, dist = camDist, yawFollow = P.yaw, follow = P.speed > 0.5;
   if (P.mode === 'bike' || P.mode === 'dismountBike') { fx = bike.x; fz = bike.z; fy = 1.6; dist = Math.max(camDist, 4.2); yawFollow = bike.yaw; follow = Math.abs(bike.v) > 0.5; }
+  if (P.mode === 'eagle' || P.mode === 'eagleMount') { fx = eagle.x; fz = eagle.z; fy = eagle.y + 2.2; dist = Math.max(camDist, 13); yawFollow = eagle.yaw; follow = true; }
   if (P.mode === 'car' || P.mode === 'exitCar') { fx = car.x; fz = car.z; fy = 1.5; dist = Math.max(camDist, 7.0); yawFollow = car.yaw; follow = Math.abs(car.v) > 0.5; }
   if (follow && !drag && look.id === null) { let d = (yawFollow + Math.PI) - camYaw; d = Math.atan2(Math.sin(d), Math.cos(d)); camYaw += d * (1 - Math.exp(-dt * (P.mode === 'walk' ? 1.2 : 2.5))); }
   headV.set(fx, fy, fz);
@@ -626,13 +715,13 @@ function updateCamera(dt) {
 }
 
 /* ------------------------------------------------------------ UI: info cards, minimap, perf */
-const cards = new InfoCards(LM.landmarks, { getMode: () => P.mode, getSpeed: () => (P.mode === 'car' ? car.v : P.mode === 'bike' ? bike.v : P.speed) });
+const cards = new InfoCards(LM.landmarks, { getMode: () => P.mode, getSpeed: () => (P.mode === 'eagle' ? eagle.v : P.mode === 'car' ? car.v : P.mode === 'bike' ? bike.v : P.speed) });
 const mini = $('#mini'), mctx = mini.getContext('2d');
 function drawMini() {
   const W = mini.width, span = 380 * MAP.k;
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
   for (const l of LM.landmarks) { const sx = (MAP.X(l.local_xz_m[0]) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(l.local_xz_m[1]) - MAP.Z(P.z)) / span * W + W / 2; if (sx < 0 || sy < 0 || sx > W || sy > W) continue; mctx.fillStyle = '#a8432a'; mctx.beginPath(); mctx.arc(sx, sy, 5, 0, 7); mctx.fill(); }
-  const vy = P.mode === 'car' ? car.yaw : P.mode === 'bike' ? bike.yaw : P.yaw;
+  const vy = P.mode === 'eagle' ? eagle.yaw : P.mode === 'car' ? car.yaw : P.mode === 'bike' ? bike.yaw : P.yaw;
   mctx.save(); mctx.translate(W / 2, W / 2); mctx.rotate(-vy + Math.PI); mctx.fillStyle = '#1d1a17'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3;
   mctx.beginPath(); mctx.moveTo(0, -14); mctx.lineTo(10, 11); mctx.lineTo(0, 5); mctx.lineTo(-10, 11); mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
 }
@@ -647,12 +736,16 @@ function frame() {
     if (P.mode === 'walk') walkStep(dt);
     else if (P.mode === 'bike') { bikeStep(dt); poseOnBike(dt); }
     else if (P.mode === 'car') { carStep(dt); poseInCar(dt); }
+    else if (P.mode === 'eagle') { flyStep(dt); poseOnEagle(dt); }
+    else if (P.mode === 'eagleMount') eagleMountStep(dt);
     else transitionStep(dt);
+    eagleStep(dt);
   } else { H.root.position.set(P.x, 0, P.z); H.root.rotation.set(0, P.yaw, 0); updateLocomotion(H, 0, dt); }
   if (window.__freeCam) { const f = window.__freeCam; camera.position.set(...f.pos); camera.lookAt(...f.look); if (f.fov && camera.fov !== f.fov) { camera.fov = f.fov; camera.updateProjectionMatrix(); } }
   else if (refMode) { camera.position.copy(hero.refCam.pos); camera.lookAt(hero.refCam.look); }
   else updateCamera(dt);
-  const fx = P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
+  const fx = P.mode === 'eagle' ? eagle.x : P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'eagle' ? eagle.z : P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
+  { const sb = P.mode === 'eagle' ? Q.shadowBox * 3 : Q.shadowBox, sc = sun.shadow.camera; if (sc.right !== sb) { sc.left = -sb; sc.right = sb; sc.top = sb; sc.bottom = -sb; sc.updateProjectionMatrix(); } }
   windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
   P.vx = fx; P.vz = fz; if (!refMode) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
   sun.position.set(camera.position.x + sunDir.x * 300, sunDir.y * 300, camera.position.z + sunDir.z * 300); sun.target.position.set(camera.position.x, 0, camera.position.z);
@@ -664,6 +757,7 @@ function frame() {
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
     const nb = Math.hypot(P.x - bike.x, P.z - bike.z) < 2.2, nc = Math.hypot(P.x - door.x, P.z - door.z) < 2.0;
     prompt.textContent = nb ? 'E　騎上腳踏車' : nc ? 'E　坐進駕駛座' : ''; prompt.hidden = !(nb || nc);
+  } else if (P.mode === 'eagle') { prompt.textContent = eagle.state === 'land' ? '降落中…' : `高度 ${Math.round(eagle.y)} m · ${Math.round(eagle.v * 3.6)} km/h　·　W/S 爬升／下降　A/D 轉彎　Shift 加速　空白 減速　E 降落`; prompt.hidden = false;
   } else if (P.mode === 'bike') { prompt.textContent = `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　W 踩踏　S 煞車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else if (P.mode === 'car') { prompt.textContent = `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else prompt.hidden = true;
@@ -687,10 +781,11 @@ requestAnimationFrame(frame);
 const go = $('#go'); go.disabled = false; go.focus();
 go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); canvas.focus(); });
 window.__lub = {
+  eagle, callEagle,
   start: () => { started = true; $('#intro').classList.add('off'); }, P, bike, car, hero, keys, interact, traffic,
   teleport: (x, z, yaw) => { P.x = x; P.z = z; if (yaw !== undefined) { P.yaw = yaw; camYaw = yaw + Math.PI; } camera.userData.init = false; },
   setCam: (y, p, d) => { camYaw = y; camPitch = p; camDist = d; camera.userData.init = false; },
   setTime: (i) => { timeIdx = i; applyTime(i); }, landmarks: LMby,
   // deterministic test hook: advance the simulation by `sec` seconds at 60 Hz without rendering
-  simulate: (sec, held = []) => { for (const k of held) keys.add(k); for (let t = 0; t < sec; t += 1 / 60) { const dt = 1 / 60; if (P.mode === 'walk') walkStep(dt); else if (P.mode === 'bike') { bikeStep(dt); poseOnBike(dt); } else if (P.mode === 'car') { carStep(dt); poseInCar(dt); } else transitionStep(dt); } for (const k of held) keys.delete(k); },
+  simulate: (sec, held = []) => { for (const k of held) keys.add(k); for (let t = 0; t < sec; t += 1 / 60) { const dt = 1 / 60; if (P.mode === 'walk') walkStep(dt); else if (P.mode === 'bike') { bikeStep(dt); poseOnBike(dt); } else if (P.mode === 'car') { carStep(dt); poseInCar(dt); } else if (P.mode === 'eagle') { flyStep(dt); poseOnEagle(dt); } else if (P.mode === 'eagleMount') eagleMountStep(dt); else transitionStep(dt); eagleStep(dt); } for (const k of held) keys.delete(k); },
 };

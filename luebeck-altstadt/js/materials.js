@@ -82,6 +82,8 @@ export function makeMaterials(dir = 'assets/tex') {
   const M = {};
   M.brick = makeFacade(pbr('red_brick_03', 1.6, { normalStrength: 1.2 }));
   M.plaster = makeFacade(pbr('plastered_wall_04', 2.5, { normalStrength: 0.8 }));
+  // some OSM outlines are wound inconsistently; render facades from both sides so no wall goes missing
+  M.brick.side = THREE.DoubleSide; M.plaster.side = THREE.DoubleSide;
   M.roof_tile = pbr('clay_roof_tiles_02', 1.8, { vertexColors: true });
   M.roof_slate = pbr('roof_slates_02', 2.0, { color: 0x8a8f96 });
   M.roof_copper = pbr('green_metal_rust', 3.0, { color: 0x9fd8c0, metalness: 0.35, roughness: 0.9 });
