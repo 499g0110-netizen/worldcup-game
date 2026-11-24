@@ -29,9 +29,13 @@ export function twoBoneIK(upper, lower, end, target, pole) {
 }
 
 /* ------------------------------------------------------------------ human */
-export async function loadHuman(scene) {
+export async function loadHuman(scene, onProgress) {
   const gl = new GLTFLoader();
-  const [body, anim] = await Promise.all([gl.loadAsync('assets/models/Michelle.gltf.json'), gl.loadAsync('assets/models/Soldier.gltf.json')]);
+  // character mesh (Michelle) + compact animation table extracted from Soldier (Idle/Walk/Run rotations only, ~0.2 MB)
+  const [body, animData] = await Promise.all([
+    gl.loadAsync('assets/models/Michelle.gltf.json', (e) => onProgress?.(e.loaded, e.total || 3470010)),
+    fetch('assets/models/anims.json').then((r) => { if (!r.ok) throw new Error('anims.json ' + r.status); return r.json(); }),
+  ]);
   const model = body.scene;
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material) { o.material.roughness = 0.75; o.material.metalness = 0; } } });
   // normalise height to 1.68 m
@@ -39,16 +43,14 @@ export async function loadHuman(scene) {
   model.scale.multiplyScalar(1.68 / h);
   const root = new THREE.Group(); root.add(model); scene.add(root);
   const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name.replace('mixamorig', '')] = o; });
-  // retarget Soldier clips by bone name; drop translation tracks (different rig scale) — in-place locomotion
-  // Both rigs are Mixamo-standard (same bone names, same bind orientation): local quaternion tracks transfer directly.
-  // Translation tracks are dropped (rig scales differ) — locomotion is in place, root motion comes from the controller.
+  // Both rigs are Mixamo-standard (same bone names and bind orientation): local quaternion tracks transfer directly.
+  // Hips and translations are left out (armature root differs; locomotion is in place, motion comes from the controller).
   const clips = {};
-  for (const c of anim.animations) { const cl = c.clone(); cl.tracks = cl.tracks.filter((t) => t.name.endsWith('.quaternion') && !/Hips\./.test(t.name)); /* hips orientation differs between the two armatures: keep Michelle's */ clips[c.name] = cl; }
+  for (const [name, tracks] of Object.entries(animData)) clips[name] = new THREE.AnimationClip(name, -1, tracks.map(([bone, t, v]) => new THREE.QuaternionKeyframeTrack(bone + '.quaternion', t, v)));
   const mixer = new THREE.AnimationMixer(model);
   const A = { idle: mixer.clipAction(clips.Idle), walk: mixer.clipAction(clips.Walk), run: mixer.clipAction(clips.Run) };
   for (const a of Object.values(A)) { a.play(); a.setEffectiveWeight(0); }
   A.idle.setEffectiveWeight(1);
-  anim.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   return { root, model, bones, mixer, A, w: { idle: 1, walk: 0, run: 0 } };
 }
 // locomotion blend: weights follow ground speed; clip playback rate matches stride (no foot sliding at the reference speeds)

@@ -16,7 +16,7 @@ import { InfoCards } from './ui.js';
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const status = (t) => { const e = $('#status'); if (e) e.textContent = t; };
-const TOUCH = matchMedia('(pointer: coarse)').matches;
+const TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 if (TOUCH) document.body.classList.add('touch');
 
 /* ------------------------------------------------------------ quality */
@@ -242,8 +242,17 @@ const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teuf
 extraColliders.push(...hero.colliders);
 
 /* ------------------------------------------------------------ actors */
-status('載入人物模型與動畫…');
-const H = await loadHuman(scene);
+status('載入人物模型…');
+let H;
+try {
+  H = await Promise.race([
+    loadHuman(scene, (l, t) => status(`載入人物模型… ${Math.min(99, Math.round(l / t * 100))}%`)),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('逾時')), 60000)),
+  ]);
+} catch (err) {
+  status(`人物模型載入失敗（${err.message}）。請重新整理頁面再試一次。`);
+  throw err;
+}
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
