@@ -37,10 +37,11 @@ function obb(o) {
 /* ------------------------------------------------------- geometry accumulator */
 class Acc {
   constructor(extra = 0) { this.p = []; this.n = []; this.u = []; this.c = []; this.w = extra ? [] : null; }
-  tri(a, b, c, ua, ub, uc, col, wall) {
+  tri(a, b, c, ua, ub, uc, col, wall, tops) {   // tops: optional per-vertex wall-top height (gable roofline) replacing wall[2]
     const e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2], e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
     let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-    for (const [p, uv] of [[a, ua], [b, ub], [c, uc]]) { this.p.push(p[0], p[1], p[2]); this.n.push(nx, ny, nz); this.u.push(uv[0], uv[1]); this.c.push(col.r, col.g, col.b); if (this.w) this.w.push(wall[0], wall[1], wall[2], wall[3]); }
+    let k = 0;
+    for (const [p, uv] of [[a, ua], [b, ub], [c, uc]]) { this.p.push(p[0], p[1], p[2]); this.n.push(nx, ny, nz); this.u.push(uv[0], uv[1]); this.c.push(col.r, col.g, col.b); if (this.w) this.w.push(wall[0], wall[1], tops ? tops[k] : wall[2], wall[3]); k++; }
   }
   geo() {
     const g = new THREE.BufferGeometry();
@@ -76,6 +77,8 @@ function frameBox(acc, ox, oy, oz, ax, az, a0, a1, y0, y1, n0, n1, col, W = NOWA
 
 /* ------------------------------------------------------------- city builder */
 export const BAY = 2.4, STOREY = 3.2;
+// Lübeck old-town shopping streets: ground floors here get shop fronts
+const SHOP_STREETS = new Set(['Breite Straße', 'Königstraße', 'Holstenstraße', 'Sandstraße', 'Hüxstraße', 'Fleischhauerstraße', 'Mühlenstraße', 'Kohlmarkt', 'Markt', 'Schmiedestraße', 'Klingenberg', 'Wahmstraße', 'Dr.-Julius-Leber-Straße', 'Große Burgstraße', 'Kleine Burgstraße', 'Beckergrube', 'Untertrave', 'Pferdemarkt', 'Kohlmarkt']);
 const PLASTER_TINTS = ['#f2ede3', '#efe3c6', '#ecd8a4', '#e7cdbd', '#dfe3e2', '#f4f1ea', '#e0cba6', '#e6bda6', '#d3d9cf', '#f0e6d6'].map((c) => new THREE.Color(c));
 const COPPER_RE = /^#(3[0-9a-f]c[0-9a-f]9[0-9a-f]|33cc99|6[0-9a-f]a[0-9a-f]9[0-9a-f])$/i;
 function roofKind(t) {
@@ -138,6 +141,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
     else if (brick) { const v = 0.82 + hash(seed * 13) * 0.25; tint = new THREE.Color(v, v * (0.94 + hash(seed * 7) * 0.08), v * (0.9 + hash(seed * 5) * 0.1)); }
     else tint = PLASTER_TINTS[Math.floor(seed * 97) % PLASTER_TINTS.length];
     const rk = shape === 'flat' ? 'flat' : roofKind(t);
+    const shop = !isPart && minH < 0.5 && (SHOP_STREETS.has(t['addr:street']) || !!t.shop || /cafe|restaurant|bank|pharmacy|pub|ice_cream/.test(t.amenity || ''));
     const tileKey = Math.floor(cx / TILE) + ',' + Math.floor(cz / TILE);
     const wallAcc = acc((brick ? 'brick|' : 'plaster|') + tileKey, true);
     const roofAcc = acc('roof_' + rk + '|' + tileKey);
@@ -178,18 +182,20 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
       const win = ewOut[i] === '1' && !isChurchish && !isPart && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
       const nb = Math.max(1, Math.round(L / BAY)), scale = nb / L;
       const dBay = i === doorEdge ? Math.floor(nb / 2) : -1;
-      const W = [win ? scale : 0, win ? (brick ? 1.25 : 1) : 0, eave, dBay];
-      wallAcc.tri([x1, minH, z1], [x2, y2, z2], [x2, minH, z2], [0, minH], [L, y2], [L, minH], tint, W);
-      wallAcc.tri([x1, minH, z1], [x1, y1, z1], [x2, y2, z2], [0, minH], [0, y1], [L, y2], tint, W);
+      const W = [win ? (shop ? -scale : scale) : 0, win ? (brick ? 1.25 : 1) : 0, eave, dBay];   // negative bay scale = shop front on the ground floor
+      wallAcc.tri([x1, minH, z1], [x2, y2, z2], [x2, minH, z2], [0, minH], [L, y2], [L, minH], tint, W, [y1, y2, y2]);
+      wallAcc.tri([x1, minH, z1], [x1, y1, z1], [x2, y2, z2], [0, minH], [0, y1], [L, y2], tint, W, [y1, y1, y2]);
       segs.push([x1, z1, x2, z2, Math.max(y1, y2), minH]);
       if (win || dBay >= 0) {
         // outward normal: ring is CCW in (x,z) → outward = (dz, -dx)
         const ux = (x2 - x1) / L, uz = (z2 - z1) / L, nx = uz, nz = -ux;
         for (let k = 0; k < nb; k++) {
           const s = (k + 0.5) / scale, px = x1 + ux * s, pz = z1 + uz * s;
-          for (let fy = minH; fy + STOREY * 0.8 <= eave - 0.2 + 1e-3; fy += STOREY) {
+          const topAt = y1 + (y2 - y1) * (s / L);   // gable walls: windows continue up into the gable triangle
+          for (let fy = minH; fy + STOREY * 0.8 + 0.35 <= topAt + 1e-3; fy += STOREY) {
             const ground = fy < minH + 0.1;
             if (ground && k === dBay) { doors.push({ x: px, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed + k) }); continue; }
+            if (ground && shop) continue;   // shop fronts are painted as display windows
             if (win) windows.push({ x: px, y: fy, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed * 31 + k * 7 + fy) });
           }
         }

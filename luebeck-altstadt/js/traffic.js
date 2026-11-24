@@ -52,7 +52,7 @@ export class Traffic {
     this.R = touch ? 110 : 180;
     this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1, group: 3, bench: 3 } : { ped: 24, car: 12, bike: 6, bus: 3, group: 7, bench: 7 };
     this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [] };
-    this.ends = new Map(); this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
+    this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }
   setHuman(h) { this.human = h; }
   // junction index: polyline end points rounded to 1.5 m
@@ -66,7 +66,7 @@ export class Traffic {
       }
     }
   }
-  allowed(kind, r) { if (kind === 'group' || kind === 'bench') return ['pedestrian', 'living_street', 'footway', 'residential'].includes(r.k) && !r.b;
+  allowed(kind, r) { if (kind === 'group' || kind === 'bench') return ['pedestrian', 'footway'].includes(r.k) && !r.b;   // only car-free streets, never in a traffic lane
     return kind === 'bus' ? BUS_ROADS.has(r.k) && !r.b : kind === 'car' ? CAR_ROADS.has(r.k) && !r.b : kind === 'bike' ? BIKE_ROADS.has(r.k) : !NO_WALK.has(r.k); }
 
   /* ---- construction (pooled) ---- */
@@ -171,9 +171,20 @@ export class Traffic {
       const ahead = (x, z, rad) => { const dx = x - a.x, dz = z - a.z, f = dx * hx + dz * hz; return f > 0 && f < look && Math.abs(dx * hz - dz * hx) < rad; };
       if (ahead(P.vx, P.vz, a.kind === 'ped' ? 0.6 : a.kind === 'bus' ? 2 : 1.6)) blocked = true;
       if (!blocked) for (const [ox, oz] of obstacles) if (ahead(ox, oz, a.kind === 'ped' ? 0.9 : 1.9)) { blocked = true; break; }
-      if (!blocked && a.kind !== 'ped') for (const o of this.agents) if (o !== a && o.kind !== 'ped' && ahead(o.x, o.z, 1.4)) { blocked = true; break; }
-      if (!blocked && (a.kind === 'car' || a.kind === 'bus')) for (const o of this.agents) if (o.kind === 'ped' && ahead(o.x, o.z, 1.2)) { blocked = true; break; }
-      const target = blocked ? 0 : a.vmax;
+      const byFixed = blocked;   // blocked by the player or the player's parked vehicles
+      a.id ??= ++this.seq;
+      if (!blocked && a.kind !== 'ped' && !(a.squeeze > 0)) for (const o of this.agents) {
+        if (o === a || o.kind === 'ped' || o.static) continue;
+        const same = Math.sin(o.yaw) * hx + Math.cos(o.yaw) * hz;
+        if (same > 0.5) { if (ahead(o.x, o.z, 1.4)) { blocked = true; break; } }                      // follow the vehicle in front, same direction
+        else if (same > -0.5 && o.id < a.id && Math.hypot(o.x - a.x, o.z - a.z) < (a.kind === 'bus' ? 9 : 6) && ahead(o.x, o.z, 3)) { blocked = true; break; }   // crossing: lower id has right of way
+      }
+      if (!blocked && (a.kind === 'car' || a.kind === 'bus') && !(a.squeeze > 0)) for (const o of this.agents) if (o.kind === 'ped' && ahead(o.x, o.z, 1.2)) { blocked = true; break; }
+      // patience: a vehicle stuck > 4 s squeezes past other traffic for 3 s; stuck behind the player's vehicle > 3 s it turns around
+      a.wait = blocked && a.v < 0.3 ? (a.wait || 0) + dt : 0; a.squeeze = Math.max(0, (a.squeeze || 0) - dt);
+      if (a.kind !== 'ped' && a.wait > 3 && byFixed) { a.dir = -a.dir; a.yaw += Math.PI; a.wait = 0; blocked = false; }
+      else if (a.kind !== 'ped' && a.wait > 4) { a.squeeze = 3; a.wait = 0; blocked = false; }
+      const target = blocked ? 0 : a.squeeze > 0 ? a.vmax * 0.4 : a.vmax;
       a.v += (target - a.v) * (1 - Math.exp(-dt * (target < a.v ? 5 : 1.2)));
       a.s += a.dir * a.v * dt;
       if (a.s > a.r.len || a.s < 0) this.turn(a);

@@ -43,16 +43,21 @@ export function makeFacade(base) {
         uniform float uCut; uniform float uNight; varying vec4 vWall; varying vec2 vM; varying float vDist;
         float hash12(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
-        float bayF = vM.x * vWall.x; float bu = fract(bayF); float bayI = floor(bayF);
+        float shop = step(vWall.x, -0.0001); float bayF = vM.x * abs(vWall.x); float bu = fract(bayF); float bayI = floor(bayF);
         float st = vM.y / 3.2; float fv = fract(st); float fl = floor(st);
         float style = vWall.y; float paintedOnly = step(1.5, style); style -= paintedOnly * 2.0;   // dormers: +2
         float isArch = step(1.1, style);
         // segmental arch head on brick windows: round the top 12 % of the opening
         float archY = 0.8 - 0.07 * isArch * (1.0 - pow((bu - 0.5) / 0.2, 2.0));
-        float inWin = step(0.5, style) * step(0.3, bu) * step(bu, 0.7) * step(0.27, fv) * step(fv, archY) * step(vM.y, vWall.z - 0.2);
+        float inWin = step(0.5, style) * step(0.3, bu) * step(bu, 0.7) * step(0.27, fv) * step(fv, archY) * step((fl + 0.8) * 3.2 + 0.35, vWall.z);   // vWall.z = roofline here (gable windows)
         // brick soldier course over the arch (darker voussoirs)
         float vous = isArch * step(0.3 - 0.03, bu) * step(bu, 0.7 + 0.03) * step(archY, fv) * step(fv, archY + 0.05);
         float isDoor = step(0.0, vWall.w) * (1.0 - step(0.5, abs(bayI - vWall.w))) * step(fl, 0.5) * step(0.3, bu) * step(bu, 0.7) * step(fv, 0.8);
+        // shop front: ground floor bays become display windows under a painted fascia
+        float gf = (1.0 - step(0.5, fl)) * shop * step(0.5, style) * (1.0 - isDoor);
+        float disp = gf * step(0.07, bu) * step(bu, 0.93) * step(0.05, fv) * step(fv, 0.74);
+        float fascia = gf * step(0.78, fv) * step(fv, 0.92);
+        inWin *= 1.0 - gf;
         float hole = max(inWin, isDoor);
         if (hole > 0.5 && vDist < uCut && paintedOnly < 0.5) discard;
         // far LOD: painted glass + white frame + sill
@@ -63,6 +68,12 @@ export function makeFacade(base) {
         vec3 winCol = mix(vec3(0.86,0.85,0.82), glass, inner);
         diffuseColor.rgb = mix(diffuseColor.rgb, winCol, inWin);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16,0.12,0.09), isDoor);
+        vec3 shopGlass = mix(vec3(0.03,0.035,0.04), vec3(0.16,0.13,0.1), smoothstep(0.08, 0.7, fv) * (0.5 + 0.5 * hash12(vec2(bayI, 3.0))));
+        float mull = 1.0 - step(0.012, abs(bu - 0.5));   // glazing bar in the middle of each display window
+        shopGlass = mix(shopGlass, vec3(0.14,0.13,0.12), mull);
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.12,0.11,0.1), shopGlass, step(0.1, bu) * step(bu, 0.9) * step(0.08, fv) * step(fv, 0.71)), disp);
+        vec3 signCol = vec3(0.12 + 0.5 * hash12(vec2(floor(vM.x * 0.13), 7.0)), 0.1 + 0.3 * hash12(vec2(floor(vM.x * 0.13), 9.0)), 0.1 + 0.25 * hash12(vec2(floor(vM.x * 0.13), 11.0)));
+        diffuseColor.rgb = mix(diffuseColor.rgb, signCol, fascia);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, vous);
         // rain streaks running down from each window sill, and a darker weathered band under the eaves
         float under = step(0.33, bu) * step(bu, 0.67) * (1.0 - step(0.27, fv)) * vWall.y * step(0.5, style);
@@ -74,9 +85,11 @@ export function makeFacade(base) {
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.38,0.37,0.36), plinth * (1.0 - hole));
         diffuseColor.rgb *= mix(0.78, 1.0, smoothstep(0.0, 2.2, vM.y));`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = mix(roughnessFactor, 0.12, inWin * inner);`)
+        roughnessFactor = mix(roughnessFactor, 0.12, inWin * inner);
+        roughnessFactor = mix(roughnessFactor, 0.18, disp);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += vec3(1.0,0.62,0.3) * 1.4 * lit * inWin * inner;`);
+        totalEmissiveRadiance += vec3(1.0,0.62,0.3) * 1.4 * lit * inWin * inner;
+        totalEmissiveRadiance += vec3(1.0,0.82,0.6) * (0.05 + uNight * 1.4) * disp * (1.0 - mull) * step(0.1, bu) * step(bu, 0.9) * step(0.08, fv) * step(fv, 0.71);   // lit shop interiors`);
   };
   base.customProgramCacheKey = () => 'facade';
   return base;
