@@ -55,6 +55,25 @@ class Acc {
 }
 const NOWALL = [0, 0, 99, -1];
 
+
+// box in a local frame: origin o, axis a (horizontal unit), out n (horizontal unit, ⟂ a), sizes along a/up/n
+function frameBox(acc, ox, oy, oz, ax, az, a0, a1, y0, y1, n0, n1, col, W = NOWALL) {
+  const nx = -az, nz = ax;   // right-handed: out = up × along
+  const P = (a, y, nn) => [ox + ax * a + nx * nn, oy + y, oz + az * a + nz * nn];
+  const q = (p1, p2, p3, p4, u1, u2, u3, u4, nrm) => {
+    const e1 = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]], e2 = [p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]];
+    const c = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (c[0] * nrm[0] + c[1] * nrm[1] + c[2] * nrm[2] < 0) { acc.tri(p1, p3, p2, u1, u3, u2, col, W); acc.tri(p1, p4, p3, u1, u4, u3, col, W); }
+    else { acc.tri(p1, p2, p3, u1, u2, u3, col, W); acc.tri(p1, p3, p4, u1, u3, u4, col, W); }
+  };
+  const N = [nx, 0, nz], A = [ax, 0, az];
+  q(P(a0, y0, n1), P(a1, y0, n1), P(a1, y1, n1), P(a0, y1, n1), [a0, y0], [a1, y0], [a1, y1], [a0, y1], N);                       // front
+  q(P(a0, y0, n0), P(a1, y0, n0), P(a1, y1, n0), P(a0, y1, n0), [a0, y0], [a1, y0], [a1, y1], [a0, y1], N.map((v) => -v));        // back
+  q(P(a0, y0, n0), P(a0, y0, n1), P(a0, y1, n1), P(a0, y1, n0), [n0, y0], [n1, y0], [n1, y1], [n0, y1], A.map((v) => -v));        // sides
+  q(P(a1, y0, n0), P(a1, y0, n1), P(a1, y1, n1), P(a1, y1, n0), [n0, y0], [n1, y0], [n1, y1], [n0, y1], A);
+  q(P(a0, y1, n0), P(a1, y1, n0), P(a1, y1, n1), P(a0, y1, n1), [a0, n0], [a1, n0], [a1, n1], [a0, n1], [0, 1, 0]);               // top
+}
+
 /* ------------------------------------------------------------- city builder */
 export const BAY = 2.4, STOREY = 3.2;
 const PLASTER_TINTS = ['#f2ede3', '#efe3c6', '#ecd8a4', '#e7cdbd', '#dfe3e2', '#f4f1ea', '#e0cba6', '#e6bda6', '#d3d9cf', '#f0e6d6'].map((c) => new THREE.Color(c));
@@ -156,7 +175,7 @@ export function buildCity(data, { onProgress } = {}) {
       const win = ewOut[i] === '1' && !isChurchish && !isPart && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
       const nb = Math.max(1, Math.round(L / BAY)), scale = nb / L;
       const dBay = i === doorEdge ? Math.floor(nb / 2) : -1;
-      const W = [win ? scale : 0, win ? 1 : 0, eave, dBay];
+      const W = [win ? scale : 0, win ? (brick ? 1.25 : 1) : 0, eave, dBay];
       wallAcc.tri([x1, minH, z1], [x2, y2, z2], [x2, minH, z2], [0, minH], [L, y2], [L, minH], tint, W);
       wallAcc.tri([x1, minH, z1], [x1, y1, z1], [x2, y2, z2], [0, minH], [0, y1], [L, y2], tint, W);
       segs.push([x1, z1, x2, z2, Math.max(y1, y2), minH]);
@@ -169,6 +188,88 @@ export function buildCity(data, { onProgress } = {}) {
             const ground = fy < minH + 0.1;
             if (ground && k === dBay) { doors.push({ x: px, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed + k) }); continue; }
             if (win) windows.push({ x: px, y: fy, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed * 31 + k * 7 + fy) });
+          }
+        }
+      }
+    }
+    // ---- facade details (only real houses, not landmark parts)
+    if (!isPart && eave - minH > 3) {
+      const corn = brick ? tint.clone().multiplyScalar(0.92) : tint.clone().lerp(new THREE.Color(1, 1, 1), 0.55);
+      // eave cornice along every street-facing wall (dentil course on brick, moulded band on plaster)
+      for (let i = 0; i < n; i++) {
+        if (ewOut[i] !== '1') continue;
+        const j = (i + 1) % n, x1 = ring[2 * i], z1 = ring[2 * i + 1], x2 = ring[2 * j], z2 = ring[2 * j + 1], L = Math.hypot(x2 - x1, z2 - z1);
+        if (L < 1.5 || Math.abs(roofY(x1, z1) - eave) > 0.05 || Math.abs(roofY(x2, z2) - eave) > 0.05) continue;   // gable walls get steps instead
+        const ux = (x2 - x1) / L, uz = (z2 - z1) / L;
+        frameBox(wallAcc, x1, 0, z1, ux, uz, -0.08, L + 0.08, eave - 0.32, eave - 0.06, -0.02, 0.2, corn);
+        frameBox(wallAcc, x1, 0, z1, ux, uz, -0.04, L + 0.04, eave - 0.06, eave + 0.04, -0.02, 0.3, corn);
+        // storey band above the ground floor
+        if (eave - minH > 6.5 && !brick) frameBox(wallAcc, x1, 0, z1, ux, uz, 0, L, minH + 3.1, minH + 3.26, -0.02, 0.07, corn);
+      }
+      if (ridge && roofH > 2) {
+        const ends = [-1, 1].map((sg) => [ridge.cx + ridge.ux * sg * ridge.len / 2, ridge.cz + ridge.uz * sg * ridge.len / 2, sg]);
+        // Lübeck stepped gables ("Treppengiebel") on brick houses facing the street with their narrow side
+        if (brick && ridge.wid < 17 && hash(seed * 17) < 0.8) {
+          const steps = Math.max(3, Math.round(ridge.wid / 1.25)) | 1, sw = ridge.wid / steps;
+          for (const [ex, ez, sg] of ends) {
+            // axis across the gable = ridge normal; out = ±ridge axis
+            const ax = -ridge.uz * sg, az = ridge.ux * sg;
+            for (let k = 0; k < steps; k++) {
+              const b0 = -ridge.wid / 2 + k * sw, b1 = b0 + sw, bm = Math.max(Math.abs(b0), Math.abs(b1)) === Math.abs(b0) ? b1 : b0;
+              const top = eave + roofH * Math.max(0, 1 - Math.abs((b0 + b1) / 2) / (ridge.wid / 2)) + 0.55 + (k === (steps - 1) / 2 ? 0.6 : 0);
+              void bm;
+              frameBox(wallAcc, ex, 0, ez, ax, az, b0 + 0.02, b1 - 0.02, eave - 0.2, top, -0.45, 0.04, tint);
+              frameBox(wallAcc, ex, 0, ez, ax, az, b0 - 0.03, b1 + 0.03, top, top + 0.09, -0.5, 0.09, corn.clone().multiplyScalar(0.8));   // coping
+            }
+          }
+        } else {
+          // plain gables get a verge board / barge line so the roof edge reads
+          for (const [ex, ez, sg] of ends) {
+            const ax = -ridge.uz * sg, az = ridge.ux * sg;
+            for (const sd of [-1, 1]) {
+              const b0 = sd < 0 ? -ridge.wid / 2 : 0, b1 = sd < 0 ? 0 : ridge.wid / 2, segs2 = 6;
+              for (let k = 0; k < segs2; k++) {
+                const c0 = b0 + (b1 - b0) * k / segs2, c1 = b0 + (b1 - b0) * (k + 1) / segs2, y = eave + roofH * (1 - Math.abs((c0 + c1) / 2) / (ridge.wid / 2));
+                frameBox(roofAcc, ex, 0, ez, ax, az, c0, c1, y - 0.05, y + 0.18, -0.05, 0.22, roofTint);
+              }
+            }
+          }
+        }
+        // chimneys on the ridge
+        const nCh = ridge.len > 9 ? 2 : hash(seed * 5) < 0.6 ? 1 : 0, chimAcc = acc('brick|' + tileKey, true), chimCol = new THREE.Color(0.78, 0.62, 0.55);
+        for (let c = 0; c < nCh; c++) {
+          const a = (c ? 0.28 : -0.22 + hash(seed * 23) * 0.15) * ridge.len, off = (hash(seed * 29 + c) - 0.5) * ridge.wid * 0.3;
+          const bx = ridge.cx + ridge.ux * a - ridge.uz * off, bz = ridge.cz + ridge.uz * a + ridge.ux * off, by = roofY(bx, bz);
+          frameBox(chimAcc, bx, 0, bz, ridge.ux, ridge.uz, -0.35, 0.35, by - 1.2, by + 1.1, -0.3, 0.3, chimCol);
+          frameBox(chimAcc, bx, 0, bz, ridge.ux, ridge.uz, -0.42, 0.42, by + 1.1, by + 1.22, -0.37, 0.37, chimCol.clone().multiplyScalar(0.7));
+        }
+        // dormers on long roof slopes
+        if (ridge.len > 9 && roofH > 3.2 && hash(seed * 31) < 0.75) {
+          const nd = Math.max(1, Math.floor((ridge.len - 3) / 4.2)), dw = 1.3, dh = 1.6;
+          for (const side of [-1, 1]) for (let d = 0; d < nd; d++) {
+            const a = (-(nd - 1) / 2 + d) * 4.2, bOff = ridge.wid * 0.25 * side;   // half-way down the slope
+            const fx = ridge.cx + ridge.ux * a - ridge.uz * bOff, fz = ridge.cz + ridge.uz * a + ridge.ux * bOff, fy = roofY(fx, fz);
+            const ox = -ridge.uz * side, oz = ridge.ux * side;              // dormer faces down the slope
+            const ax = ridge.ux, az = ridge.uz;
+            // body: front face at n = 0.2 in front of the slope point, back reaches into the roof
+            const Wd = [1 / (2 * dw), 2, 99, -1];
+            const yb = fy - 0.35, yt = fy + dh;
+            // front face with window (uv: one bay across, v spanning a window)
+            const P = (aa, yy, nn) => [fx + ax * aa + ox * nn, yy, fz + az * aa + oz * nn];
+            const f1 = P(-dw, yb, 0.25), f2 = P(dw, yb, 0.25), f3 = P(dw, yt, 0.25), f4 = P(-dw, yt, 0.25);
+            const sideSign = (ox * -az + oz * ax) > 0;   // keep outward winding
+            const tri = (a1, b1, c1, u1, u2, u3) => sideSign ? wallAcc.tri(a1, b1, c1, u1, u2, u3, tint, Wd) : wallAcc.tri(a1, c1, b1, u1, u3, u2, tint, Wd);
+            tri(f1, f2, f3, [0, 0.55], [2 * dw, 0.55], [2 * dw, 2.45]); tri(f1, f3, f4, [0, 0.55], [2 * dw, 2.45], [0, 2.45]);
+            frameBox(wallAcc, fx, 0, fz, ax, az, -dw, -dw + 0.12, yb, yt, -1.6, 0.25, tint);   // cheeks
+            frameBox(wallAcc, fx, 0, fz, ax, az, dw - 0.12, dw, yb, yt, -1.6, 0.25, tint);
+            frameBox(wallAcc, fx, 0, fz, ax, az, -dw, dw, yb, yb + 0.12, -1.6, 0.25, tint);
+            // little pitched roof over the dormer
+            for (const sd of [-1, 1]) {
+              const r0 = P(sd * (dw + 0.15), yt, 0.4), r1 = P(0, yt + 0.75, 0.4), r2 = P(0, yt + 0.75, -1.6), r3 = P(sd * (dw + 0.15), yt, -1.6);
+              const up = sd > 0 === sideSign;
+              if (up) { roofAcc.tri(r0, r1, r2, [0, 0], [1, 0], [1, 2], roofTint); roofAcc.tri(r0, r2, r3, [0, 0], [1, 2], [0, 2], roofTint); }
+              else { roofAcc.tri(r0, r2, r1, [0, 0], [1, 2], [1, 0], roofTint); roofAcc.tri(r0, r3, r2, [0, 0], [0, 2], [1, 2], roofTint); }
+            }
           }
         }
       }
@@ -228,7 +329,8 @@ export function roadSurface(r) {
   return 'pave';
 }
 export function buildRoads(data) {
-  const accs = { asphalt: new Acc(), cobble: new Acc(), pave: new Acc() }, C = new THREE.Color(1, 1, 1);
+  const accs = { asphalt: new Acc(), cobble: new Acc(), pave: new Acc(), kerb: new Acc() }, C = new THREE.Color(1, 1, 1);
+  const KERB = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified']);
   const order = { pave: 0.02, cobble: 0.035, asphalt: 0.05 };
   const graph = [];                       // drivable / walkable polylines for AI & bridges
   for (const r of data.roads) {
@@ -247,6 +349,22 @@ export function buildRoads(data) {
       const l1 = [x1 + off[i][0], y, z1 + off[i][1]], r1 = [x1 - off[i][0], y, z1 - off[i][1]], l2 = [x2 + off[i + 1][0], y, z2 + off[i + 1][1]], r2 = [x2 - off[i + 1][0], y, z2 - off[i + 1][1]];
       const tri = (A, B, Cc, ua, ub, uc) => { const up = ((B[2] - A[2]) * (Cc[0] - A[0]) - (B[0] - A[0]) * (Cc[2] - A[2])) > 0; up ? a.tri(A, B, Cc, ua, ub, uc, C) : a.tri(A, Cc, B, ua, uc, ub, C); };
       tri(l1, r1, r2, [0, s], [w, s], [w, s + L]); tri(l1, r2, l2, [0, s], [w, s + L], [0, s + L]);
+      // granite kerb stones on both edges of streets with car traffic (30 cm wide, 8 cm proud)
+      if (KERB.has(r.k) && !r.b && w >= 5) for (const sd of [1, -1]) {
+        const k0 = (e, f) => [p[2 * e] + off[e][0] * sd * f, p[2 * e + 1] + off[e][1] * sd * f];
+        const [ax1, az1] = k0(i, 1), [ax2, az2] = k0(i + 1, 1), [bx1, bz1] = k0(i, 1 - 0.6 / w), [bx2, bz2] = k0(i + 1, 1 - 0.6 / w);
+        const ky = 0.09, K = accs.kerb;
+        const t1 = [ax1, ky, az1], t2 = [ax2, ky, az2], t3 = [bx2, ky, bz2], t4 = [bx1, ky, bz1];
+        const ktri = (A, B, Cc, ua, ub, uc) => { const up = ((B[2] - A[2]) * (Cc[0] - A[0]) - (B[0] - A[0]) * (Cc[2] - A[2])) > 0; up ? K.tri(A, B, Cc, ua, ub, uc, C) : K.tri(A, Cc, B, ua, uc, ub, C); };
+        ktri(t1, t2, t3, [s, 0], [s + L, 0], [s + L, 0.3]); ktri(t1, t3, t4, [s, 0], [s + L, 0.3], [s, 0.3]);
+        // inner face toward the carriageway
+        const f1 = [bx1, 0, bz1], f2 = [bx2, 0, bz2];
+        const cx = (p[2 * i] + p[2 * i + 2]) / 2, cz = (p[2 * i + 1] + p[2 * i + 3]) / 2;
+        const e1 = [f2[0] - f1[0], 0, f2[2] - f1[2]], nrm = [e1[2] * ky, 0, -e1[0] * ky];   // normal of (f1,f2,t3)
+        const toC = (cx - bx1) * nrm[0] + (cz - bz1) * nrm[2];
+        if (toC > 0) { K.tri(f1, f2, t3, [s, 0], [s + L, 0], [s + L, ky], C); K.tri(f1, t3, t4, [s, 0], [s + L, ky], [s, ky], C); }
+        else { K.tri(f1, t3, f2, [s, 0], [s + L, ky], [s + L, 0], C); K.tri(f1, t4, t3, [s, 0], [s, ky], [s + L, ky], C); }
+      }
       s += L;
     }
     graph.push({ p, w, k: r.k, b: r.b, n: r.n, surf });

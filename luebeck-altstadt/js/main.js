@@ -1,6 +1,6 @@
 // Lübeck Altstadt — v2: OSM geometry, PBR, 3D window LOD, skinned human, rideable bicycle, drivable car.
 import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
+import { Water } from 'three/addons/objects/Water.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
@@ -37,14 +37,14 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: !Q.aa, powerPrefer
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.dpr));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;   // more saturated than AgX; closer to the summer photos
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 setAniso(renderer.capabilities.getMaxAnisotropy());
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xc9d3dc, 400, 2600);
+scene.fog = new THREE.Fog(0xc9d3dc, 700, 3400);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 6000);
 
 /* ------------------------------------------------------------ data */
@@ -55,9 +55,46 @@ const [base, LM, TI] = await Promise.all(['data/base.json', 'data/landmarks.json
 const M = makeMaterials(TOUCH || qName === 'low' ? 'assets/tex_s' : 'assets/tex');
 const STREAM_R = TOUCH ? 420 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
 /* ------------------------------------------------------------ sky & light */
-const sky = new Sky(); sky.scale.setScalar(5000); scene.add(sky);
-const SU = sky.material.uniforms; SU.turbidity.value = 4; SU.rayleigh.value = 1.2; SU.mieCoefficient.value = 0.003; SU.mieDirectionalG.value = 0.8;
-const envScene = new THREE.Scene(); const sky2 = new Sky(); sky2.material = sky.material; sky2.scale.setScalar(1000); envScene.add(sky2);
+// sky dome tuned to the summer photos: deep blue zenith, pale horizon, warm glow around the sun
+const SU = { sunPosition: { value: new THREE.Vector3(0, 1, 0) }, uZenith: { value: new THREE.Color(0x2f6cc9) }, uHorizon: { value: new THREE.Color(0xc4dcf2) }, uGlow: { value: new THREE.Color(0xfff0d0) }, uNight: { value: 0 } };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(5000, 48, 24), new THREE.ShaderMaterial({
+  uniforms: SU, side: THREE.BackSide, depthWrite: false, fog: false,
+  vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
+  fragmentShader: `uniform vec3 sunPosition, uZenith, uHorizon, uGlow; uniform float uNight; varying vec3 vDir;
+    void main(){ vec3 d = normalize(vDir); float h = max(d.y, 0.0);
+      vec3 c = mix(uHorizon, uZenith, pow(h, 0.45));
+      float s = max(dot(d, normalize(sunPosition)), 0.0);
+      c += uGlow * (pow(s, 6.0) * 0.25 + pow(s, 600.0) * 4.0);
+      c = mix(c, uHorizon * 0.9, smoothstep(0.0, -0.1, d.y));
+      gl_FragColor = vec4(c, 1.0); }`,
+}));
+scene.add(sky);
+// procedural cumulus layer: fbm noise projected on a plane 1.5 km up, lit from the sun direction (self-shadowed)
+const cloudU = { uSun: { value: new THREE.Vector3(0, 1, 0) }, uTime: { value: 0 }, uCover: { value: 0.56 }, uNight: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) } };
+const clouds = new THREE.Mesh(new THREE.SphereGeometry(4000, 48, 24), new THREE.ShaderMaterial({
+  uniforms: cloudU, side: THREE.BackSide, transparent: true, depthWrite: false, fog: false,
+  vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w * 0.9999; }`,
+  fragmentShader: `uniform vec3 uSun; uniform float uTime, uCover, uNight; uniform vec3 uTint; varying vec3 vDir;
+    float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
+    float fbm(vec2 p){ float v = 0.0, a = 0.5; mat2 r = mat2(1.6, 1.2, -1.2, 1.6); for (int i = 0; i < 6; i++){ v += a * n2(p); p = r * p; a *= 0.5; } return v; }
+    float dens(vec2 p){ float base = fbm(p * 0.9 + vec2(uTime * 0.012, uTime * 0.004)); float d = smoothstep(uCover, uCover + 0.22, base); return d * (0.75 + 0.25 * fbm(p * 3.1)); }
+    void main(){
+      vec3 d = normalize(vDir); if (d.y < 0.01) discard;
+      vec2 p = d.xz / (d.y + 0.08) * 1.2;           // plane projection, compressed toward the horizon
+      float c = dens(p); if (c < 0.01) discard;
+      vec2 toSun = normalize(uSun.xz + 1e-4) * 0.18;
+      float shadow = clamp(dens(p + toSun) - c * 0.4, 0.0, 1.0);   // denser cloud toward the sun = darker underside
+      float silver = pow(max(dot(d, normalize(uSun)), 0.0), 8.0);
+      vec3 lit = vec3(1.0, 0.98, 0.95) * uTint;
+      vec3 col = mix(lit, vec3(0.58, 0.63, 0.72) * uTint, shadow * 0.85) + silver * 0.35 * uTint;
+      col = mix(col, vec3(0.08, 0.09, 0.13), uNight);
+      float a = c * smoothstep(0.01, 0.12, d.y);      // fade into the horizon haze
+      gl_FragColor = vec4(col, a * 0.95);
+    }`,
+}));
+clouds.renderOrder = -1; scene.add(clouds);
+const envScene = new THREE.Scene(); const sky2 = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), sky.material); envScene.add(sky2);
 const pmrem = new THREE.PMREMGenerator(renderer); let envRT = null;
 const sun = new THREE.DirectionalLight(0xffffff, 3); sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow);
 Object.assign(sun.shadow.camera, { left: -Q.shadowBox, right: Q.shadowBox, top: Q.shadowBox, bottom: -Q.shadowBox, near: 1, far: 800 });
@@ -76,17 +113,22 @@ let windowLOD;
 function applyTime(i) {
   const t = TIMES[i], night = t.elev < 0, dusk = THREE.MathUtils.clamp(1 - t.elev / 15, 0, 1);
   sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - t.elev), THREE.MathUtils.degToRad(t.az));
-  SU.sunPosition.value.copy(sunDir); SU.rayleigh.value = night ? 0.2 : 1.2 + dusk * 1.4;
+  SU.sunPosition.value.copy(sunDir);
+  SU.uZenith.value.set(night ? 0x050a1a : 0x2f6cc9).lerp(new THREE.Color(0x3b4f8a), night ? 0 : dusk * 0.6);
+  SU.uHorizon.value.set(night ? 0x0d1426 : 0xc4dcf2).lerp(new THREE.Color(0xf2a96b), night ? 0 : dusk * 0.85);
+  SU.uGlow.value.set(night ? 0x000000 : 0xfff0d0).lerp(new THREE.Color(0xff9a50), dusk);
   if (envRT) envRT.dispose(); envRT = pmrem.fromScene(envScene, 0.02); scene.environment = envRT.texture; scene.environmentIntensity = night ? 0.15 : 0.9;
   if (night) { sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(50), THREE.MathUtils.degToRad(t.az + 160)); sun.color.setRGB(0.55, 0.65, 1); sun.intensity = 0.35; }
   else { sun.color.setRGB(1, 0.96 - dusk * 0.3, 0.9 - dusk * 0.5); sun.intensity = 2.6 - dusk * 1.4; }
   hemi.intensity = night ? 0.18 : 0.35;
-  const fogC = night ? new THREE.Color(0x0b1020) : new THREE.Color().setRGB(0.74 + dusk * 0.15, 0.8 - dusk * 0.05, 0.86 - dusk * 0.2);
+  const fogC = night ? new THREE.Color(0x0b1020) : new THREE.Color().setRGB(0.68 + dusk * 0.2, 0.78 - dusk * 0.04, 0.9 - dusk * 0.25);
   scene.fog.color.copy(fogC); renderer.setClearColor(fogC);
   renderer.toneMappingExposure = t.exp;
   facadeUniforms.uNight.value = night ? 1 : 0;
   windowLOD?.setNight(night ? 1 : 0);
   lampMat.emissiveIntensity = night ? 8 : dusk > 0.7 ? 3 : 0.0;
+  cloudU.uSun.value.copy(sunDir); cloudU.uNight.value = night ? 0.85 : 0; cloudU.uTint.value.setRGB(1, 1 - dusk * 0.25, 1 - dusk * 0.45);
+  const wu = window.__water?.material.uniforms; if (wu?.sunDirection) { wu.sunDirection.value.copy(sunDir).normalize(); wu.sunColor.value.copy(sun.color); wu.waterColor.value.set(night ? 0x0a1418 : 0x1e3a3e); }
   $('#clock').textContent = t.label;
 }
 
@@ -95,10 +137,30 @@ const WATER = base.water.filter((w) => w.o.length >= 6);
 {
   const outer = new THREE.Shape([new THREE.Vector2(-2500, -2500), new THREE.Vector2(2500, -2500), new THREE.Vector2(2500, 2500), new THREE.Vector2(-2500, 2500)]);
   for (const w of WATER) outer.holes.push(new THREE.Path(toV2(w.o)));
-  const landMesh = new THREE.Mesh(flatShape(outer, 0), M.pave); landMesh.receiveShadow = true; scene.add(landMesh);
+  // base ground: granite paving across the old-town island (approx. ellipse from the OSM landmarks: Burgtor N, Dom S),
+  // green verges and gardens outside it, blended in the shader so no polygon clipping against the river is needed
+  const landMat = M.grass.clone();
+  landMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uPave = { value: M.pave.map }; sh.uniforms.uPaveR = { value: M.pave.roughnessMap };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vW;').replace('#include <uv_vertex>', '#include <uv_vertex>\nvW = position.xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uPave; uniform sampler2D uPaveR; varying vec2 vW;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec2 e = (vW - vec2(30.0, -100.0)) / vec2(345.0, 780.0); float inTown = 1.0 - smoothstep(0.92, 1.0, length(e));
+        vec4 pv = texture2D(uPave, vW * 0.5); diffuseColor.rgb = mix(diffuseColor.rgb, pv.rgb * 0.95, inTown);`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, texture2D(uPaveR, vW * 0.5).g, inTown);');
+  };
+  landMat.customProgramCacheKey = () => 'land';
+  const landMesh = new THREE.Mesh(flatShape(outer, -0.01), landMat); landMesh.receiveShadow = true; scene.add(landMesh);
   // water surface + quay walls
   const wg = new THREE.PlaneGeometry(5000, 5000); wg.rotateX(-Math.PI / 2);
-  const water = new THREE.Mesh(wg, M.water); water.position.y = -1.1; scene.add(water);
+  let water;
+  if (!TOUCH && qName !== 'low') {
+    // planar-reflection water (three.js Water): mirrors the brick fronts and spires like the river photos
+    water = new Water(new THREE.PlaneGeometry(5000, 5000), { textureWidth: qName === 'high' ? 1024 : 512, textureHeight: qName === 'high' ? 1024 : 512, waterNormals: rippleTex(true),
+      sunDirection: new THREE.Vector3(0.4, 0.7, 0.3), sunColor: 0xfff1d8, waterColor: 0x1e3a3e, distortionScale: 1.1, fog: true, alpha: 1 });
+    water.rotation.x = -Math.PI / 2; water.material.uniforms.size.value = 6;
+  } else { water = new THREE.Mesh(wg, M.water); }
+  water.position.y = -1.1; scene.add(water); window.__water = water;
   M.water.normalMap = rippleTex(); M.water.normalMap.repeat.set(400, 400); M.water.needsUpdate = true;
   const qp = [], qu = [];
   for (const w of WATER) for (const ring of [w.o, ...(w.i || [])]) {
@@ -123,7 +185,13 @@ function flatShape(shape, y) {
   const n = new Float32Array(pos.length); for (let i = 1; i < n.length; i += 3) n[i] = 1; g.setAttribute('normal', new THREE.BufferAttribute(n, 3)); return g;
 }
 function toV2(o) { const a = []; for (let i = 0; i < o.length; i += 2) a.push(new THREE.Vector2(o[i], o[i + 1])); return a; }
-function rippleTex() {
+function rippleTex(fine) {
+  if (fine) {
+    const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), img = g.createImageData(n, n), TAU = Math.PI * 2;
+    const h = (x, y) => { let v = 0; for (let k = 1; k <= 6; k++) { const a = k * 2.399, fx = Math.round(Math.cos(a) * (k + 1)), fy = Math.round(Math.sin(a) * (k + 1)); v += Math.sin(TAU * (fx * x + fy * y) / n + k * 1.7) / (k + 1); } return v; };
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1), i = (y * n + x) * 4; img.data[i] = 128 + dx * 90; img.data[i + 1] = 128 + dy * 90; img.data[i + 2] = 255; img.data[i + 3] = 255; }
+    g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+  }
   const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), img = g.createImageData(n, n);
   const h = (x, y) => Math.sin(x * 0.18 + Math.sin(y * 0.07) * 2) * 0.5 + Math.sin(y * 0.23 + x * 0.05) * 0.35 + Math.sin((x + y) * 0.31) * 0.15;
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1), i = (y * n + x) * 4; img.data[i] = 128 + dx * 60; img.data[i + 1] = 128 + dy * 60; img.data[i + 2] = 255; img.data[i + 3] = 255; }
@@ -583,13 +651,15 @@ function frame() {
     else if (P.mode === 'car') { carStep(dt); poseInCar(dt); }
     else transitionStep(dt);
   } else { H.root.position.set(P.x, 0, P.z); H.root.rotation.set(0, P.yaw, 0); updateLocomotion(H, 0, dt); }
-  if (refMode) { camera.position.copy(hero.refCam.pos); camera.lookAt(hero.refCam.look); }
+  if (window.__freeCam) { const f = window.__freeCam; camera.position.set(...f.pos); camera.lookAt(...f.look); if (f.fov && camera.fov !== f.fov) { camera.fov = f.fov; camera.updateProjectionMatrix(); } }
+  else if (refMode) { camera.position.copy(hero.refCam.pos); camera.lookAt(hero.refCam.look); }
   else updateCamera(dt);
   const fx = P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
   windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
   P.vx = fx; P.vz = fz; if (!refMode) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
   sun.position.set(camera.position.x + sunDir.x * 300, sunDir.y * 300, camera.position.z + sunDir.z * 300); sun.target.position.set(camera.position.x, 0, camera.position.z);
-  sky.position.copy(camera.position);
+  sky.position.copy(camera.position); clouds.position.copy(camera.position); cloudU.uTime.value = simT;
+  if (window.__water?.material.uniforms?.time) window.__water.material.uniforms.time.value = simT * 0.5;
   windU.uTime.value = simT; if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
   // prompts
   if (P.mode === 'walk') {
