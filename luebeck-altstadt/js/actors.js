@@ -31,7 +31,7 @@ export function twoBoneIK(upper, lower, end, target, pole) {
 /* ------------------------------------------------------------------ human */
 export async function loadHuman(scene) {
   const gl = new GLTFLoader();
-  const [body, anim] = await Promise.all([gl.loadAsync('assets/models/Michelle.glb'), gl.loadAsync('assets/models/Soldier.glb')]);
+  const [body, anim] = await Promise.all([gl.loadAsync('assets/models/Michelle.gltf.json'), gl.loadAsync('assets/models/Soldier.gltf.json')]);
   const model = body.scene;
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material) { o.material.roughness = 0.75; o.material.metalness = 0; } } });
   // normalise height to 1.68 m
