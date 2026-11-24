@@ -33,7 +33,7 @@ export async function loadHuman(scene, onProgress) {
   const gl = new GLTFLoader();
   // character mesh (Michelle) + compact animation table extracted from Soldier (Idle/Walk/Run rotations only, ~0.2 MB)
   const [body, animData] = await Promise.all([
-    gl.loadAsync('assets/models/Michelle.gltf.json', (e) => onProgress?.(e.loaded, e.total || 3470010)),
+    gl.loadAsync('assets/models/Michelle.gltf.json', (e) => onProgress?.(e.loaded, e.total || 1518385)),
     fetch('assets/models/anims.json').then((r) => { if (!r.ok) throw new Error('anims.json ' + r.status); return r.json(); }),
   ]);
   const model = body.scene;
@@ -51,7 +51,7 @@ export async function loadHuman(scene, onProgress) {
   const A = { idle: mixer.clipAction(clips.Idle), walk: mixer.clipAction(clips.Walk), run: mixer.clipAction(clips.Run) };
   for (const a of Object.values(A)) { a.play(); a.setEffectiveWeight(0); }
   A.idle.setEffectiveWeight(1);
-  return { root, model, bones, mixer, A, w: { idle: 1, walk: 0, run: 0 } };
+  return { root, model, bones, mixer, A, clips, w: { idle: 1, walk: 0, run: 0 } };
 }
 // locomotion blend: weights follow ground speed; clip playback rate matches stride (no foot sliding at the reference speeds)
 export function updateLocomotion(H, speed, dt) {

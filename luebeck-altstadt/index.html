@@ -17,6 +17,9 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #9fb4c8; color: var(--ink); font-family: var(--f-body); }
+/* game view: no text selection, callouts or double-tap zoom while steering */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#stick, #stick *, canvas#world, .tb { touch-action: none; }
 canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
 .glass { background: var(--glass); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--glass-solid); } }
@@ -75,7 +78,7 @@ body.refmode .hud, body.refmode #intro { display: none !important; }
 </head>
 <body>
 <canvas id="world" tabindex="0" aria-label="3D 呂貝克舊城"></canvas>
-<div class="glass hud" id="hudTL"><h1>Lübeck</h1><div class="sub">Altstadt · OSM 重建</div><div id="clock">16:30</div><div id="stream" class="sub" aria-live="polite"></div></div>
+<div class="glass hud" id="hudTL"><h1>Lübeck</h1><div class="sub">Altstadt · OSM 重建</div><div id="clock">16:30</div><div id="stream" class="sub" aria-live="polite"></div><div id="charload" class="sub" aria-live="polite"></div></div>
 <div class="glass hud" id="mapBox"><canvas id="mini" width="336" height="336"></canvas><div class="cap">N ↑ · © OpenStreetMap</div></div>
 <div class="glass hud" id="tools">
   <button class="tb" id="bAct" type="button">上／下車<kbd>E</kbd></button>

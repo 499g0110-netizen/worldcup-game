@@ -1,0 +1,184 @@
+// Ambient traffic: pedestrians, cars and cyclists that spawn on the real OSM streets around the player,
+// follow the street polylines, turn at junctions, stop for the player and for each other, and are recycled.
+import * as THREE from 'three';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { makeBike, makeCar, twoBoneIK, updateLocomotion } from './actors.js';
+
+const CAR_ROADS = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'living_street']);
+const BIKE_ROADS = new Set([...CAR_ROADS, 'cycleway']);
+const NO_WALK = new Set(['motorway', 'trunk', 'steps']);
+const PAINT = [0xe9e9e6, 0x9ea3a8, 0x16181b, 0x1f3550, 0x7a1d1d, 0x3b4a3a, 0xc7c2b5, 0x2d2f33, 0x5c6f82];
+const FRAME = [0x1c1c1c, 0x24453a, 0x7a1d1d, 0xd8d2c4, 0x2b4a6b, 0x6b5a3a];
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+function prep(r) {   // cumulative lengths, cached on the road object
+  if (r.cum) return r;
+  const n = r.p.length / 2; r.cum = [0];
+  for (let i = 1; i < n; i++) r.cum.push(r.cum[i - 1] + Math.hypot(r.p[2 * i] - r.p[2 * i - 2], r.p[2 * i + 1] - r.p[2 * i - 1]));
+  r.len = r.cum[n - 1]; return r;
+}
+const _p = { x: 0, z: 0, dx: 0, dz: 1 };
+function along(r, s) {
+  let i = 1; while (i < r.cum.length - 1 && r.cum[i] < s) i++;
+  const a = r.cum[i - 1], L = (r.cum[i] - a) || 1, t = Math.min(1, Math.max(0, (s - a) / L));
+  const x1 = r.p[2 * i - 2], z1 = r.p[2 * i - 1], x2 = r.p[2 * i], z2 = r.p[2 * i + 1];
+  _p.x = x1 + (x2 - x1) * t; _p.z = z1 + (z2 - z1) * t; _p.dx = (x2 - x1) / L; _p.dz = (z2 - z1) / L; return _p;
+}
+
+export class Traffic {
+  constructor(scene, roads, { touch, isFree }) {
+    this.scene = scene; this.roads = roads; this.isFree = isFree;
+    this.R = touch ? 110 : 180;
+    this.want = touch ? { ped: 8, car: 5, bike: 3 } : { ped: 22, car: 12, bike: 6 };
+    this.agents = []; this.pool = { ped: [], car: [], bike: [] };
+    this.ends = new Map(); this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
+  }
+  setHuman(h) { this.human = h; }
+  // junction index: polyline end points rounded to 1.5 m
+  index() {
+    const g = this.roads.graph;
+    for (; this.indexed < g.length; this.indexed++) {
+      const r = prep(g[this.indexed]), n = r.p.length / 2;
+      for (const [end, x, z] of [[0, r.p[0], r.p[1]], [1, r.p[2 * n - 2], r.p[2 * n - 1]]]) {
+        const k = Math.round(x / 1.5) + ',' + Math.round(z / 1.5);
+        if (!this.ends.has(k)) this.ends.set(k, []); this.ends.get(k).push([r, end]);
+      }
+    }
+  }
+  allowed(kind, r) { return kind === 'car' ? CAR_ROADS.has(r.k) && !r.b : kind === 'bike' ? BIKE_ROADS.has(r.k) : !NO_WALK.has(r.k); }
+
+  /* ---- construction (pooled) ---- */
+  make(kind) {
+    const pooled = this.pool[kind].pop(); if (pooled) { pooled.obj.visible = true; return pooled; }
+    if (kind === 'car') {
+      const c = makeCar(this.scene); const col = pick(PAINT);
+      c.body.traverse((o) => { if (o.isMesh && o.material.clearcoat === 1 && o.material.metalness === 0.6) o.material.color.setHex(col); });
+      return { kind, obj: c.g, car: c };
+    }
+    if (kind === 'bike') {
+      const b = makeBike(this.scene); const col = pick(FRAME);
+      b.lean.traverse((o) => { if (o.isMesh && o.material.clearcoat === 0.8) o.material.color.setHex(col); });
+      b.steer.traverse((o) => { if (o.isMesh && o.material.clearcoat === 0.8) o.material.color.setHex(col); });
+      const rider = this.cloneHuman(); return { kind, obj: b.g, bike: b, rider };
+    }
+    const h = this.cloneHuman(); return { kind, obj: h.root, h };
+  }
+  cloneHuman() {
+    const H = this.human, model = SkeletonUtils.clone(H.model), root = new THREE.Group(); root.add(model); this.scene.add(root);
+    const tint = new THREE.Color().setHSL(Math.random(), rnd(0.05, 0.25), rnd(0.75, 1));
+    model.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.copy(tint); o.castShadow = true; o.frustumCulled = false; } });
+    const k = rnd(0.93, 1.07); root.scale.setScalar(k);
+    const mixer = new THREE.AnimationMixer(model), A = {};
+    for (const [n, c] of Object.entries(H.clips)) { A[n.toLowerCase()] = mixer.clipAction(c); A[n.toLowerCase()].play(); A[n.toLowerCase()].setEffectiveWeight(0); A[n.toLowerCase()].time = Math.random() * c.duration; }
+    A.idle.setEffectiveWeight(1);
+    const bones = {}; model.traverse((o) => { if (o.isBone) bones[o.name.replace('mixamorig', '')] = o; });
+    return { root, model, mixer, A, bones, w: { idle: 1, walk: 0, run: 0 }, k };
+  }
+  release(a) { a.obj.visible = false; if (a.rider) a.rider.root.visible = false; this.pool[a.kind].push(a); }
+
+  /* ---- spawning near the player ---- */
+  spawn(kind, px, pz) {
+    const cand = this.near.filter((r) => this.allowed(kind, r)); if (!cand.length) return;
+    for (let tries = 0; tries < 6; tries++) {
+      const r = pick(cand), s = rnd(0, r.len), p = along(r, s), d = Math.hypot(p.x - px, p.z - pz);
+      if (d < 35 || d > this.R) continue;        // never pop in right next to the player
+      const a = this.make(kind);
+      Object.assign(a, { r, s, dir: Math.random() < 0.5 ? 1 : -1, v: 0, x: p.x, z: p.z, yaw: 0,
+        vmax: kind === 'car' ? rnd(6, 9) : kind === 'bike' ? rnd(3.5, 5.2) : rnd(1.1, 1.5),
+        side: kind === 'ped' ? (Math.random() < 0.5 ? -1 : 1) * rnd(0.75, 0.95) : 1, ph: 0 });
+      if (a.rider) a.rider.root.visible = true;
+      this.agents.push(a); return;
+    }
+  }
+  lateral(a) {
+    const w = a.r.w || 6;
+    if (a.kind === 'car') return Math.min(w / 4, 1.6);
+    if (a.kind === 'bike') return Math.max(0.6, w / 2 - 0.9);
+    return Math.max(0.4, w / 2 - 0.5) * a.side;
+  }
+  turn(a) {   // at the end of a polyline: continue on a connected street, else turn around
+    const n = a.r.p.length / 2, atEnd = a.dir > 0, x = atEnd ? a.r.p[2 * n - 2] : a.r.p[0], z = atEnd ? a.r.p[2 * n - 1] : a.r.p[1];
+    const opts = (this.ends.get(Math.round(x / 1.5) + ',' + Math.round(z / 1.5)) || []).filter(([r]) => r !== a.r && this.allowed(a.kind, r));
+    if (opts.length) { const [r, end] = pick(opts); a.r = r; a.dir = end === 0 ? 1 : -1; a.s = end === 0 ? 0 : r.len; }
+    else { a.dir = -a.dir; a.s = atEnd ? a.r.len : 0; }
+  }
+
+  update(dt, P, frame, obstacles = []) {
+    if (!this.human) return;
+    this.index();
+    const px = P.x, pz = P.z;
+    // nearby roads, refreshed every 2 s
+    this.nearT -= dt;
+    if (this.nearT <= 0) {
+      this.nearT = 2;
+      this.near = this.roads.graph.filter((r) => { for (let i = 0; i < r.p.length; i += 4) if (Math.abs(r.p[i] - px) < this.R && Math.abs(r.p[i + 1] - pz) < this.R) return r.len > 8; return false; });
+    }
+    this.spawnT -= dt;
+    if (this.spawnT <= 0) {
+      this.spawnT = 0.4;
+      const count = { ped: 0, car: 0, bike: 0 }; for (const a of this.agents) count[a.kind]++;
+      for (const k of ['ped', 'car', 'bike']) if (count[k] < this.want[k]) { this.spawn(k, px, pz); break; }
+    }
+    for (let i = this.agents.length - 1; i >= 0; i--) {
+      const a = this.agents[i];
+      if (Math.hypot(a.x - px, a.z - pz) > this.R + 40) { this.release(a); this.agents.splice(i, 1); continue; }
+      // look ahead: player, the player's vehicle, other agents
+      const hx = Math.sin(a.yaw), hz = Math.cos(a.yaw), look = a.kind === 'car' ? 7 : a.kind === 'bike' ? 4 : 1.4;
+      let blocked = false;
+      const ahead = (x, z, rad) => { const dx = x - a.x, dz = z - a.z, f = dx * hx + dz * hz; return f > 0 && f < look && Math.abs(dx * hz - dz * hx) < rad; };
+      if (ahead(P.vx, P.vz, a.kind === 'ped' ? 0.6 : 1.6)) blocked = true;
+      if (!blocked) for (const [ox, oz] of obstacles) if (ahead(ox, oz, a.kind === 'ped' ? 0.9 : 1.9)) { blocked = true; break; }
+      if (!blocked && a.kind !== 'ped') for (const o of this.agents) if (o !== a && o.kind !== 'ped' && ahead(o.x, o.z, 1.4)) { blocked = true; break; }
+      if (!blocked && a.kind === 'car') for (const o of this.agents) if (o.kind === 'ped' && ahead(o.x, o.z, 1.2)) { blocked = true; break; }
+      const target = blocked ? 0 : a.vmax;
+      a.v += (target - a.v) * (1 - Math.exp(-dt * (target < a.v ? 5 : 1.2)));
+      a.s += a.dir * a.v * dt;
+      if (a.s > a.r.len || a.s < 0) this.turn(a);
+      const p = along(a.r, Math.min(a.r.len, Math.max(0, a.s))), dx = p.dx * a.dir, dz = p.dz * a.dir, lat = this.lateral(a);
+      a.x = p.x - dz * lat; a.z = p.z + dx * lat;   // right-hand side of the travel direction
+      let dy = Math.atan2(dx, dz) - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * (1 - Math.exp(-dt * 6));
+      const far = Math.hypot(a.x - px, a.z - pz) > 70, tick = !far || (frame + i) % 3 === 0;
+      if (a.kind === 'ped') {
+        a.h.root.position.set(a.x, 0, a.z); a.h.root.rotation.y = a.yaw;
+        if (tick) updateLocomotion(a.h, a.v, far ? dt * 3 : dt);
+      } else if (a.kind === 'car') {
+        const c = a.car; c.g.position.set(a.x, 0, a.z); c.g.rotation.y = a.yaw; c.x = a.x; c.z = a.z; c.yaw = a.yaw;
+        for (const w of c.wheels) w.spin.rotation.x += a.v * dt / 0.31;
+      } else {
+        const b = a.bike; b.g.position.set(a.x, 0, a.z); b.g.rotation.y = a.yaw; b.x = a.x; b.z = a.z; b.yaw = a.yaw;
+        const dW = a.v * dt / b.R; b.wRear.rotation.x += dW; b.wFront.rotation.x += dW; b.crankA += dW / 2.4;
+        b.crank.rotation.x = b.crankA; for (const pd of b.pedals) pd.rotation.x = -b.crankA;
+        if (tick) this.seat(a.rider, b, far ? dt * 3 : dt);
+      }
+    }
+  }
+  seat(h, b, dt) {   // rider: hips on the saddle, feet on the pedals, hands on the grips (two-bone IK)
+    h.mixer.update(dt); h.A.idle.setEffectiveWeight(1); h.A.walk.setEffectiveWeight(0); h.A.run.setEffectiveWeight(0);
+    b.g.updateMatrixWorld(true);
+    const seatW = b.lean.localToWorld(b.seat.clone()), B = h.bones;
+    h.root.position.set(0, 0, 0); h.root.rotation.set(0, b.yaw, 0); h.root.updateMatrixWorld(true);
+    const hips = B.Hips.getWorldPosition(new THREE.Vector3());
+    h.root.position.copy(seatW).sub(hips).add(new THREE.Vector3(0, 0.08, 0)); h.root.updateMatrixWorld(true);
+    B.Spine.rotation.x += 0.12; B.Spine1.rotation.x += 0.08; B.Hips.updateMatrixWorld(true);
+    const fwd = new THREE.Vector3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    const ped = b.pedals.map((p) => p.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.05, 0)));
+    const grip = b.grips.map((g) => b.steer.localToWorld(g.clone()));
+    const knee = (s) => seatW.clone().addScaledVector(fwd, 2).addScaledVector(right, s * 0.3).setY(seatW.y + 0.3);
+    const elb = (s) => seatW.clone().addScaledVector(right, s).setY(seatW.y);
+    twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, ped[1], knee(-1)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, ped[0], knee(1));
+    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, grip[1], elb(-1)); twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, grip[0], elb(1));
+  }
+  // keep the walking player out of pedestrians and parked/moving vehicles
+  pushPlayer(x, z, rad) {
+    for (const a of this.agents) {
+      const r = a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : 0;
+      if (r) { const dx = x - a.x, dz = z - a.z, d = Math.hypot(dx, dz), m = r + rad; if (d < m && d > 1e-6) { x = a.x + dx / d * m; z = a.z + dz / d * m; } continue; }
+      const co = Math.cos(a.yaw), si = Math.sin(a.yaw), dx = x - a.x, dz = z - a.z;
+      let lx = dx * co - dz * si, lz = dx * si + dz * co; const hx = 0.95 + rad, hz = 2.1 + rad;
+      if (Math.abs(lx) < hx && Math.abs(lz) < hz) { if (hx - Math.abs(lx) < hz - Math.abs(lz)) lx = Math.sign(lx || 1) * hx; else lz = Math.sign(lz || 1) * hz; x = a.x + lx * co + lz * si; z = a.z - lx * si + lz * co; }
+    }
+    return [x, z];
+  }
+  hitsVehicle(x, z, rad) { for (const a of this.agents) if (a.kind !== 'ped' && Math.hypot(x - a.x, z - a.z) < rad) return true; return false; }
+}

@@ -12,6 +12,7 @@ import { WindowLOD } from './windows.js';
 import { buildHero } from './hero.js';
 import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './actors.js';
 import { InfoCards } from './ui.js';
+import { Traffic } from './traffic.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -306,14 +307,19 @@ extraColliders.push(...hero.colliders);
 /* ------------------------------------------------------------ actors */
 // Until the character finishes downloading, a simple placeholder stands in (you can already walk around).
 const placeholder = new THREE.Group();
-{ const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 1.2, 4, 12), new THREE.MeshStandardMaterial({ color: 0xc0563a, roughness: 0.7 })); m.position.y = 0.82; m.castShadow = true; placeholder.add(m); }
+{ // grey mannequin with human proportions (1.68 m), shown only while the real character downloads
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8d8780, roughness: 0.6 }), part = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; placeholder.add(m); };
+  part(new THREE.SphereGeometry(0.11, 16, 12), 0, 1.57, 0); part(new THREE.CapsuleGeometry(0.15, 0.38, 4, 12), 0, 1.2, 0);
+  for (const s of [-1, 1]) { part(new THREE.CapsuleGeometry(0.06, 0.62, 4, 8), s * 0.22, 1.08, 0); part(new THREE.CapsuleGeometry(0.075, 0.72, 4, 8), s * 0.09, 0.45, 0); }
+}
 scene.add(placeholder);
 const noop = { setEffectiveWeight() {}, timeScale: 1 };
 let H = { root: placeholder, model: placeholder, mixer: { update() {} }, A: { idle: noop, walk: noop, run: noop }, w: { idle: 1, walk: 0, run: 0 }, bones: null, stub: true };
 let B = null;
-const humanReady = loadHuman(scene, (l, t) => { const e = $('#stream'); if (e && H.stub) e.textContent = `人物模型 ${Math.min(99, Math.round(l / t * 100))}%`; })
-  .then((h) => { h.root.position.copy(placeholder.position); h.root.rotation.copy(placeholder.rotation); scene.remove(placeholder); H = h; B = h.bones; if (refMode) h.root.visible = false; const e = $('#stream'); if (e && !streaming) e.textContent = ''; })
-  .catch((err) => { const e = $('#stream'); if (e) e.textContent = `人物模型載入失敗：${err.message}`; console.error(err); });
+const humanReady = loadHuman(scene, (l, t) => { const e = $('#charload'); if (e && H.stub) e.textContent = `人物模型 ${Math.min(99, Math.round(l / t * 100))}%`; })
+  .then((h) => { h.root.position.copy(placeholder.position); h.root.rotation.copy(placeholder.rotation); scene.remove(placeholder); H = h; B = h.bones; if (refMode) h.root.visible = false; else traffic.setHuman(h); $('#charload').textContent = ''; })
+  .catch((err) => { $('#charload').textContent = `人物模型載入失敗：${err.message}`; console.error(err); });
+const traffic = new Traffic(scene, roads, { touch: TOUCH });
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
@@ -360,7 +366,8 @@ canvas.addEventListener('wheel', (e) => { camDist = THREE.MathUtils.clamp(camDis
 // touch joystick + look
 const stick = { id: null, x: 0, y: 0 }, look = { id: null };
 const stickEl = $('#stick'), knob = stickEl.querySelector('i');
-stickEl.addEventListener('pointerdown', (e) => { stick.id = e.pointerId; stickEl.setPointerCapture(e.pointerId); moveStick(e); });
+for (const ev of ['touchstart', 'touchmove', 'contextmenu', 'selectstart']) { stickEl.addEventListener(ev, (e) => e.preventDefault(), { passive: false }); canvas.addEventListener(ev, (e) => e.preventDefault(), { passive: false }); }
+stickEl.addEventListener('pointerdown', (e) => { e.preventDefault(); stick.id = e.pointerId; stickEl.setPointerCapture(e.pointerId); moveStick(e); });
 stickEl.addEventListener('pointermove', (e) => { if (e.pointerId === stick.id) moveStick(e); });
 for (const ev of ['pointerup', 'pointercancel']) stickEl.addEventListener(ev, (e) => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = 0; knob.style.transform = ''; });
 function moveStick(e) { const r = stickEl.getBoundingClientRect(); let dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2; const l = Math.hypot(dx, dy); if (l > 50) { dx *= 50 / l; dy *= 50 / l; } stick.x = dx / 50; stick.y = dy / 50; knob.style.transform = `translate(${dx}px,${dy}px)`; }
@@ -417,7 +424,7 @@ function walkStep(dt) {
   P.speed += (target - P.speed) * (1 - Math.exp(-dt * (target > P.speed ? 4 : 7)));   // ease in/out = start & stop
   if (mag > 0.05) { let d = Math.atan2(dx, dz) - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * (1 - Math.exp(-dt * 9)); }
   let nx = P.x + Math.sin(P.yaw) * P.speed * dt, nz = P.z + Math.cos(P.yaw) * P.speed * dt;
-  [nx, nz] = pushOut(nx, nz, 0.3);
+  [nx, nz] = pushOut(nx, nz, 0.3); [nx, nz] = traffic.pushPlayer(nx, nz, 0.3);
   if (walkableC(nx, nz)) { P.x = nx; P.z = nz; } else P.speed *= 0.5;
   if (keys.has(' ') && P.y <= 0) P.vy = 3.6;
   P.vy -= 9.81 * dt; P.y = Math.max(0, P.y + P.vy * dt); if (P.y === 0) P.vy = Math.max(0, P.vy);
@@ -439,6 +446,7 @@ function bikeStep(dt) {
   const nx = bike.x + Math.sin(bike.yaw) * bike.v * dt, nz = bike.z + Math.cos(bike.yaw) * bike.v * dt;
   const fx = nx + Math.sin(bike.yaw) * 0.9, fz = nz + Math.cos(bike.yaw) * 0.9;
   const [px, pz] = pushOut(nx, nz, 0.35);
+  if (traffic.hitsVehicle(fx, fz, 1.4)) { bike.v *= -0.15; }
   if (walkableC(fx, fz) && walkableC(px, pz) && !segmentHits(bike.x, bike.z, fx, fz)) { bike.x = px; bike.z = pz; } else { bike.v *= -0.15; }
   // drivetrain: wheels roll with distance; cranks only turn while pedalling (gear 2.4) — coasting keeps them still
   const dWheel = bike.v * dt / bike.R;
@@ -465,6 +473,7 @@ function carStep(dt) {
   let ok = true; const co = Math.cos(nyaw), si = Math.sin(nyaw);
   const pts = [[0.85, 2.0], [-0.85, 2.0], [0.85, -2.0], [-0.85, -2.0], [0.88, 0], [-0.88, 0], [0, 2.05], [0, -2.05]].map(([lx, lz]) => [nx + lx * co + lz * si, nz - lx * si + lz * co]);
   for (const [x, z] of pts) if (!walkableC(x, z) || insideBuilding(x, z, 0.5)) { ok = false; break; }
+  if (ok && traffic.hitsVehicle(nx, nz, 3.2)) ok = false;
   if (ok) for (const [a, b] of [[0, 1], [1, 3], [3, 2], [2, 0]]) if (segmentHits(pts[a][0], pts[a][1], pts[b][0], pts[b][1])) { ok = false; break; }
   if (ok) { car.x = nx; car.z = nz; car.yaw = nyaw; } else { car.v *= -0.2; if (Math.abs(car.v) > 0.5) toast('碰撞'); }
   // body dynamics: pitch with longitudinal accel, roll with lateral accel (spring-damper feel)
@@ -578,6 +587,7 @@ function frame() {
   else updateCamera(dt);
   const fx = P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
   windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
+  P.vx = fx; P.vz = fz; if (!refMode) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
   sun.position.set(camera.position.x + sunDir.x * 300, sunDir.y * 300, camera.position.z + sunDir.z * 300); sun.target.position.set(camera.position.x, 0, camera.position.z);
   sky.position.copy(camera.position);
   windU.uTime.value = simT; if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
@@ -609,7 +619,7 @@ requestAnimationFrame(frame);
 const go = $('#go'); go.disabled = false; go.focus();
 go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); canvas.focus(); });
 window.__lub = {
-  start: () => { started = true; $('#intro').classList.add('off'); }, P, bike, car, hero, keys, interact,
+  start: () => { started = true; $('#intro').classList.add('off'); }, P, bike, car, hero, keys, interact, traffic,
   teleport: (x, z, yaw) => { P.x = x; P.z = z; if (yaw !== undefined) { P.yaw = yaw; camYaw = yaw + Math.PI; } camera.userData.init = false; },
   setCam: (y, p, d) => { camYaw = y; camPitch = p; camDist = d; camera.userData.init = false; },
   setTime: (i) => { timeIdx = i; applyTime(i); }, landmarks: LMby,
