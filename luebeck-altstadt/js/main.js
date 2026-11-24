@@ -13,6 +13,7 @@ import { buildHero } from './hero.js';
 import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './actors.js';
 import { InfoCards } from './ui.js';
 import { Traffic } from './traffic.js';
+import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -233,7 +234,7 @@ const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
 const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
 let bridges = [];
 
-function addTileToScene(t) {
+async function addTileToScene(t) {
   // ground cover
   for (const gr of t.green) {
     const sh = new THREE.Shape(toV2(gr.o)); for (const h of gr.i || []) sh.holes.push(new THREE.Path(toV2(h)));
@@ -243,7 +244,7 @@ function addTileToScene(t) {
   for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
   roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b);
   // buildings
-  const c = buildCity(t);
+  const c = await buildCity(t, { budget: TOUCH ? 5 : 8 });
   for (const [key, a] of c.accs) {
     const kind = key.split('|')[0], mat = kind === 'brick' ? M.brick : kind === 'plaster' ? M.plaster : M[kind] || M.roof_tile;
     const geo = a.geo(); triCount += geo.attributes.position.count / 3;
@@ -302,7 +303,7 @@ async function loadTile(k) {
   if (loadedTiles.has(k)) return; loadedTiles.add(k);
   try {
     const t = await fetch(`data/tiles/${k}.json`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
-    addTileToScene(t);
+    await addTileToScene(t);
   } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
 }
 function queueAround(x, z) { for (const k of tilesAround(x, z, STREAM_R)) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
@@ -373,20 +374,18 @@ const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teuf
 extraColliders.push(...hero.colliders);
 
 /* ------------------------------------------------------------ actors */
-// Until the character finishes downloading, a simple placeholder stands in (you can already walk around).
-const placeholder = new THREE.Group();
-{ // grey mannequin with human proportions (1.68 m), shown only while the real character downloads
-  const mat = new THREE.MeshStandardMaterial({ color: 0x8d8780, roughness: 0.6 }), part = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; placeholder.add(m); };
-  part(new THREE.SphereGeometry(0.11, 16, 12), 0, 1.57, 0); part(new THREE.CapsuleGeometry(0.15, 0.38, 4, 12), 0, 1.2, 0);
-  for (const s of [-1, 1]) { part(new THREE.CapsuleGeometry(0.06, 0.62, 4, 8), s * 0.22, 1.08, 0); part(new THREE.CapsuleGeometry(0.075, 0.72, 4, 8), s * 0.09, 0.45, 0); }
+// The player starts as the built-in character (generated in code, no download), so walking, the bike and the car
+// work immediately. On computers the more detailed downloaded character replaces it in the background.
+let H = createMannequin(scene, PLAYER_LOOK), B = H.bones;
+if (refMode) H.root.visible = false;
+if (!TOUCH && qName !== 'low' && !refMode) {
+  setTimeout(() => loadHuman(scene, (l, t) => { $('#charload').textContent = `細緻人物 ${Math.min(99, Math.round(l / t * 100))}%`; })
+    .then((h) => {
+      if (P.mode !== 'walk') { h.root.visible = false; const wait = setInterval(() => { if (P.mode === 'walk') { clearInterval(wait); swap(h); } }, 500); } else swap(h);
+    })
+    .catch((err) => { $('#charload').textContent = ''; console.warn('detailed character not loaded, keeping the built-in one', err); }), 4000);
 }
-scene.add(placeholder);
-const noop = { setEffectiveWeight() {}, timeScale: 1 };
-let H = { root: placeholder, model: placeholder, mixer: { update() {} }, A: { idle: noop, walk: noop, run: noop }, w: { idle: 1, walk: 0, run: 0 }, bones: null, stub: true };
-let B = null;
-const humanReady = loadHuman(scene, (l, t) => { const e = $('#charload'); if (e && H.stub) e.textContent = `人物模型 ${Math.min(99, Math.round(l / t * 100))}%`; })
-  .then((h) => { h.root.position.copy(placeholder.position); h.root.rotation.copy(placeholder.rotation); scene.remove(placeholder); H = h; B = h.bones; if (refMode) h.root.visible = false; else traffic.setHuman(h); $('#charload').textContent = ''; })
-  .catch((err) => { $('#charload').textContent = `人物模型載入失敗：${err.message}`; console.error(err); });
+function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
 const traffic = new Traffic(scene, roads, { touch: TOUCH });
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
@@ -459,7 +458,6 @@ function inputVec() {
 /* ------------------------------------------------------------ mode switching */
 const prompt = $('#prompt');
 function interact() {
-  if (!B) { toast('人物還在載入，請稍候'); return; }
   if (P.mode === 'walk') {
     const dBike = Math.hypot(P.x - bike.x, P.z - bike.z);
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));

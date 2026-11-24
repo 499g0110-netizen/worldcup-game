@@ -85,7 +85,9 @@ function roofKind(t) {
   return 'tile';
 }
 
-export function buildCity(data, { onProgress } = {}) {
+// async: yields to the browser every ~6 ms so frames keep rendering while a block is built (no stutter)
+export async function buildCity(data, { onProgress, budget = 6 } = {}) {
+  let tSlice = performance.now();
   const TILE = 200, accs = new Map();
   const acc = (key, extra) => { if (!accs.has(key)) accs.set(key, new Acc(extra)); return accs.get(key); };
   const segs = [];               // collision segments [x1,z1,x2,z2,top]
@@ -99,6 +101,7 @@ export function buildCity(data, { onProgress } = {}) {
   for (const p of data.parts) items.push([p, true]);
 
   for (const [f, isPart] of items) {
+    if (performance.now() - tSlice > budget) { await new Promise((r) => setTimeout(r, 0)); tSlice = performance.now(); }
     let o = f.o; if (o.length < 6) continue;
     if (signedArea(o) < 0) { // make CCW in (x,z) — with z south this is clockwise seen from above; keep one convention
       const r = []; for (let i = o.length - 2; i >= 0; i -= 2) r.push(o[i], o[i + 1]); o = r;
