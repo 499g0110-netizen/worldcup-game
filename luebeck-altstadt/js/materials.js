@@ -2,13 +2,13 @@
 import * as THREE from 'three';
 
 const loader = new THREE.TextureLoader();
-let maxAniso = 8;
+let maxAniso = 8, TEX_DIR = 'assets/tex';
 export function setAniso(a) { maxAniso = a; }
 const cache = new Map();
 function tex(name, srgb, repeat) {
   const key = name + repeat;
   if (cache.has(key)) return cache.get(key);
-  const t = loader.load(`assets/tex/${name}.jpg`);
+  const t = loader.load(`${TEX_DIR}/${name}.jpg`);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.repeat.set(repeat, repeat);
@@ -70,7 +70,8 @@ export function makeFacade(base) {
   return base;
 }
 
-export function makeMaterials() {
+export function makeMaterials(dir = 'assets/tex') {
+  TEX_DIR = dir;
   const M = {};
   M.brick = makeFacade(pbr('red_brick_03', 1.6, { normalStrength: 1.2 }));
   M.plaster = makeFacade(pbr('plastered_wall_04', 2.5, { normalStrength: 0.8 }));

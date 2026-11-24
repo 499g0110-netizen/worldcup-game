@@ -16,6 +16,7 @@ import { InfoCards } from './ui.js';
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const status = (t) => { const e = $('#status'); if (e) e.textContent = t; };
+const refMode = params.get('ref') === 'teufel';
 const TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 if (TOUCH) document.body.classList.add('touch');
 
@@ -46,10 +47,12 @@ scene.fog = new THREE.Fog(0xc9d3dc, 400, 2600);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 6000);
 
 /* ------------------------------------------------------------ data */
-status('讀取 OpenStreetMap 資料…');
-const [data, LM] = await Promise.all([fetch('data/city.json').then((r) => r.json()), fetch('data/landmarks.json').then((r) => r.json())]);
-const M = makeMaterials();
-
+// The city is split into 250 m tiles (tools/tile_city.py). Only the base layer (water, landmarks) and the tiles
+// around the player are fetched before entry; the rest streams in while walking. Loaded tiles are kept.
+status('讀取地圖資料…');
+const [base, LM, TI] = await Promise.all(['data/base.json', 'data/landmarks.json', 'data/tiles/index.json'].map((u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); })));
+const M = makeMaterials(TOUCH || qName === 'low' ? 'assets/tex_s' : 'assets/tex');
+const STREAM_R = TOUCH ? 420 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
 /* ------------------------------------------------------------ sky & light */
 const sky = new Sky(); sky.scale.setScalar(5000); scene.add(sky);
 const SU = sky.material.uniforms; SU.turbidity.value = 4; SU.rayleigh.value = 1.2; SU.mieCoefficient.value = 0.003; SU.mieDirectionalG.value = 0.8;
@@ -86,18 +89,12 @@ function applyTime(i) {
   $('#clock').textContent = t.label;
 }
 
-/* ------------------------------------------------------------ ground & water */
-status('建立地面、水域與街道…');
-const WATER = data.water.filter((w) => w.o.length >= 6);
+/* ------------------------------------------------------------ ground & water (base layer) */
+const WATER = base.water.filter((w) => w.o.length >= 6);
 {
   const outer = new THREE.Shape([new THREE.Vector2(-2500, -2500), new THREE.Vector2(2500, -2500), new THREE.Vector2(2500, 2500), new THREE.Vector2(-2500, 2500)]);
   for (const w of WATER) outer.holes.push(new THREE.Path(toV2(w.o)));
   const landMesh = new THREE.Mesh(flatShape(outer, 0), M.pave); landMesh.receiveShadow = true; scene.add(landMesh);
-  // parks & lawns
-  for (const gr of data.green) {
-    const sh = new THREE.Shape(toV2(gr.o)); for (const h of gr.i || []) sh.holes.push(new THREE.Path(toV2(h)));
-    const m = new THREE.Mesh(flatShape(sh, 0.012), M.grass); m.receiveShadow = true; scene.add(m);
-  }
   // water surface + quay walls
   const wg = new THREE.PlaneGeometry(5000, 5000); wg.rotateX(-Math.PI / 2);
   const water = new THREE.Mesh(wg, M.water); water.position.y = -1.1; scene.add(water);
@@ -131,60 +128,125 @@ function rippleTex() {
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1), i = (y * n + x) * 4; img.data[i] = 128 + dx * 60; img.data[i + 1] = 128 + dy * 60; img.data[i + 2] = 255; img.data[i + 3] = 255; }
   g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 }
-const roads = buildRoads(data);
-for (const [k, a] of Object.entries(roads.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
 
-/* ------------------------------------------------------------ buildings */
-status('建立 7,900 棟建築與地標分件…');
-await new Promise((r) => setTimeout(r, 0));
-const city = buildCity(data);
-let triCount = 0;
-for (const [key, a] of city.accs) {
-  const kind = key.split('|')[0];
-  const mat = kind === 'brick' ? M.brick : kind === 'plaster' ? M.plaster : M[kind] || M.roof_tile;
-  const geo = a.geo(); triCount += geo.attributes.position.count / 3;
-  const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+
+/* minimap canvas, drawn incrementally as tiles arrive (2048 px for 2.4 km) */
+const MAP = (() => {
+  const S = 2400, cv = document.createElement('canvas'); cv.width = cv.height = 2048; const g = cv.getContext('2d'), k = 2048 / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
+  g.fillStyle = '#e8e4da'; g.fillRect(0, 0, 2048, 2048);
+  const poly = (o, fill) => { g.beginPath(); for (let i = 0; i < o.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(o[i]), Z(o[i + 1])); g.closePath(); g.fillStyle = fill; g.fill(); };
+  for (const w of WATER) poly(w.o, '#9cc1d6');
+  return { cv, g, X, Z, k, poly };
+})();
+function drawTileOnMap(t, c, rd) {
+  const { g, X, Z, k, poly } = MAP;
+  for (const gr of t.green) poly(gr.o, '#c5d6b0');
+  g.strokeStyle = '#ffffff'; g.lineCap = 'round';
+  for (const r of rd.graph) { g.lineWidth = Math.max(1, r.w * k * 0.9); g.beginPath(); for (let i = 0; i < r.p.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(r.p[i]), Z(r.p[i + 1])); g.stroke(); }
+  for (const f of c.footprints) poly(f.o, f.brick ? '#c79a85' : '#cfc6b6');
 }
+/* ------------------------------------------------------------ shared city state, filled tile by tile */
+const city = { segs: [], footprints: [] };
+const roads = { graph: [] };
+let triCount = 0;
 facadeUniforms.uCut.value = Q.winR > 0 ? Q.winR - 8 : 0;
-windowLOD = new WindowLOD(scene, city.windows, city.doors, { cap: Q.winCap, radius: Q.winR });
-
-/* ------------------------------------------------------------ trees & lamps (OSM nodes) */
+windowLOD = new WindowLOD(scene, [], [], { cap: Q.winCap, radius: Q.winR });
 const lampMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc982, emissiveIntensity: 0, roughness: 0.4 });
 const windU = { uTime: { value: 0 } };
-{
-  const pts = data.trees;
-  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.3, 5, 8).translate(0, 2.5, 0), M.wood, pts.length);
-  const crownGeo = new THREE.IcosahedronGeometry(1, 4);
-  { const p = crownGeo.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = Math.sin(v.x * 7.1) * Math.sin(v.y * 6.3 + 1) * Math.sin(v.z * 5.7 + 2); v.multiplyScalar(1 + n * 0.18 + (Math.sin(v.x * 19 + v.z * 23) * 0.04)); p.setXYZ(i, v.x, v.y, v.z); } crownGeo.computeVertexNormals(); }
-  const crownMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-  crownMat.onBeforeCompile = (sh) => { sh.uniforms.uTime = windU.uTime; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat sw = sin(uTime*1.3 + instanceMatrix[3][0]*.1)*.06; transformed.x += sw*(position.y+1.); transformed.z += sw*.6*(position.y+1.);'); };
-  const crowns = new THREE.InstancedMesh(crownGeo, crownMat, pts.length * 4);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
-  pts.forEach(([x, z], i) => {
-    const k = 0.8 + ((Math.sin(x * 12.9 + z * 78.2) * 43758.5) % 1 + 1) % 1 * 0.6;
-    m.compose(p.set(x, 0, z), q.identity(), s.set(k, k, k)); trunk.setMatrixAt(i, m);
-    for (let j = 0; j < 4; j++) {
-      const a = j * 1.9 + x, r = j ? 1.6 * k : 0, sc = (j ? 2.3 : 3.0) * k;
-      q.setFromEuler(new THREE.Euler(a, a * 2, a * 3));
-      m.compose(p.set(x + Math.cos(a) * r, (6 + (j ? Math.sin(a) * 1.2 : 1.5)) * k, z + Math.sin(a) * r), q, s.set(sc, sc * 0.85, sc)); crowns.setMatrixAt(i * 4 + j, m);
-      c.setHSL(0.24 + Math.sin(a) * 0.02, 0.38, 0.17 + j * 0.02); crowns.setColorAt(i * 4 + j, c);
-    }
-  });
-  trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns);
-  const L = data.lamps, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.08, 4.4, 8).translate(0, 2.2, 0), new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5, metalness: 0.6 }), L.length);
-  const head = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.24, 0.5, 6).translate(0, 4.6, 0), lampMat, L.length);
-  L.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); pole.setMatrixAt(i, m); head.setMatrixAt(i, m); });
-  pole.castShadow = true; scene.add(pole, head);
+const crownGeo = new THREE.IcosahedronGeometry(1, TOUCH ? 2 : 4);
+{ const p = crownGeo.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = Math.sin(v.x * 7.1) * Math.sin(v.y * 6.3 + 1) * Math.sin(v.z * 5.7 + 2); v.multiplyScalar(1 + n * 0.18 + (Math.sin(v.x * 19 + v.z * 23) * 0.04)); p.setXYZ(i, v.x, v.y, v.z); } crownGeo.computeVertexNormals(); }
+const crownMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+crownMat.onBeforeCompile = (sh) => { sh.uniforms.uTime = windU.uTime; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat sw = sin(uTime*1.3 + instanceMatrix[3][0]*.1)*.06; transformed.x += sw*(position.y+1.); transformed.z += sw*.6*(position.y+1.);'); };
+const trunkGeo = new THREE.CylinderGeometry(0.16, 0.3, 5, 8).translate(0, 2.5, 0), poleGeo = new THREE.CylinderGeometry(0.05, 0.08, 4.4, 8).translate(0, 2.2, 0), headGeo = new THREE.CylinderGeometry(0.16, 0.24, 0.5, 6).translate(0, 4.6, 0);
+const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5, metalness: 0.6 });
+
+const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
+const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
+let bridges = [];
+
+function addTileToScene(t) {
+  // ground cover
+  for (const gr of t.green) {
+    const sh = new THREE.Shape(toV2(gr.o)); for (const h of gr.i || []) sh.holes.push(new THREE.Path(toV2(h)));
+    const m = new THREE.Mesh(flatShape(sh, 0.012), M.grass); m.receiveShadow = true; scene.add(m);
+  }
+  const rd = buildRoads(t);
+  for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
+  roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b);
+  // buildings
+  const c = buildCity(t);
+  for (const [key, a] of c.accs) {
+    const kind = key.split('|')[0], mat = kind === 'brick' ? M.brick : kind === 'plaster' ? M.plaster : M[kind] || M.roof_tile;
+    const geo = a.geo(); triCount += geo.attributes.position.count / 3;
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+  }
+  windowLOD.add(c.windows, c.doors);
+  for (const sg of c.segs) {
+    const i = city.segs.push(sg) - 1; if (sg[5] > 1.5) continue;  // pieces floating above ground don't block walkers
+    const x0 = Math.floor(Math.min(sg[0], sg[2]) / SEG_CELL), x1 = Math.floor(Math.max(sg[0], sg[2]) / SEG_CELL), z0 = Math.floor(Math.min(sg[1], sg[3]) / SEG_CELL), z1 = Math.floor(Math.max(sg[1], sg[3]) / SEG_CELL);
+    for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++) { const k = gx * 73856093 ^ gz * 19349663; if (!segGrid.has(k)) segGrid.set(k, []); segGrid.get(k).push(i); }
+  }
+  for (const f of c.footprints) {
+    const i = city.footprints.push(f) - 1; let a = 1e9, b = 1e9, cc = -1e9, d = -1e9;
+    for (let k = 0; k < f.o.length; k += 2) { a = Math.min(a, f.o[k]); cc = Math.max(cc, f.o[k]); b = Math.min(b, f.o[k + 1]); d = Math.max(d, f.o[k + 1]); }
+    for (let gx = Math.floor(a / FP_CELL); gx <= Math.floor(cc / FP_CELL); gx++) for (let gz = Math.floor(b / FP_CELL); gz <= Math.floor(d / FP_CELL); gz++) { const k = gx + ',' + gz; if (!fpGrid.has(k)) fpGrid.set(k, []); fpGrid.get(k).push(i); }
+  }
+  // trees & lamps (OSM nodes)
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3(), col = new THREE.Color();
+  if (t.trees.length) {
+    const trunk = new THREE.InstancedMesh(trunkGeo, M.wood, t.trees.length), crowns = new THREE.InstancedMesh(crownGeo, crownMat, t.trees.length * 4);
+    t.trees.forEach(([x, z], i) => {
+      const k = 0.8 + ((Math.sin(x * 12.9 + z * 78.2) * 43758.5) % 1 + 1) % 1 * 0.6;
+      m.compose(pv.set(x, 0, z), q.identity(), sv.set(k, k, k)); trunk.setMatrixAt(i, m);
+      for (let j = 0; j < 4; j++) {
+        const a = j * 1.9 + x, r = j ? 1.6 * k : 0, sc = (j ? 2.3 : 3.0) * k;
+        q.setFromEuler(new THREE.Euler(a, a * 2, a * 3));
+        m.compose(pv.set(x + Math.cos(a) * r, (6 + (j ? Math.sin(a) * 1.2 : 1.5)) * k, z + Math.sin(a) * r), q, sv.set(sc, sc * 0.85, sc)); crowns.setMatrixAt(i * 4 + j, m);
+        col.setHSL(0.24 + Math.sin(a) * 0.02, 0.38, 0.17 + j * 0.02); crowns.setColorAt(i * 4 + j, col);
+      }
+    });
+    trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns);
+  }
+  if (t.lamps.length) {
+    const pole = new THREE.InstancedMesh(poleGeo, poleMat, t.lamps.length), head = new THREE.InstancedMesh(headGeo, lampMat, t.lamps.length);
+    t.lamps.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); pole.setMatrixAt(i, m); head.setMatrixAt(i, m); });
+    pole.castShadow = true; scene.add(pole, head);
+  }
+  drawTileOnMap(t, c, rd);
+  wCache.clear();
 }
 
-/* ------------------------------------------------------------ collision world */
-const SEG_CELL = 8, segGrid = new Map();
-city.segs.forEach((s, i) => {
-  if (s[5] > 1.5) return; // pieces floating above ground (tower tops, overhangs) don't block walkers
-  const x0 = Math.floor(Math.min(s[0], s[2]) / SEG_CELL), x1 = Math.floor(Math.max(s[0], s[2]) / SEG_CELL), z0 = Math.floor(Math.min(s[1], s[3]) / SEG_CELL), z1 = Math.floor(Math.max(s[1], s[3]) / SEG_CELL);
-  for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++) { const k = gx * 73856093 ^ gz * 19349663; if (!segGrid.has(k)) segGrid.set(k, []); segGrid.get(k).push(i); }
-});
-const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
+/* tile streaming */
+const loadedTiles = new Set(), tileQueue = [];
+let streaming = false;
+const tileKey = (x, z) => `${Math.floor(x / TI.size)}_${Math.floor(z / TI.size)}`;
+function tilesAround(x, z, r) {
+  const out = [], S = TI.size;
+  for (let i = Math.floor((x - r) / S); i <= Math.floor((x + r) / S); i++) for (let j = Math.floor((z - r) / S); j <= Math.floor((z + r) / S); j++) {
+    const k = `${i}_${j}`; if (!TI.tiles[k]) continue;
+    const cx = Math.max(i * S, Math.min(x, (i + 1) * S)), cz = Math.max(j * S, Math.min(z, (j + 1) * S));   // nearest point of the tile
+    const d = Math.hypot(cx - x, cz - z); if (d <= r) out.push([d, k]);
+  }
+  return out.sort((a, b) => a[0] - b[0]).map((e) => e[1]);
+}
+async function loadTile(k) {
+  if (loadedTiles.has(k)) return; loadedTiles.add(k);
+  try {
+    const t = await fetch(`data/tiles/${k}.json`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    addTileToScene(t);
+  } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
+}
+function queueAround(x, z) { for (const k of tilesAround(x, z, STREAM_R)) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
+async function pumpTiles() {
+  if (streaming) return; streaming = true;
+  while (tileQueue.length) {
+    const k = tileQueue.shift(); await loadTile(k);
+    const el = $('#stream'); if (el) el.textContent = tileQueue.length ? `載入街區中… 剩 ${tileQueue.length}` : '';
+    await new Promise((r) => setTimeout(r, 30));   // yield so walking stays smooth between tiles
+  }
+  streaming = false;
+}
+
 function nearSegs(x, z, r) {
   const out = new Set();
   for (let gx = Math.floor((x - r) / SEG_CELL); gx <= Math.floor((x + r) / SEG_CELL); gx++) for (let gz = Math.floor((z - r) / SEG_CELL); gz <= Math.floor((z + r) / SEG_CELL); gz++) for (const i of segGrid.get(gx * 73856093 ^ gz * 19349663) || []) out.add(i);
@@ -215,15 +277,11 @@ function segmentHits(x1, z1, x2, z2) {
   }
   return false;
 }
-// footprints grid (camera occlusion, safe dismount points)
-const FP_CELL = 32, fpGrid = new Map();
-city.footprints.forEach((f, i) => { const xs = f.o.filter((_, k) => k % 2 === 0), zs = f.o.filter((_, k) => k % 2 === 1); for (let gx = Math.floor(Math.min(...xs) / FP_CELL); gx <= Math.floor(Math.max(...xs) / FP_CELL); gx++) for (let gz = Math.floor(Math.min(...zs) / FP_CELL); gz <= Math.floor(Math.max(...zs) / FP_CELL); gz++) { const k = gx + ',' + gz; if (!fpGrid.has(k)) fpGrid.set(k, []); fpGrid.get(k).push(i); } });
 function insideBuilding(x, z, y = 0) { for (const i of fpGrid.get(Math.floor(x / FP_CELL) + ',' + Math.floor(z / FP_CELL)) || []) { const f = city.footprints[i]; if (y < f.H && pip(x, z, f.o)) return true; } return false; }
 function inWater(x, z) {
   for (const w of WATER) { if (pip(x, z, w.o) && !(w.i || []).some((h) => pip(x, z, h))) return true; }
   return false;
 }
-const bridges = roads.graph.filter((r) => r.b);
 function onBridge(x, z) {
   for (const r of bridges) for (let i = 0; i < r.p.length / 2 - 1; i++) {
     const x1 = r.p[2 * i], z1 = r.p[2 * i + 1], x2 = r.p[2 * i + 2], z2 = r.p[2 * i + 3], dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1;
@@ -236,23 +294,26 @@ const walkable = (x, z) => Math.abs(x) < 2400 && Math.abs(z) < 2400 && (!inWater
 const wCache = new Map();
 function walkableC(x, z) { const k = Math.round(x) * 100003 + Math.round(z); if (!wCache.has(k)) { if (wCache.size > 200000) wCache.clear(); wCache.set(k, walkable(Math.round(x), Math.round(z))); } return wCache.get(k); }
 
-/* ------------------------------------------------------------ hero demo area */
+/* ------------------------------------------------------------ first tiles around the spawn point */
 const teufelLM = LM.landmarks.find((l) => l.id === 'teufel');
+{
+  const first = tilesAround(teufelLM.local_xz_m[0], teufelLM.local_xz_m[1], 160);
+  for (let n = 0; n < first.length; n++) { status(`建立周邊街區… ${n + 1}／${first.length}`); await loadTile(first[n]); await new Promise((r) => setTimeout(r, 0)); }
+}
 const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teufelLM.local_xz_m[1] });
 extraColliders.push(...hero.colliders);
 
 /* ------------------------------------------------------------ actors */
-status('載入人物模型…');
-let H;
-try {
-  H = await Promise.race([
-    loadHuman(scene, (l, t) => status(`載入人物模型… ${Math.min(99, Math.round(l / t * 100))}%`)),
-    new Promise((_, rej) => setTimeout(() => rej(new Error('逾時')), 60000)),
-  ]);
-} catch (err) {
-  status(`人物模型載入失敗（${err.message}）。請重新整理頁面再試一次。`);
-  throw err;
-}
+// Until the character finishes downloading, a simple placeholder stands in (you can already walk around).
+const placeholder = new THREE.Group();
+{ const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 1.2, 4, 12), new THREE.MeshStandardMaterial({ color: 0xc0563a, roughness: 0.7 })); m.position.y = 0.82; m.castShadow = true; placeholder.add(m); }
+scene.add(placeholder);
+const noop = { setEffectiveWeight() {}, timeScale: 1 };
+let H = { root: placeholder, model: placeholder, mixer: { update() {} }, A: { idle: noop, walk: noop, run: noop }, w: { idle: 1, walk: 0, run: 0 }, bones: null, stub: true };
+let B = null;
+const humanReady = loadHuman(scene, (l, t) => { const e = $('#stream'); if (e && H.stub) e.textContent = `人物模型 ${Math.min(99, Math.round(l / t * 100))}%`; })
+  .then((h) => { h.root.position.copy(placeholder.position); h.root.rotation.copy(placeholder.rotation); scene.remove(placeholder); H = h; B = h.bones; if (refMode) h.root.visible = false; const e = $('#stream'); if (e && !streaming) e.textContent = ''; })
+  .catch((err) => { const e = $('#stream'); if (e) e.textContent = `人物模型載入失敗：${err.message}`; console.error(err); });
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
@@ -323,6 +384,7 @@ function inputVec() {
 /* ------------------------------------------------------------ mode switching */
 const prompt = $('#prompt');
 function interact() {
+  if (!B) { toast('人物還在載入，請稍候'); return; }
   if (P.mode === 'walk') {
     const dBike = Math.hypot(P.x - bike.x, P.z - bike.z);
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
@@ -415,7 +477,6 @@ function carStep(dt) {
 }
 
 // seated poses: hips on the seat, IK legs to pedals/floor, IK arms to grips/steering wheel
-const B = H.bones;
 function seatHuman(seatWorld, yaw, legTargets, handTargets, kneePole, elbowPole, lean = 0) {
   H.root.position.set(0, 0, 0); H.root.rotation.set(0, yaw, lean); H.root.updateMatrixWorld(true);
   const hips = B.Hips.getWorldPosition(new THREE.Vector3());
@@ -479,7 +540,7 @@ function updateCamera(dt) {
   if (P.mode === 'car' || P.mode === 'exitCar') { fx = car.x; fz = car.z; fy = 1.5; dist = Math.max(camDist, 7.0); yawFollow = car.yaw; follow = Math.abs(car.v) > 0.5; }
   if (follow && !drag && look.id === null) { let d = (yawFollow + Math.PI) - camYaw; d = Math.atan2(Math.sin(d), Math.cos(d)); camYaw += d * (1 - Math.exp(-dt * (P.mode === 'walk' ? 1.2 : 2.5))); }
   headV.set(fx, fy, fz);
-  if (firstPerson && P.mode === 'walk') { B.Head.getWorldPosition(camPos); camera.position.copy(camPos).add(new THREE.Vector3(Math.sin(P.yaw) * 0.12, 0.05, Math.cos(P.yaw) * 0.12)); camera.lookAt(camPos.x - Math.sin(camYaw) * 5, camPos.y - Math.tan(camPitch) * 5, camPos.z - Math.cos(camYaw) * 5); H.model.visible = false; return; }
+  if (firstPerson && P.mode === 'walk' && B) { B.Head.getWorldPosition(camPos); camera.position.copy(camPos).add(new THREE.Vector3(Math.sin(P.yaw) * 0.12, 0.05, Math.cos(P.yaw) * 0.12)); camera.lookAt(camPos.x - Math.sin(camYaw) * 5, camPos.y - Math.tan(camPitch) * 5, camPos.z - Math.cos(camYaw) * 5); H.model.visible = false; return; }
   H.model.visible = true;
   const cp = Math.cos(camPitch); let d = dist;
   for (let k = 1; k <= 20; k++) { const t = dist * k / 20; if (camOccluded(headV.x + Math.sin(camYaw) * cp * t, headV.y + Math.sin(camPitch) * t, headV.z + Math.cos(camYaw) * cp * t)) { d = Math.max(0.9, t - dist / 20 - 0.3); break; } }
@@ -492,17 +553,6 @@ function updateCamera(dt) {
 /* ------------------------------------------------------------ UI: info cards, minimap, perf */
 const cards = new InfoCards(LM.landmarks, { getMode: () => P.mode, getSpeed: () => (P.mode === 'car' ? car.v : P.mode === 'bike' ? bike.v : P.speed) });
 const mini = $('#mini'), mctx = mini.getContext('2d');
-const MAP = (() => {
-  const S = 2400, cv = document.createElement('canvas'); cv.width = cv.height = 2048; const g = cv.getContext('2d'), k = 2048 / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
-  g.fillStyle = '#e8e4da'; g.fillRect(0, 0, 2048, 2048);
-  const poly = (o, fill) => { g.beginPath(); for (let i = 0; i < o.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(o[i]), Z(o[i + 1])); g.closePath(); g.fillStyle = fill; g.fill(); };
-  for (const gr of data.green) poly(gr.o, '#c5d6b0');
-  for (const w of WATER) poly(w.o, '#9cc1d6');
-  g.strokeStyle = '#ffffff'; g.lineCap = 'round';
-  for (const r of roads.graph) { g.lineWidth = Math.max(1, r.w * k * 0.9); g.beginPath(); for (let i = 0; i < r.p.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(r.p[i]), Z(r.p[i + 1])); g.stroke(); }
-  for (const f of city.footprints) poly(f.o, f.brick ? '#c79a85' : '#cfc6b6');
-  return { cv, X, Z, k };
-})();
 function drawMini() {
   const W = mini.width, span = 380 * MAP.k;
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
@@ -541,6 +591,7 @@ function frame() {
   else prompt.hidden = true;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
   if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }
+  if ((frameN & 63) === 0) queueAround(fx, fz);
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
   const now = performance.now(), ft = now - perf.last; perf.last = now; perf.frames++; perf.acc += ft; perf.worst = Math.max(perf.worst, ft);
@@ -550,14 +601,13 @@ function frame() {
     perf.frames = 0; perf.acc = 0; perf.worst = 0;
   }
 }
-const refMode = params.get('ref') === 'teufel';
 if (refMode) { camera.fov = hero.refCam.fov; camera.updateProjectionMatrix(); document.body.classList.add('refmode'); H.root.visible = false; bike.g.visible = false; car.g.visible = false; }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer?.setSize(innerWidth, innerHeight); aoPass?.setSize?.(innerWidth, innerHeight); });
 
-status(`完成：${city.footprints.length} 棟建築、${(triCount / 1e6).toFixed(2)} M 三角形、${city.windows.length} 扇窗`);
+status(`周邊 ${city.footprints.length} 棟建築已就緒，其餘街區會邊走邊載入`);
 requestAnimationFrame(frame);
 const go = $('#go'); go.disabled = false; go.focus();
-go.addEventListener('click', () => { started = true; $('#intro').classList.add('off'); canvas.focus(); });
+go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); canvas.focus(); });
 window.__lub = {
   start: () => { started = true; $('#intro').classList.add('off'); }, P, bike, car, hero, keys, interact,
   teleport: (x, z, yaw) => { P.x = x; P.z = z; if (yaw !== undefined) { P.yaw = yaw; camYaw = yaw + Math.PI; } camera.userData.init = false; },

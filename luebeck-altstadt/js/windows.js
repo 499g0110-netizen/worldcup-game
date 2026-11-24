@@ -42,7 +42,7 @@ function mergeGeos(list) {
 
 export class WindowLOD {
   constructor(scene, windows, doors, { cap = 16000, radius = 140 } = {}) {
-    this.windows = windows; this.doors = doors; this.radius = radius; this.cap = cap;
+    this.radius = radius; this.cap = cap;
     const g = unitGeometries(), dg = doorGeometries();
     this.revMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.85 });
     this.frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45 });
@@ -54,11 +54,15 @@ export class WindowLOD {
     const mk = (geo, mat, n, shadow) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.castShadow = shadow; m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
     this.rev = mk(g.rev, this.revMat, cap, false); this.frame = mk(g.frame, this.frameMat, cap, true); this.glass = mk(g.glass, this.glassMat, cap, false);
     this.drev = mk(dg.rev, this.revMat, 3000, true); this.dleaf = mk(dg.leaf, this.doorMat, 3000, true);
-    // spatial grid
-    this.G = 48; this.grid = new Map();
-    windows.forEach((w, i) => { const k = Math.floor(w.x / this.G) + ',' + Math.floor(w.z / this.G); if (!this.grid.has(k)) this.grid.set(k, []); this.grid.get(k).push(i); });
-    this.dgrid = new Map(); doors.forEach((w, i) => { const k = Math.floor(w.x / this.G) + ',' + Math.floor(w.z / this.G); if (!this.dgrid.has(k)) this.dgrid.set(k, []); this.dgrid.get(k).push(i); });
+    // spatial grid (tiles add their windows as they stream in)
+    this.G = 48; this.grid = new Map(); this.dgrid = new Map(); this.windows = []; this.doors = [];
+    this.add(windows, doors);
     this.last = null; this.night = 0;
+  }
+  add(windows, doors) {
+    for (const w of windows) { const i = this.windows.push(w) - 1, k = Math.floor(w.x / this.G) + ',' + Math.floor(w.z / this.G); if (!this.grid.has(k)) this.grid.set(k, []); this.grid.get(k).push(i); }
+    for (const w of doors) { const i = this.doors.push(w) - 1, k = Math.floor(w.x / this.G) + ',' + Math.floor(w.z / this.G); if (!this.dgrid.has(k)) this.dgrid.set(k, []); this.dgrid.get(k).push(i); }
+    this.last = null;
   }
   setNight(v) { this.night = v; this.glassMat.emissiveIntensity = v ? 2.2 : 0; this.last = null; }
   update(px, pz, force) {
