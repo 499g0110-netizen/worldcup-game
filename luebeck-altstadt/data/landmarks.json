@@ -1,0 +1,513 @@
+{
+ "meta": {
+  "crs": "ETRS89/UTM32N → local metres (x east, z south)",
+  "origin_latlon": [
+   53.8665,
+   10.685
+  ],
+  "fetched_at": "2026-11-24T14:39Z",
+  "note": "POI 點不一定是建築中心或入口；入口位置尚未逐一核對。"
+ },
+ "landmarks": [
+  {
+   "id": "holstentor",
+   "name_zh": "霍爾斯滕門",
+   "name_de": "Holstentor",
+   "address": "Holstentorplatz, 23552 Lübeck",
+   "osm": "way/27075168",
+   "lat": 53.8662557,
+   "lon": 10.6796477,
+   "coord_source": "OpenStreetMap way/27075168 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -351.27,
+    35.52
+   ],
+   "footprint": {
+    "w": 13.3,
+    "d": 34.2,
+    "long_edge_bearing_deg": 179.5,
+    "vertices": 45
+   },
+   "height_m": 38.0,
+   "height_source": "OSM building:part height (towers 38 m incl. roof 19.5 m)",
+   "photo": {
+    "file": "Holstentor aerial / Puppenbrücke photos",
+    "source": "使用者提供",
+    "date": "未知",
+    "camera": "未知（未提供 EXIF）",
+    "authenticity": "使用者表示部分為 AI 重製，需逐張確認"
+   },
+   "neighbours": [
+    "Holstentorplatz",
+    "Salzspeicher (east)",
+    "Holstenbrücke → Holstenstraße (old town)",
+    "Puppenbrücke (west)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "salzspeicher",
+   "name_zh": "鹽倉",
+   "name_de": "Salzspeicher",
+   "address": "An der Obertrave / Holstenstraße, 23552 Lübeck",
+   "osm": "way/28831875",
+   "lat": 53.8658921,
+   "lon": 10.6802061,
+   "coord_source": "OpenStreetMap way/28831875 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -313.6,
+    75.1
+   ],
+   "footprint": {
+    "w": 29.2,
+    "d": 56.6,
+    "long_edge_bearing_deg": 178.3,
+    "vertices": 20
+   },
+   "height_m": 17.0,
+   "height_source": "OSM building:part height (10–17 m)",
+   "photo": null,
+   "neighbours": [
+    "Holstentor (west)",
+    "Trave / Obertrave (east)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "st_petri",
+   "name_zh": "聖伯多祿教堂",
+   "name_de": "St. Petri zu Lübeck",
+   "address": "Petrikirchhof 1, 23552 Lübeck",
+   "osm": "way/37993986",
+   "lat": 53.8658376,
+   "lon": 10.6830694,
+   "coord_source": "OpenStreetMap way/37993986 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -125.19,
+    76.7
+   ],
+   "footprint": {
+    "w": 57.6,
+    "d": 38.8,
+    "long_edge_bearing_deg": 98.6,
+    "vertices": 31
+   },
+   "height_m": 105.0,
+   "height_source": "OSM building:part height (spire 105 m)",
+   "photo": null,
+   "neighbours": [
+    "Schmiedestraße",
+    "Holstenstraße"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "st_marien",
+   "name_zh": "聖瑪利亞教堂",
+   "name_de": "St. Marien zu Lübeck",
+   "address": "Marienkirchhof 1, 23552 Lübeck",
+   "osm": "way/24275959",
+   "lat": 53.8677059,
+   "lon": 10.6852289,
+   "coord_source": "OpenStreetMap way/24275959 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    11.86,
+    -134.5
+   ],
+   "footprint": {
+    "w": 104.5,
+    "d": 59.5,
+    "long_edge_bearing_deg": 97.9,
+    "vertices": 251
+   },
+   "height_m": 125.0,
+   "height_source": "OSM parts: towers 76 m + spire (see parts); total ≈125 m (literature value, 待核對 with parts)",
+   "photo": null,
+   "neighbours": [
+    "Marienkirchhof",
+    "Rathaus (east/south-east)",
+    "Mengstraße (north)",
+    "Schüsselbuden (west)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "teufel",
+   "name_zh": "小惡魔銅像",
+   "name_de": "Der Teufel (Teufelsfigur am Teufelsstein)",
+   "address": "Marienkirchhof, 23552 Lübeck (St. Marien Südseite)",
+   "osm": "node/1378763550",
+   "lat": 53.8675065,
+   "lon": 10.6853911,
+   "coord_source": "OpenStreetMap node/1378763550",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    23.05,
+    -112.58
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估：座像約 1 m 高，坐在花崗岩石塊上",
+   "photo": {
+    "file": "Teufel photo (bronze devil on granite block)",
+    "source": "使用者提供",
+    "date": "未知",
+    "camera": "未知（未提供 EXIF）",
+    "authenticity": "使用者表示部分為 AI 重製，需逐張確認"
+   },
+   "neighbours": [
+    "St. Marien south wall",
+    "passage towards Rathaus / Breite Straße"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "石塊實際長寬高",
+    "銅像朝向（目前依照片推估面向南南東）"
+   ]
+  },
+  {
+   "id": "rathaus",
+   "name_zh": "市政廳",
+   "name_de": "Rathaus Lübeck",
+   "address": "Breite Straße 64, 23552 Lübeck",
+   "osm": "way/43625520",
+   "lat": 53.8670067,
+   "lon": 10.6853888,
+   "coord_source": "OpenStreetMap way/43625520 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    24.22,
+    -56.98
+   ],
+   "footprint": {
+    "w": 44.0,
+    "d": 48.8,
+    "long_edge_bearing_deg": 11.0,
+    "vertices": 250
+   },
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Markt",
+    "Breite Straße",
+    "St. Marien"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "整體高度（OSM 只有細部分件）"
+   ]
+  },
+  {
+   "id": "niederegger",
+   "name_zh": "Niederegger 咖啡館本店",
+   "name_de": "Café Niederegger",
+   "address": "Breite Straße 89, 23552 Lübeck",
+   "osm": "node/2165286986",
+   "lat": 53.866539,
+   "lon": 10.6858426,
+   "coord_source": "OpenStreetMap node/2165286986",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    55.3,
+    -5.66
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Breite Straße (gegenüber Rathaus)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "建築輪廓 ID 與入口位置"
+   ]
+  },
+  {
+   "id": "hugendubel",
+   "name_zh": "Hugendubel 書店",
+   "name_de": "Hugendubel",
+   "address": "Königstraße 67a, 23552 Lübeck",
+   "osm": "node/442660570",
+   "lat": 53.8667494,
+   "lon": 10.6874649,
+   "coord_source": "OpenStreetMap node/442660570",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    161.41,
+    -31.6
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Königstraße"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "OSM 節點沒有地址標籤；地址取自 OSM 建築 addr:housenumber=67a 的相鄰輪廓，待人工核對"
+   ]
+  },
+  {
+   "id": "junge_breite7",
+   "name_zh": "Junge 麵包店（Breite Straße 7）",
+   "name_de": "Junge Die Bäckerei",
+   "address": "Breite Straße 7, 23552 Lübeck",
+   "osm": "node/1625543663",
+   "lat": 53.8703738,
+   "lon": 10.6883329,
+   "coord_source": "OpenStreetMap node/1625543663",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    208.88,
+    -436.15
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Breite Straße north, near Koberg / Jakobikirche"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "schiffergesellschaft",
+   "name_zh": "船員公會之家",
+   "name_de": "Haus der Schiffergesellschaft",
+   "address": "Breite Straße 2, 23552 Lübeck",
+   "osm": "way/149007922",
+   "lat": 53.8711856,
+   "lon": 10.6880483,
+   "coord_source": "OpenStreetMap way/149007922 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    188.02,
+    -526.01
+   ],
+   "footprint": {
+    "w": 21.6,
+    "d": 16.7,
+    "long_edge_bearing_deg": 109.3,
+    "vertices": 6
+   },
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Koberg",
+    "St. Jakobi (across Breite Straße)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "fuechtingshof",
+   "name_zh": "Füchtingshof 庭院",
+   "name_de": "Füchtingshof",
+   "address": "Glockengießerstraße 23, 23552 Lübeck",
+   "osm": "way/231906528",
+   "lat": 53.8696192,
+   "lon": 10.6909066,
+   "coord_source": "OpenStreetMap way/231906528 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    380.09,
+    -356.23
+   ],
+   "footprint": {
+    "w": 15.5,
+    "d": 47.9,
+    "long_edge_bearing_deg": 5.6,
+    "vertices": 3
+   },
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Glockengießerstraße"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "OSM 中只找到名為 Füchtingshof 的通道，沒有門牌 23 的建築輪廓；位置為推估"
+   ]
+  },
+  {
+   "id": "museumshafen",
+   "name_zh": "博物館港",
+   "name_de": "Museumshafen (An der Untertrave)",
+   "address": "An der Untertrave, 23552 Lübeck",
+   "osm": "node/366273044",
+   "lat": 53.8719959,
+   "lon": 10.682407,
+   "coord_source": "OpenStreetMap node/366273044",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -184.99,
+    -607.34
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Drehbrücke",
+    "Untertrave quay"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "drehbruecke",
+   "name_zh": "旋轉橋",
+   "name_de": "Drehbrücke",
+   "address": "Drehbrückenplatz, 23552 Lübeck",
+   "osm": "node/2291778032",
+   "lat": 53.8725817,
+   "lon": 10.6823207,
+   "coord_source": "OpenStreetMap node/2291778032",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -192.21,
+    -672.37
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "burgtor",
+   "name_zh": "城堡門",
+   "name_de": "Burgtor",
+   "address": "Große Burgstraße, 23552 Lübeck",
+   "osm": "way/119866260",
+   "lat": 53.8739098,
+   "lon": 10.6911889,
+   "coord_source": "OpenStreetMap way/119866260 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    387.26,
+    -833.97
+   ],
+   "footprint": {
+    "w": 13.6,
+    "d": 13.8,
+    "long_edge_bearing_deg": 15.3,
+    "vertices": 9
+   },
+   "height_m": 32.0,
+   "height_source": "OSM height tag",
+   "photo": null,
+   "neighbours": [
+    "Große Burgstraße (south)",
+    "Burgtorbrücke (north)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "dom",
+   "name_zh": "呂貝克主教座堂",
+   "name_de": "Dom zu Lübeck",
+   "address": "Domkirchhof 1, 23552 Lübeck",
+   "osm": "way/24276160",
+   "lat": 53.8608904,
+   "lon": 10.6857797,
+   "coord_source": "OpenStreetMap way/24276160 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    66.1,
+    622.81
+   ],
+   "footprint": {
+    "w": 133.7,
+    "d": 60.8,
+    "long_edge_bearing_deg": 85.5,
+    "vertices": 104
+   },
+   "height_m": 111.5,
+   "height_source": "OSM building:part height (towers 111.5 m)",
+   "photo": null,
+   "neighbours": [
+    "Mühlenteich (south-west)",
+    "Musterbahn"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "hauptbahnhof",
+   "name_zh": "呂貝克中央車站",
+   "name_de": "Lübeck Hauptbahnhof",
+   "address": "Am Bahnhof 2-6, 23558 Lübeck",
+   "osm": "way/214484180",
+   "lat": 53.8670852,
+   "lon": 10.6705226,
+   "coord_source": "OpenStreetMap way/214484180 (centroid of nodes)",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -953.43,
+    -42.58
+   ],
+   "footprint": {
+    "w": 32.9,
+    "d": 30.0,
+    "long_edge_bearing_deg": 145.6,
+    "vertices": 32
+   },
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": null,
+   "neighbours": [
+    "Konrad-Adenauer-Straße → Puppenbrücke → Holstentor (east)"
+   ],
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "高度：OSM 無"
+   ]
+  },
+  {
+   "id": "puppenbruecke",
+   "name_zh": "人偶橋",
+   "name_de": "Puppenbrücke",
+   "address": "Konrad-Adenauer-Straße, 23558 Lübeck",
+   "osm": "node/6389867819",
+   "lat": 53.8661299,
+   "lon": 10.6753741,
+   "coord_source": "OpenStreetMap node/6389867819",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -631.94,
+    56.17
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "推估 (OSM building:levels or defaults)",
+   "photo": {
+    "file": "Puppenbrücke photo with statue and plaque",
+    "source": "使用者提供",
+    "date": "未知",
+    "camera": "未知（未提供 EXIF）",
+    "authenticity": "使用者表示部分為 AI 重製，需逐張確認"
+   },
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  }
+ ]
+}
