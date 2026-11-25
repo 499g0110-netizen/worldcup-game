@@ -1,10 +1,11 @@
-import { hasStory, openStory, storyList } from './stories.js';
+import { openStory, storyList, storiesAt, STORIES } from './stories.js';
+import './stories2.js';
 // Landmark intro cards: enter/exit hysteresis, one card at a time, manual close sticks for the current visit,
 // global "auto intro" switch, reopen via the ℹ button or the I key, never pops up while riding/driving.
 const TEXT = {
   musikhochschule: '呂貝克音樂學院，位於聖伯多祿教堂旁的大彼得溝街，校舍由一整排歷史老屋改建；附設布拉姆斯研究所，收藏大量布拉姆斯的手稿與書信。',
   brahms: '作曲家約翰尼斯·布拉姆斯的雕像，位在特拉沃河畔的 An der Obertrave。布拉姆斯 1833 年生於漢堡。',
-  holstentor: '舊城西側的城門，1464–1478 年建成，兩座圓塔頂著尖錐屋頂。朝城內那一面刻著「CONCORDIA DOMI FORIS PAX」（城內和睦，城外和平）。現為城市歷史博物館。',
+  holstentor: '舊城西側的城門，1464–1478 年建成，兩座圓塔頂著尖錐屋頂。朝城外（西側）那一面刻著「CONCORDIA DOMI FORIS PAX」（城內和睦，城外和平），朝城內的一面則是「S.P.Q.L.」。現為城市歷史博物館。',
   salzspeicher: '特拉沃河畔的六棟磚造倉庫，建於 16 至 18 世紀，存放從呂內堡運來、準備轉運到斯堪地那維亞的鹽。',
   st_petri: '聖伯多祿教堂，現為不舉行常規禮拜的文化與大學教堂；塔上有觀景台，可以俯瞰舊城。',
   st_marien: '聖瑪利亞教堂，1277–1351 年興建，是北德磚造哥德式教堂的典範，由市民出資，蓋在市政廳旁。',
@@ -20,6 +21,11 @@ const TEXT = {
   burgtor: '城堡門，舊城北端的城門，塔樓建於 1444 年。',
   dom: '呂貝克主教座堂，1173 年由獅子亨利奠基，位於舊城島南端，臨 Mühlenteich 水池。',
   hauptbahnhof: '呂貝克中央車站，位於舊城島西側、河的對岸。',
+  buddenbrookhaus: '布登勃洛克之家（Mengstraße 4），曼氏家族祖父母的房子，湯瑪斯·曼以它為原型寫出《布登勃洛克家族》。現為海因里希與湯瑪斯·曼中心，正在整修擴建。',
+  malerwinkel: '畫家角落：特拉沃河上游河岸的觀景點，可以看到對岸老屋的背面、花園與小碼頭，以及水面上的倒影。',
+  kanal: '運河特拉沃（Kanal-Trave），易北河—呂貝克運河流經舊城東側的一段。運河 1900 年通航，前身是 1398 年完成的施特克尼茨運河。',
+  st_jakobi: '聖雅各教堂，水手與漁民的教堂，位於 Koberg 廣場旁；「七塔之城」的七座尖塔之一。',
+  st_aegidien: '聖吉爾斯教堂（St. Aegidien），五座主要教堂中最小的一座，位於舊城東側的手工業者街區；「七塔之城」的七座尖塔之一。',
   puppenbruecke: '人偶橋（Puppenbrücke），霍爾斯滕門外的橋，橋上有一組石雕像，因此得名。',
 };
 export class InfoCards {
@@ -62,7 +68,11 @@ export class InfoCards {
     this.el.querySelector('.de').textContent = l.name_de; this.el.querySelector('.zh').textContent = l.name_zh;
     this.el.querySelector('.addr').textContent = l.address;
     this.el.querySelector('.tx').textContent = TEXT[l.id];
-    const sb = this.el.querySelector('.storybtn'); sb.hidden = !hasStory(l.id); sb.onclick = (e) => { e.stopPropagation(); openStory(l.id); };
+    // one button per film attached to this place
+    const sb = this.el.querySelector('.storybtn'); sb.hidden = true;
+    let box = this.el.querySelector('.storybtns'); if (!box) { box = document.createElement('div'); box.className = 'storybtns'; sb.after(box); }
+    box.textContent = '';
+    for (const id of storiesAt(l.id)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'storybtn'; b.textContent = '▶ ' + STORIES[id].zh; b.onclick = (e) => { e.stopPropagation(); openStory(id); }; box.appendChild(b); }
     this.el.querySelector('.src').innerHTML = `位置：<a href="https://www.openstreetmap.org/${l.osm}" target="_blank" rel="noopener">OpenStreetMap ${l.osm}</a>（ODbL，取得 ${l.fetched_at.slice(0, 10)}）` + (l.unverified.length ? `<br>待核對：${l.unverified.join('；')}` : '');
     this.el.hidden = false; requestAnimationFrame(() => this.el.classList.add('on'));
   }

@@ -1,3 +1,4 @@
+import { StoryAudio } from './storyaudio.js';
 // Paper-cut story films for the landmarks. Everything is drawn live on a canvas (no video files):
 // layered paper silhouettes with fibre texture, hand-cut edges, drop shadows, parallax camera and pop-up entrances.
 // Facts follow commonly documented history; legends are labelled as legends.
@@ -39,6 +40,7 @@ function paper(ctx, pts, color, depth = 1, opts = {}) {
   ctx.shadowColor = 'rgba(30,20,10,0.38)'; ctx.shadowBlur = 6 + depth * 7; ctx.shadowOffsetX = 2 + depth * 2.5; ctx.shadowOffsetY = 3 + depth * 3.5;
   pathOf(ctx, pts); ctx.fillStyle = color; ctx.fill();
   ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 1.1; ctx.strokeStyle = 'rgba(255,248,230,0.28)'; ctx.stroke();
   ctx.clip();
   ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = opts.grain ?? 0.22; ctx.fillStyle = grainPattern(ctx); ctx.fillRect(-2000, -2000, 6000, 6000);
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
@@ -129,6 +131,68 @@ function skyline(base, seed = 1, h0 = 120) {   // row of Lübeck gable houses
   return out;
 }
 
+
+// Henry the Lion (Heinrich der Löwe) as a paper-theatre figure: standing upright, lion's head with a full mane,
+// ducal coronet, ermine collar, red tunic with gold trim, blue cloak, boots, holding a sword or a model church.
+function henry(ctx, cx, base, s, T = 0, hold = 'church', depth = 2) {
+  const H = s, by = base - 0.83 * H, sway = Math.sin(T * 1.1) * 0.006 * H;
+  ctx.save(); ctx.translate(sway, 0);
+  // tail with tuft, peeking from behind the cloak
+  const tail = []; for (let i = 0; i <= 14; i++) { const u = i / 14; tail.push([cx + 0.18 * H + u * 0.2 * H, base - 0.25 * H + Math.sin(u * 3.2) * 0.06 * H - u * 0.14 * H]); }
+  for (let i = 14; i >= 0; i--) { const u = i / 14; tail.push([cx + 0.18 * H + u * 0.2 * H, base - 0.235 * H + Math.sin(u * 3.2) * 0.06 * H - u * 0.14 * H]); }
+  paper(ctx, cut(tail, 3001, 0.5, 6), '#c08a36', depth - 0.2);
+  paper(ctx, cut(ellipse(cx + 0.385 * H, base - 0.4 * H, 0.035 * H, 0.05 * H, 12), 3002, 1.2, 5), '#6b4320', depth - 0.15);
+  // cloak (behind the body), deep blue with a gold hem
+  const cloak = [[cx - 0.17 * H, base - 0.7 * H], [cx + 0.17 * H, base - 0.7 * H], [cx + 0.29 * H, base - 0.02 * H], [cx + 0.1 * H, base + 0.005 * H], [cx - 0.1 * H, base + 0.005 * H], [cx - 0.29 * H, base - 0.02 * H]];
+  paper(ctx, cut(cloak, 3003, 1, 10), '#203a6b', depth);
+  paper(ctx, cut([[cx - 0.29 * H, base - 0.035 * H], [cx + 0.29 * H, base - 0.035 * H], [cx + 0.295 * H, base - 0.01 * H], [cx - 0.295 * H, base - 0.01 * H]], 3004, 0.4, 8), C.gold, depth + 0.05);
+  // legs & boots
+  for (const sx of [-1, 1]) { paper(ctx, cut(rect(cx + sx * 0.06 * H - 0.035 * H, base - 0.2 * H, 0.07 * H, 0.17 * H), 3005 + sx, 0.4, 6), '#e8dcc6', depth + 0.1); paper(ctx, cut([[cx + sx * 0.06 * H - 0.04 * H, base - 0.09 * H], [cx + sx * 0.06 * H + 0.04 * H, base - 0.09 * H], [cx + sx * 0.06 * H + 0.045 * H + sx * 0.03 * H, base], [cx + sx * 0.06 * H - 0.045 * H, base]], 3008 + sx, 0.4, 6), '#3a2416', depth + 0.15); }
+  // tunic: red, gold hem band, belt with buckle
+  const tunic = [[cx - 0.14 * H, base - 0.7 * H], [cx + 0.14 * H, base - 0.7 * H], [cx + 0.16 * H, base - 0.45 * H], [cx + 0.2 * H, base - 0.18 * H], [cx - 0.2 * H, base - 0.18 * H], [cx - 0.16 * H, base - 0.45 * H]];
+  paper(ctx, cut(tunic, 3010, 0.8, 8), '#9c2a22', depth + 0.3);
+  paper(ctx, cut([[cx - 0.2 * H, base - 0.21 * H], [cx + 0.2 * H, base - 0.21 * H], [cx + 0.205 * H, base - 0.18 * H], [cx - 0.205 * H, base - 0.18 * H]], 3011, 0.4, 8), C.gold, depth + 0.35);
+  paper(ctx, cut(rect(cx - 0.155 * H, base - 0.47 * H, 0.31 * H, 0.03 * H), 3012, 0.3, 8), '#3a2416', depth + 0.35);
+  paper(ctx, cut(rect(cx - 0.02 * H, base - 0.475 * H, 0.04 * H, 0.04 * H), 3013, 0.3, 6), C.gold2, depth + 0.4);
+  // heraldic lion embroidered on the chest (Guelph lion, gold on red)
+  ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = C.gold2; ctx.font = `${0.09 * H}px Georgia, serif`; ctx.textAlign = 'center'; ctx.fillText('♌', cx, base - 0.54 * H); ctx.restore();
+  // ermine collar: white fur with black tails
+  paper(ctx, cut([...ellipse(cx, base - 0.7 * H, 0.19 * H, 0.06 * H, 24, 0, Math.PI), [cx - 0.19 * H, base - 0.71 * H]], 3014, 0.8, 6), '#f6f2ea', depth + 0.45);
+  ctx.save(); ctx.fillStyle = '#1d1d22'; for (let k = 0; k < 7; k++) { const a = 0.25 + k * 0.42, x = cx + Math.cos(a) * 0.15 * H, y = base - 0.7 * H + Math.sin(a) * 0.04 * H; ctx.beginPath(); ctx.ellipse(x, y, 0.006 * H, 0.013 * H, 0, 0, 7); ctx.fill(); } ctx.restore();
+  // arms: sleeves with gold cuffs, lion paws for hands
+  const arm = (sx, hx, hy, seed) => { paper(ctx, cut([[cx + sx * 0.12 * H, base - 0.69 * H], [cx + sx * 0.2 * H, base - 0.66 * H], [hx + sx * 0.03 * H, hy - 0.02 * H], [hx - sx * 0.04 * H, hy + 0.02 * H], [cx + sx * 0.12 * H, base - 0.56 * H]], seed, 0.6, 7), '#7e2019', depth + 0.5); paper(ctx, cut(ellipse(hx, hy, 0.035 * H, 0.03 * H, 12), seed + 1, 0.5, 5), '#d6a24a', depth + 0.55); };
+  if (hold === 'sword') {
+    paper(ctx, cut(rect(cx + 0.235 * H, base - 0.95 * H, 0.016 * H, 0.52 * H), 3020, 0.3, 10), '#c9ccd2', depth + 0.45);
+    paper(ctx, cut(rect(cx + 0.2 * H, base - 0.45 * H, 0.09 * H, 0.018 * H), 3021, 0.3, 6), C.gold, depth + 0.5);
+    arm(1, cx + 0.243 * H, base - 0.41 * H, 3022);
+  } else {
+    // model of the cathedral carried on the right arm (founder's attribute)
+    arm(1, cx + 0.22 * H, base - 0.5 * H, 3022);
+    for (const p of churchTwin(cx + 0.18 * H, base - 0.52 * H, 0.09 * H, C.brick2, C.copper2)) paper(ctx, cut(p.pts, 3024, 0.3, 4), p.col, depth + 0.6);
+  }
+  arm(-1, cx - 0.13 * H, base - 0.44 * H, 3026);   // left paw resting on the belt
+  // head: mane (jagged double ring), ears, face, muzzle, nose, eyes
+  const mane = (r1, r2, n, seed) => { const pts = []; let q = seed; for (let i = 0; i < n * 2; i++) { q = (q * 9301 + 49297) % 233280; const a = i / (n * 2) * Math.PI * 2 + Math.PI / 2, r = (i % 2 ? r2 : r1) * (0.92 + (q / 233280) * 0.16); pts.push([cx + Math.cos(a) * r * 0.95, by + Math.sin(a) * r * 1.05]); } return pts; };
+  paper(ctx, mane(0.17 * H, 0.12 * H, 22, 3030), '#7b4a1c', depth + 0.6);
+  paper(ctx, mane(0.145 * H, 0.105 * H, 18, 3031), '#a8682a', depth + 0.65);
+  for (const sx of [-1, 1]) paper(ctx, cut(ellipse(cx + sx * 0.07 * H, by - 0.07 * H, 0.025 * H, 0.028 * H, 10), 3032 + sx, 0.4, 5), '#c99a48', depth + 0.7);
+  paper(ctx, cut(ellipse(cx, by, 0.085 * H, 0.095 * H, 28), 3035, 0.6, 6), '#d9a64f', depth + 0.75);
+  paper(ctx, cut(ellipse(cx, by + 0.045 * H, 0.05 * H, 0.04 * H, 18), 3036, 0.4, 5), '#f0d9a6', depth + 0.8);
+  ctx.save(); ctx.fillStyle = '#2a1a12';
+  ctx.beginPath(); ctx.moveTo(cx - 0.02 * H, by + 0.02 * H); ctx.lineTo(cx + 0.02 * H, by + 0.02 * H); ctx.lineTo(cx, by + 0.042 * H); ctx.fill();   // nose
+  ctx.lineWidth = 0.006 * H; ctx.strokeStyle = '#2a1a12'; ctx.beginPath(); ctx.moveTo(cx, by + 0.042 * H); ctx.lineTo(cx, by + 0.058 * H); ctx.quadraticCurveTo(cx - 0.02 * H, by + 0.07 * H, cx - 0.03 * H, by + 0.06 * H); ctx.moveTo(cx, by + 0.058 * H); ctx.quadraticCurveTo(cx + 0.02 * H, by + 0.07 * H, cx + 0.03 * H, by + 0.06 * H); ctx.stroke();
+  const blink = (T % 4.5) < 0.12 ? 0.15 : 1;
+  for (const sx of [-1, 1]) { ctx.fillStyle = '#f6e7b8'; ctx.beginPath(); ctx.ellipse(cx + sx * 0.035 * H, by - 0.02 * H, 0.016 * H, 0.011 * H * blink, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#2a1a12'; ctx.beginPath(); ctx.ellipse(cx + sx * 0.035 * H, by - 0.02 * H, 0.007 * H, 0.009 * H * blink, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#5a3412'; ctx.lineWidth = 0.005 * H; ctx.beginPath(); ctx.moveTo(cx + sx * 0.055 * H, by - 0.045 * H); ctx.lineTo(cx + sx * 0.015 * H, by - 0.038 * H); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(60,30,10,0.5)'; for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(cx + sx * (0.022 + k * 0.01) * H, by + 0.05 * H - k * 0.004 * H, 0.0028 * H, 0, 7); ctx.fill(); }   // whisker dots
+  ctx.restore();
+  // ducal coronet sitting on the mane
+  const cy0 = by - 0.135 * H, crown = [[cx - 0.075 * H, cy0 + 0.03 * H], [cx - 0.075 * H, cy0 - 0.01 * H]];
+  for (let k = 0; k < 5; k++) { const x = cx - 0.075 * H + k * 0.0375 * H; crown.push([x, cy0 - (k % 2 ? 0.015 : 0.05) * H], [x + 0.019 * H, cy0 - 0.01 * H]); }
+  crown.push([cx + 0.075 * H, cy0 - 0.01 * H], [cx + 0.075 * H, cy0 + 0.03 * H]);
+  paper(ctx, cut(crown, 3040, 0.3, 6), C.gold, depth + 0.9);
+  ctx.save(); for (let k = 0; k < 3; k++) { ctx.fillStyle = ['#b0242a', '#2b6a9b', '#b0242a'][k]; ctx.beginPath(); ctx.arc(cx - 0.04 * H + k * 0.04 * H, cy0 + 0.012 * H, 0.008 * H, 0, 7); ctx.fill(); } ctx.restore();
+  ctx.restore();
+}
 
 /* ---- extra pieces for the longer films ---- */
 function islandMap(ctx, t, T) {   // stylised map: oval old-town island between Trave (west) and Wakenitz (east)
@@ -238,7 +302,7 @@ export const STORIES = {
   },
   holstentor: {
     title: 'Das Holstentor', zh: '霍爾斯滕門', kind: '史實',
-    summary: '霍爾斯滕門建於 1464 至 1478 年，是呂貝克城牆西側的城門，由市府建築師 Hinrich Helmstede 主持興建，兩座圓塔中間夾著門樓。城門蓋在鬆軟的河岸地上，南塔在興建期間就開始下沉，至今仍看得出傾斜。1871 年修復後，朝城內的一面加上了拉丁文「CONCORDIA DOMI FORIS PAX」（城內和睦，城外和平）。它曾出現在德國 50 馬克紙鈔上，2006 年也成為德國 2 歐元紀念硬幣的圖案，是呂貝克的城市象徵。',
+    summary: '霍爾斯滕門建於 1464 至 1478 年，是呂貝克城牆西側的城門，由市府建築師 Hinrich Helmstede 主持興建，兩座圓塔中間夾著門樓。城門蓋在鬆軟的河岸地上，南塔在興建期間就開始下沉，至今仍看得出傾斜。1871 年修復後，朝城外（西側田野）的一面加上了拉丁文「CONCORDIA DOMI FORIS PAX」（城內和睦，城外和平）。它曾出現在德國 50 馬克紙鈔上，2006 年也成為德國 2 歐元紀念硬幣的圖案，是呂貝克的城市象徵。',
     scenes: [
       { d: 7, zh: '1464 年，呂貝克開始在城西興建一座新的城門。', de: '1464 – 1478', draw(ctx, t) {
         sky(ctx, '#cbd6e0', C.paper); sun(ctx, 1320, 190, 58);
@@ -263,7 +327,7 @@ export const STORIES = {
         pop(ctx, t, 0.5, () => paper(ctx, cut(wave(790, 10, 0.006, 2), 122), '#8d7656', 2.4));
         if (t > 2) { ctx.save(); ctx.strokeStyle = C.red; ctx.setLineDash([12, 10]); ctx.lineWidth = 4; ctx.globalAlpha = clamp(t - 2); ctx.beginPath(); ctx.moveTo(1010, 760); ctx.lineTo(1010, 300); ctx.stroke(); ctx.restore(); }
       } },
-      { d: 8, zh: '1871 年修復後，朝城內的一面刻上「CONCORDIA DOMI FORIS PAX」——城內和睦，城外和平。', de: 'Concordia domi foris pax', draw(ctx, t) {
+      { d: 8, zh: '1871 年修復後，朝城外的一面刻上「CONCORDIA DOMI FORIS PAX」——城內和睦，城外和平；朝城內的一面則是「S.P.Q.L.」。', de: 'Concordia domi foris pax', draw(ctx, t) {
         sky(ctx, '#2f4566', '#6e7f98');
         pop(ctx, t, 0.1, () => drawHolstentor(ctx, 800, 820, 420, 1.4));
         pop(ctx, t, 0.6, () => { paper(ctx, cut(rect(470, 520, 660, 64), 131, 1), C.ink, 2.6); ctx.save(); ctx.fillStyle = C.gold2; ctx.font = '600 38px Georgia, serif'; ctx.textAlign = 'center'; ctx.globalAlpha = clamp((t - 0.8) * 1.2); const txt = 'CONCORDIA DOMI FORIS PAX'; ctx.fillText(txt.slice(0, Math.floor(clamp((t - 0.8) / 3) * txt.length)), 800, 564); ctx.restore(); });
@@ -378,10 +442,9 @@ export const STORIES = {
     scenes: [
       { d: 7, zh: '1173 年，獅子亨利為呂貝克主教座堂奠下第一塊基石。', de: 'Heinrich der Löwe, 1173', draw(ctx, t, T) {
         sky(ctx, '#d3dae0', C.paper);
-        pop(ctx, t, 0.2, () => { const x = 560; paper(ctx, cut([...ellipse(x, 470, 40, 40, 16), [x + 60, 540], [x + 90, 760], [x - 90, 760], [x - 60, 540]], 401, 0.8, 8), C.navy, 2); paper(ctx, cut([[x - 40, 440], [x - 30, 400], [x - 12, 425], [x, 395], [x + 12, 425], [x + 30, 400], [x + 40, 440]], 402, 0.5, 6), C.gold, 2.2); });
-        // lion
-        pop(ctx, t, 0.6, () => { const x = 960, y = 640; paper(ctx, cut([...ellipse(x, y, 140, 70, 24), [x + 130, y + 120], [x + 100, y + 120], [x + 90, y + 50], [x - 90, y + 50], [x - 100, y + 120], [x - 130, y + 120]], 403, 1, 10), C.gold, 2); paper(ctx, cut(ellipse(x - 150, y - 50, 70, 70, 24), 404, 1.5, 8), '#b38432', 2.2); paper(ctx, cut(ellipse(x - 160, y - 45, 40, 40, 18), 405, 0.8, 8), C.gold, 2.4); });
-        pop(ctx, t, 1.4, () => paper(ctx, cut(rect(700, 700, 120, 60), 406), '#b9b3a8', 2.6));
+        pop(ctx, t, 0.2, () => { for (let i = 0; i < 5; i++) paper(ctx, rect(980 + i * 70, 380, 6, 380), C.wood, 1.2); paper(ctx, rect(960, 420, 320, 6), C.wood, 1.2); });
+        pop(ctx, t, 0.5, () => henry(ctx, 660, 770, 440, T, 'church', 2));
+        pop(ctx, t, 1.4, () => { paper(ctx, cut(rect(820, 690, 150, 80), 406), '#b9b3a8', 2.6); ctx.save(); ctx.fillStyle = C.ink; ctx.globalAlpha = 0.7; ctx.font = '600 26px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('MCLXXIII', 895, 740); ctx.restore(); });
         pop(ctx, t, 0.4, () => paper(ctx, cut(rect(0, 760, 1600, 160), 407, 2), C.grass2, 2.4));
       } },
       { d: 7, zh: '教堂從羅馬式擴建成哥德式，雙塔矗立在舊城島的南端、磨坊池畔。', de: 'Am Mühlenteich', draw(ctx, t) {
@@ -394,8 +457,8 @@ export const STORIES = {
     ],
   },
   niederegger: {
-    title: 'Lübecker Marzipan', zh: '呂貝克杏仁糖', kind: '傳說＋史實',
-    summary: '呂貝克流傳一個說法：15 世紀初一場饑荒中，城裡缺糧，只剩倉庫裡的杏仁和糖，麵包師便把兩者磨碎做成「杏仁麵包」救急——這就是杏仁糖的由來（此為傳說，杏仁糖其實更早就從東方經威尼斯傳入歐洲）。可以確定的是：1806 年，Johann Georg Niederegger 在市政廳對面開了自己的店，Niederegger 從此成為呂貝克杏仁糖最有名的品牌，本店至今仍在 Breite Straße 89。',
+    title: 'Lübecker Marzipan', zh: '呂貝克杏仁膏', kind: '傳說＋史實',
+    summary: '呂貝克流傳一個說法：15 世紀初一場饑荒中，城裡缺糧，只剩倉庫裡的杏仁和糖，麵包師便把兩者磨碎做成「杏仁麵包」救急——這就是杏仁膏的由來（此為傳說，杏仁膏其實更早就從東方經威尼斯傳入歐洲）。可以確定的是：1806 年，Johann Georg Niederegger 在市政廳對面開了自己的店，Niederegger 從此成為呂貝克杏仁膏最有名的品牌，本店至今仍在 Breite Straße 89。',
     scenes: [
       { d: 7, zh: '傳說在一場饑荒中，城裡只剩杏仁和糖……', de: 'Eine Legende', draw(ctx, t, T) {
         sky(ctx, '#bfc4c8', '#ded6c6');
@@ -412,7 +475,7 @@ export const STORIES = {
         pop(ctx, t, 1.0, () => paper(ctx, cut(rect(560 + roll, 520, 480, 26), 453, 0.6), C.wood, 2.6));
         for (let i = 0; i < 5; i++) pop(ctx, t, 1.8 + i * 0.3, () => paper(ctx, cut(ellipse(480 + i * 160, 380, 60, 40, 18), 460 + i, 0.8), ['#e9cf9b', '#d9a86a', '#e9cf9b', '#c48a5a', '#e9cf9b'][i], 2.4));
       } },
-      { d: 8, zh: '1806 年，Johann Georg Niederegger 在市政廳對面開店，呂貝克杏仁糖從此聞名世界。', de: 'Niederegger, seit 1806', draw(ctx, t) {
+      { d: 8, zh: '1806 年，Johann Georg Niederegger 在市政廳對面開店，呂貝克杏仁膏從此聞名世界。', de: 'Niederegger, seit 1806', draw(ctx, t) {
         sky(ctx, '#d6dde3', C.paper);
         pop(ctx, t, 0.2, () => { paper(ctx, cut(rect(420, 260, 760, 480), 471, 1.4), C.red, 1.4); windows(ctx, 420, 600, 760, 300, 2, 5, C.cream, 0.85); paper(ctx, cut(rect(420, 600, 760, 140), 472, 1), C.gold, 1.8); });
         pop(ctx, t, 0.8, () => { ctx.save(); ctx.fillStyle = C.ink; ctx.font = '600 58px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('1806', 800, 690); ctx.restore(); });
@@ -517,7 +580,7 @@ STORIES.luebeck = {
     { d: 9, zh: '1159 年一場大火後，獅子亨利重新建城，1173 年為主教座堂奠下基石。', de: '1159 · Heinrich der Löwe', draw(ctx, t, T) {
       sky(ctx, '#d3dae0', C.paper);
       if (t < 3) for (let i = 0; i < 6; i++) paper(ctx, cut(flame(300 + i * 200, 760, 120, T + i), 910 + i), i % 2 ? C.fire : C.fire2, 1.4);
-      pop(ctx, t, 3, () => { const x = 960, y = 640; paper(ctx, cut([...ellipse(x, y, 140, 70, 24), [x + 130, y + 120], [x + 100, y + 120], [x + 90, y + 50], [x - 90, y + 50], [x - 100, y + 120], [x - 130, y + 120]], 920, 1, 10), C.gold, 2); paper(ctx, cut(ellipse(x - 150, y - 50, 70, 70, 24), 921, 1.5, 8), '#b38432', 2.2); });
+      pop(ctx, t, 3, () => henry(ctx, 1020, 770, 470, T, 'sword', 2));
       pop(ctx, t, 4, () => { for (const p of churchTwin(380, 760, 180, C.brick2, C.copper2)) paper(ctx, cut(p.pts, 922), p.col, 1.6); });
       pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 760, 1600, 160), 923, 2), C.grass2, 2.4));
     } },
@@ -593,7 +656,7 @@ STORIES.luebeck = {
       pop(ctx, t, 2.2, () => { for (const x of [1000, 1200]) { paper(ctx, cut(ellipse(x, 380, 40, 40, 20), 1130 + x, 0.6), C.gold, 2.8); } });
       pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 1140, 2), C.slate, 2.4));
     } },
-    { d: 10, zh: '今天的呂貝克，有杏仁糖的香氣、音樂學院的琴聲、河上的船，以及八百多年的故事。', de: 'Lübeck heute', draw(ctx, t, T) {
+    { d: 10, zh: '今天的呂貝克，有杏仁膏的香氣、音樂學院的琴聲、河上的船，以及八百多年的故事。', de: 'Lübeck heute', draw(ctx, t, T) {
       sky(ctx, '#e0c48e', '#efe2c7'); sun(ctx, 1380, 250, 70, '#f0b45e');
       pop(ctx, t, 0.1, () => { for (const p of churchTwin(820, 600, 150)) paper(ctx, cut(p.pts, 1150), p.col, 1); });
       pop(ctx, t, 0.2, () => { for (const h of skyline(620, 81, 90)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1.2); });
@@ -608,14 +671,30 @@ STORIES.luebeck = {
 STORIES.markt = STORIES.rathaus;
 
 /* =============================== player =============================== */
-export function hasStory(id) { return !!STORIES[id]; }
+// a landmark can carry several films (e.g. St. Marien: the devil legend and Bach's visit)
+export const STORY_AT = {};
+export function storiesAt(id) { return [...new Set([...(STORIES[id] ? [id] : []), ...(STORY_AT[id] || [])])].filter((k) => STORIES[k]); }
+export function hasStory(id) { return storiesAt(id).length > 0; }
 let rafId = 0;
+const audio = new StoryAudio();
+// cinematic finish over every frame: warm light shaft, drifting dust in the light, vignette
+function postFx(ctx, T, night) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen'; const sh = ctx.createLinearGradient(200, 0, 700, 900); sh.addColorStop(0, `rgba(255,226,170,${night ? 0.04 : 0.1 + Math.sin(T * 0.3) * 0.02})`); sh.addColorStop(1, 'rgba(255,226,170,0)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.moveTo(120, -20); ctx.lineTo(520, -20); ctx.lineTo(1100, 920); ctx.lineTo(420, 920); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 26; i++) { const h = Math.sin(i * 91.7) * 43758.5; const r = h - Math.floor(h), x = (r * 1700 + T * (8 + (i % 5) * 3)) % 1600, y = (Math.sin(T * 0.2 + i) * 0.5 + 0.5) * 820 + 40; ctx.globalAlpha = 0.25 + 0.25 * Math.sin(T * 1.3 + i); ctx.fillStyle = '#fff6df'; ctx.beginPath(); ctx.arc(x, y, 1.2 + (i % 3) * 0.8, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1; const v = ctx.createRadialGradient(800, 450, 380, 800, 450, 980); v.addColorStop(0, 'rgba(20,14,8,0)'); v.addColorStop(1, 'rgba(20,14,8,0.45)'); ctx.fillStyle = v; ctx.fillRect(0, 0, 1600, 900);
+  ctx.restore();
+}
 export function openStory(id) {
   const S = STORIES[id]; if (!S) return;
+  audio.start(S);
   const box = document.querySelector('#story'), cv = box.querySelector('canvas'), ctx = cv.getContext('2d');
   const cap = box.querySelector('.cap'), capDe = box.querySelector('.capde'), bar = box.querySelector('.bar i'), playBtn = box.querySelector('.play'), desc = box.querySelector('.desc');
   box.querySelector('.ttl').textContent = S.title; box.querySelector('.ttlzh').textContent = `${S.zh}　·　${S.kind}`;
-  desc.textContent = S.summary;
+  desc.textContent = S.summary + (audio.credit ? `\n\n配樂：${audio.credit}。全曲為公版古典音樂，由程式即時合成演奏；音效亦為程式合成。` : '');
+  const snd = box.querySelector('.snd'); const sndLabel = () => (snd.textContent = audio.muted ? '♪ 關' : '♪ 開'); sndLabel(); snd.onclick = () => { audio.setMuted(!audio.muted); sndLabel(); };
   const total = S.scenes.reduce((a, s) => a + s.d, 0) + 3;   // +3 s title card
   let time = 0, playing = true, last = performance.now();
   box.hidden = false; window.__storyOpen = true; requestAnimationFrame(() => box.classList.add('on'));
@@ -625,7 +704,7 @@ export function openStory(id) {
   playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚' : '▶'; if (playing && time >= total) time = 0; };
   box.querySelector('.again').onclick = () => { time = 0; playing = true; playBtn.textContent = '❚❚'; };
   box.querySelector('.seek').onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); time = clamp((e.clientX - r.left) / r.width) * total; };
-  const close = () => { window.__storyOpen = false; cancelAnimationFrame(rafId); box.classList.remove('on'); setTimeout(() => (box.hidden = true), 250); removeEventListener('resize', fit); removeEventListener('keydown', key, true); };
+  const close = () => { window.__storyOpen = false; cancelAnimationFrame(rafId); audio.close(); box.classList.remove('on'); setTimeout(() => (box.hidden = true), 250); removeEventListener('resize', fit); removeEventListener('keydown', key, true); };
   const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } if (e.key === ' ') { e.preventDefault(); e.stopPropagation(); playBtn.click(); } };
   addEventListener('keydown', key, true);
   box.querySelector('.x').onclick = close;
@@ -644,13 +723,14 @@ export function openStory(id) {
       ctx.font = `64px "UnifrakturMaguntia", "Old English Text MT", Georgia, serif`; ctx.fillText(S.title, 800, 420);
       ctx.font = `500 34px "Noto Sans TC", sans-serif`; ctx.fillStyle = C.cream; ctx.fillText(S.zh, 800, 490);
       ctx.font = `400 22px "IBM Plex Mono", monospace`; ctx.globalAlpha *= 0.75; ctx.fillText(S.kind === '傳說' ? 'EINE LÜBECKER SAGE · 呂貝克傳說' : 'AUS DER GESCHICHTE LÜBECKS · 呂貝克的歷史', 800, 540); ctx.globalAlpha = 0.6; ctx.fillText(`${Math.round(total)} 秒`, 800, 590);
-      ctx.restore(); frameBorder(ctx); cap.textContent = ''; capDe.textContent = ''; return;
+      ctx.restore(); postFx(ctx, time, true); frameBorder(ctx); cap.textContent = ''; capDe.textContent = ''; audio.update(time, playing, -1); return;
     }
     let tt = time - 3, i = 0; while (i < S.scenes.length - 1 && tt > S.scenes[i].d) { tt -= S.scenes[i].d; i++; }
     const sc = S.scenes[i];
     // camera: slow push-in and drift; cross-fade between scenes
     ctx.save(); const z = 1 + tt / sc.d * 0.05; ctx.translate(800, 450); ctx.scale(z, z); ctx.translate(-800 - tt * 4, -450);
     sc.draw(ctx, tt, time); ctx.restore();
+    postFx(ctx, time, false); audio.update(time, playing, i);
     const fadeIn = clamp(tt / 0.5), fadeOut = i < S.scenes.length - 1 ? clamp((sc.d - tt) / 0.5) : 1;
     if (fadeIn < 1 || fadeOut < 1) { ctx.save(); ctx.fillStyle = C.paper; ctx.globalAlpha = 1 - Math.min(fadeIn, fadeOut); ctx.fillRect(0, 0, 1600, 900); ctx.restore(); }
     frameBorder(ctx);
@@ -658,4 +738,7 @@ export function openStory(id) {
   };
   last = performance.now(); rafId = requestAnimationFrame(loop);
 }
-export function storyList() { return Object.entries(STORIES).filter(([k]) => !['markt', 'brahms'].includes(k)).sort(([a], [b]) => (b === 'luebeck') - (a === 'luebeck') || (b === 'hanse') - (a === 'hanse')).map(([id, s]) => ({ id, title: s.title, zh: s.zh, kind: s.kind })); }
+export function storyList() { return Object.entries(STORIES).filter(([k, v]) => !['markt', 'brahms'].includes(k) && !Object.entries(STORIES).some(([k2, v2]) => v2 === v && k2 < k && !['markt', 'brahms'].includes(k2))).sort(([a], [b]) => (b === 'luebeck') - (a === 'luebeck') || (b === 'hanse') - (a === 'hanse')).map(([id, s]) => ({ id, title: s.title, zh: s.zh, kind: s.kind })); }
+
+// shared drawing kit for the additional films (stories2.js)
+export const KIT = { C, paper, cut, pathOf, rect, ellipse, wave, steppedHouse, gableHouse, windows, spire, cloud, drawKogge, drawHolstentor, churchTwin, devil, rock, barrel, fish, flame, bell, skyline, islandMap, piles, soldier, person, piano, noteGlyph, hanseMap, copperSpire, clamp, easeOut, easeBack, pop, sky, sun, moon, stars, henry };

@@ -557,6 +557,120 @@
    "unverified": [
     "雕像作者與年份"
    ]
+  },
+  {
+   "id": "buddenbrookhaus",
+   "name_zh": "布登勃洛克之家",
+   "name_de": "Buddenbrookhaus",
+   "address": "Mengstraße 4, 23552 Lübeck",
+   "osm": "way/147134945",
+   "lat": null,
+   "lon": null,
+   "coord_source": "OpenStreetMap way/147134945（幾何中心）",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    47.1,
+    -212.5
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "重新開放時間"
+   ]
+  },
+  {
+   "id": "malerwinkel",
+   "name_zh": "畫家角落",
+   "name_de": "Malerwinkel",
+   "address": "An der Obertrave, 23552 Lübeck",
+   "osm": "node/1475562859",
+   "lat": null,
+   "lon": null,
+   "coord_source": "OpenStreetMap node/1475562859（幾何中心）",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -353.4,
+    510.85
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "kanal",
+   "name_zh": "運河特拉沃（易北河—呂貝克運河）",
+   "name_de": "Kanal-Trave / Elbe-Lübeck-Kanal",
+   "address": "Kanal-Trave, 23552 Lübeck",
+   "osm": "way/50323526",
+   "lat": null,
+   "lon": null,
+   "coord_source": "OpenStreetMap way/50323526（幾何中心）",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    420.4,
+    686.3
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "標示點取運河段落中心"
+   ]
+  },
+  {
+   "id": "st_jakobi",
+   "name_zh": "聖雅各教堂",
+   "name_de": "St.-Jakobi-Kirche",
+   "address": "Jakobikirchhof, 23552 Lübeck",
+   "osm": "way/37993987",
+   "lat": null,
+   "lon": null,
+   "coord_source": "OpenStreetMap way/37993987（幾何中心）",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    253.4,
+    -489.2
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
+  },
+  {
+   "id": "st_aegidien",
+   "name_zh": "聖吉爾斯教堂",
+   "name_de": "St.-Aegidien-Kirche",
+   "address": "Aegidienkirchhof, 23552 Lübeck",
+   "osm": "way/135776766",
+   "lat": null,
+   "lon": null,
+   "coord_source": "OpenStreetMap way/135776766（幾何中心）",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    322.9,
+    275.5
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": []
   }
  ]
 }

@@ -13,6 +13,7 @@ import { buildHero } from './hero.js';
 import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './actors.js';
 import { InfoCards } from './ui.js';
 import { hasStory } from './stories.js';
+import { ROUTE } from './stories2.js';
 import { Traffic } from './traffic.js';
 import { buildShopfronts } from './shopfront.js';
 import { buildHolstentor, HOLSTEN } from './holstentor.js';
@@ -801,6 +802,9 @@ const mini = $('#mini'), mctx = mini.getContext('2d');
 function drawMini() {
   const W = mini.width, span = 380 * MAP.k;
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
+  // walking route (red dashed line), from the "old-town walk" film
+  mctx.save(); mctx.strokeStyle = 'rgba(176,36,42,0.85)'; mctx.lineWidth = 3; mctx.setLineDash([7, 5]); mctx.beginPath();
+  ROUTE.forEach(([, , x, z], i) => { const sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; if (i) mctx.lineTo(sx, sy); else mctx.moveTo(sx, sy); }); mctx.stroke(); mctx.restore();
   for (const l of LM.landmarks) { const sx = (MAP.X(l.local_xz_m[0]) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(l.local_xz_m[1]) - MAP.Z(P.z)) / span * W + W / 2; if (sx < 0 || sy < 0 || sx > W || sy > W) continue; mctx.fillStyle = hasStory(l.id) ? '#e1b04a' : '#a8432a'; mctx.beginPath(); mctx.arc(sx, sy, hasStory(l.id) ? 7 : 5, 0, 7); mctx.fill(); if (hasStory(l.id)) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 2; mctx.stroke(); } }
   // your bicycle (green), car (blue) and the eagle (black) so they're easy to find
   const mark = (x, z, col, label) => { const sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; const cx = Math.max(12, Math.min(W - 12, sx)), cy = Math.max(12, Math.min(W - 12, sy));
