@@ -50,7 +50,7 @@ export class Traffic {
   constructor(scene, roads, { touch, isFree }) {
     this.scene = scene; this.roads = roads; this.isFree = isFree;
     this.R = touch ? 110 : 180;
-    this.want = touch ? { ped: 18, car: 4, bike: 4, bus: 1, group: 5, bench: 3, cafe: 3 } : { ped: 48, car: 12, bike: 9, bus: 3, group: 11, bench: 6, cafe: 8 };
+    this.want = touch ? { ped: 24, car: 4, bike: 4, bus: 1, group: 6, bench: 3, cafe: 3 } : { ped: 70, car: 12, bike: 9, bus: 3, group: 11, bench: 6, cafe: 8 };
     this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [], cafe: [], busker: [] };
     this.buskers = []; this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }

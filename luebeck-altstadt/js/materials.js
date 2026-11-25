@@ -127,6 +127,27 @@ export function makeFacade(base) {
           if (mid > 0.5 && kind > 2.5 && kind < 3.5) { vec2 cc = vec2(fract(hc.x / 1.4) - 0.5, fract(hc.z / 1.6) - 0.5); if (hc.z > 0.8 && length(cc) < 0.28) col = vec3(0.88,0.85,0.8); }   // café round tables
           if (mid > 0.5 && (kind > 0.5 && kind < 1.5 || kind > 4.5) && hc.z > 2.2 && hc.z < 3.0 && hc.x > mix(u0, u1, 0.25) && hc.x < mix(u0, u1, 0.75)) col = vec3(0.8,0.78,0.74);   // display table
           if (mid > 0.5 && kind > 3.5 && kind < 4.5 && hc.z < 1.4) { float b = step(0.5, hash12(floor(hc.xz * 8.0) + id)); col = mix(vec3(0.2,0.4,0.18), vec3(0.9,0.3,0.4), b); }   // florist buckets at the window
+          // staff and customers inside: a shopkeeper behind the counter, a customer nearer the window (2D silhouettes on depth planes)
+          for (int k = 0; k < 2; k++) {
+            float fk = float(k), pz = k == 0 ? 2.7 : 1.4, tp = pz / max(d.z, 1e-4);
+            if (tp > 0.0 && tp < t && hash12(vec2(id, fk + 3.0)) < (k == 0 ? 0.9 : 0.6)) {
+              vec3 hp = o + d * tp; float fx = mix(u0 + 0.6, u1 - 0.6, hash12(vec2(id, fk + 7.0)));
+              vec2 q = vec2(hp.x - fx, hp.y);
+              float body = length(vec2(q.x * 0.95, max(abs(q.y - 1.17) - 0.26, 0.0))) - 0.19;
+              float head = length((q - vec2(0.0, 1.6)) * vec2(1.0, 0.85)) - 0.11;
+              float hair = length(q - vec2(0.0, 1.66)) - 0.11;
+              float legs = length(vec2(abs(q.x) - 0.08, max(abs(q.y - 0.46) - 0.44, 0.0))) - 0.07;
+              float arms = length(vec2(abs(q.x) - 0.24, max(abs(q.y - 1.12) - 0.24, 0.0))) - 0.055;
+              if (min(min(body, head), min(legs, arms)) < 0.0) {
+                vec3 cloth = 0.18 + 0.62 * vec3(hash12(vec2(id, fk + 11.0)), hash12(vec2(id, fk + 13.0)), hash12(vec2(id, fk + 17.0)));
+                if (k == 0 && kind < 0.5) cloth = vec3(0.92);                 // baker's white
+                vec3 skin = mix(vec3(0.88, 0.68, 0.55), vec3(0.45, 0.3, 0.22), step(0.8, hash12(vec2(id, fk + 19.0))));
+                col = hair < 0.0 && q.y > 1.64 ? vec3(0.18, 0.12, 0.08) * (1.0 + 2.5 * hash12(vec2(id, fk + 23.0))) : head < 0.0 ? skin : (body < 0.0 || arms < 0.0) ? cloth : vec3(0.14, 0.15, 0.2);
+                col *= 0.85 + 0.25 * smoothstep(-0.2, 0.2, -q.x);           // soft side light
+                t = tp;
+              }
+            }
+          }
           float fall = mix(1.0, 0.55, clamp(t / 7.0, 0.0, 1.0));
           float warm = kind > 2.5 && kind < 3.5 ? 0.85 : kind > 4.5 ? 1.15 : 1.0;
           return col * fall * warm * (0.26 + 0.8 * night);
@@ -224,7 +245,7 @@ export function makeMaterials(dir = 'assets/tex') {
   M.roof_copper = pbr('green_metal_rust', 3.0, { color: 0x9fd8c0, metalness: 0.35, roughness: 0.9 });
   M.roof_flat = pbr('asphalt_02', 4.0, { color: 0xd4d0c8 });   // pale gravel / membrane roofs, as in the aerial photos
   M.cobble = pbr('cobblestone_floor_08', 2.0, { normalStrength: 1.4, color: 0xe6d6bf });   // warm grey-beige granite setts like the Markt photos
-  M.asphalt = pbr('asphalt_02', 4.0);
+  M.asphalt = pbr('asphalt_02', 4.0, { normalStrength: 0.35, color: 0x8a8a8c });   // calmer: the real streets are smooth, not crazed with cracks
   M.pave = pbr('pavement_03', 2.0, { color: 0xeadccb });
   M.grass = pbr('leafy_grass', 3.0, { color: 0x9ccf7a });   // tinted toward the lush summer green of the aerial photo
   M.granite = pbr('granite_tile', 1.2, { normalStrength: 1.5 });
@@ -234,6 +255,11 @@ export function makeMaterials(dir = 'assets/tex') {
   M.quay = pbr('granite_tile', 2.0, { color: 0xb9b2a8 });
   M.kerb = pbr('granite_tile', 0.9, { color: 0xc8c4bd });
   M.marking = new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });   // thermoplastic road paint
+  // flatten the crack pattern baked into the asphalt photo texture (keep only its fine grain)
+  M.asphalt.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    diffuseColor.rgb = diffuse * mix(sampledDiffuseColor.rgb, vec3(0.36), 0.78);`); };
+  M.asphalt.customProgramCacheKey = () => 'asphalt-smooth';
+  M.asphalt.color.set(0x9c9da0);
   for (const k of ['cobble', 'asphalt', 'pave']) { M[k].polygonOffset = true; M[k].polygonOffsetFactor = -1 - (k === 'asphalt' ? 2 : k === 'cobble' ? 1 : 0); M[k].polygonOffsetUnits = -1; }
   M.grass.polygonOffset = true; M.grass.polygonOffsetFactor = -0.5;
   M.water = new THREE.MeshPhysicalMaterial({ color: 0x1c3236, roughness: 0.04, metalness: 0, envMapIntensity: 1.0, ior: 1.33, normalScale: new THREE.Vector2(0.35, 0.35) });

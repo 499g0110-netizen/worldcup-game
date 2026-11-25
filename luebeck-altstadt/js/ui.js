@@ -33,7 +33,7 @@ export class InfoCards {
     this.L = landmarks.filter((l) => TEXT[l.id]).map((l) => ({ ...l, rin: l.id === 'teufel' ? 9 : l.footprint ? Math.max(18, Math.min(60, Math.max(l.footprint.w, l.footprint.d) * 0.8)) : 18 }));
     this.getMode = getMode; this.getSpeed = getSpeed;
     this.el = document.querySelector('#card'); this.btn = document.querySelector('#bInfo'); this.auto = true;
-    try { this.auto = localStorage.getItem('lub-auto') !== '0'; } catch { /* storage blocked */ }
+    try { const v = localStorage.getItem('lub-auto'); this.auto = v == null ? !document.body.classList.contains('touch') : v !== '0'; } catch { /* storage blocked */ }   // phones: cards only on request (ℹ) so the view stays clear
     this.current = null; this.open = false; this.dismissed = new Set(); this.nearest = null;
     this.el.querySelector('.x').addEventListener('click', () => this.close(true));
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) { this.close(true); e.stopPropagation(); } if ((e.key === 'i' || e.key === 'I') && !e.target.closest?.('input,select')) this.toggle(); });
@@ -82,4 +82,13 @@ export class InfoCards {
     document.querySelector('#world')?.focus({ preventScroll: true });
   }
   toggle() { if (this.open) this.close(true); else if (this.current) { this.dismissed.delete(this.current.id); this.show(this.current); } }
+}
+
+// phone menu: one button folds the toolbar; "clean view" hides every overlay until the screen is tapped twice
+{
+  const menu = document.querySelector('#bMenu'), clean = document.querySelector('#bClean');
+  menu?.addEventListener('click', (e) => { e.stopPropagation(); document.body.classList.toggle('menu-open'); menu.textContent = document.body.classList.contains('menu-open') ? '✕' : '☰'; });
+  document.querySelector('#tools')?.addEventListener('click', (e) => { if (e.target.closest('.tb') && e.target.id !== 'bClean') { document.body.classList.remove('menu-open'); if (menu) menu.textContent = '☰'; } });
+  clean?.addEventListener('click', (e) => { e.stopPropagation(); document.body.classList.remove('menu-open'); document.body.classList.add('clean'); if (menu) menu.textContent = '👁'; });
+  menu?.addEventListener('click', (e) => { if (document.body.classList.contains('clean')) { document.body.classList.remove('clean', 'menu-open'); menu.textContent = '☰'; e.stopImmediatePropagation(); } }, true);
 }

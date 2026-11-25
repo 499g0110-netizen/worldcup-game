@@ -90,7 +90,7 @@ function roofKind(t) {
 
 // async: yields to the browser every ~6 ms so frames keep rendering while a block is built (no stutter)
 // areas where OSM geometry is replaced by a hero model (Holstentor)
-export const EXCLUDE = [{ x: -351, z: 35, r: 17.5 }, { x0: -330, x1: -297, z0: 47, z1: 108 }, { x0: 7, x1: 43, z0: -57.5, z1: -47 }, { x0: -973, x1: -939, z0: -62.5, z1: -31 }, { x: -34.9, z: -162.5, r: 12, mhMin: 53 }, { x: -38.3, z: -136.6, r: 12, mhMin: 53 }];   // … and St. Marien's spires/gables   // Holstentor, Salzspeicher, Rathaus Markt front
+export const EXCLUDE = [{ x: -351, z: 35, r: 17.5 }, { x0: -330, x1: -297, z0: 47, z1: 108 }, { x0: 7, x1: 43, z0: -57.5, z1: -47 }, { x0: -973, x1: -939, z0: -62.5, z1: -31 }, { x: -925, z: -70, r: 27 }, { x: -1055, z: -55, r: 80, mhMin: 7.5 }, { x: -34.9, z: -162.5, r: 12, mhMin: 53 }, { x: -38.3, z: -136.6, r: 12, mhMin: 53 }];   // … and St. Marien's spires/gables   // Holstentor, Salzspeicher, Rathaus Markt front
 export async function buildCity(data, { onProgress, budget = 6 } = {}) {
   let tSlice = performance.now();
   const TILE = 200, accs = new Map();

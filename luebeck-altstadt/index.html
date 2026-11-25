@@ -98,6 +98,21 @@ canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 #stick i { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; background: rgba(255,255,255,.75); }
 body.touch #stick { display: block; }
 body.refmode .hud, body.refmode #intro { display: none !important; }
+/* phones: keep the view clear — tools fold into one menu button, small map, minimal header, optional clean view */
+#bMenu, #bClean { display: none; }
+body.touch #bMenu { display: grid; place-items: center; position: fixed; z-index: 7; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: 46px; height: 46px; padding: 0; font-size: 20px; border-radius: 50%; }
+body.touch #tools { display: none; }
+body.touch.menu-open #tools { display: flex; flex-direction: column; align-items: stretch; bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); max-width: 190px; }
+body.touch.menu-open #tools .tb, body.touch.menu-open #tools label { min-height: 40px; justify-content: flex-start; }
+body.touch #bClean { display: block; }
+body.touch #hudTL { padding: 6px 10px; opacity: .85; } body.touch #hudTL .sub, body.touch #hudTL #clock { display: none; } body.touch #hudTL h1 { font-size: 15px; }
+body.touch #mini { width: 92px; height: 92px; } body.touch #mapBox .cap { display: none; } body.touch #mapBox { padding: 4px; opacity: .9; }
+body.touch #stick { width: 104px; height: 104px; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.25); }
+body.touch #stick i { width: 42px; height: 42px; margin: -21px 0 0 -21px; background: rgba(255,255,255,.5); }
+body.touch #bInfo { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+body.touch #prompt.tap { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+body.touch #card { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); max-height: 42vh; overflow: auto; }
+body.clean .hud:not(#bMenu):not(#stick):not(#prompt) { visibility: hidden; } body.clean #tools { display: none !important; }
 @media (max-width: 640px) {
   #mini { width: 112px; height: 112px; } .tb kbd { display: none; }
   #card { top: calc(env(safe-area-inset-top, 0px) + 150px); padding: 12px 14px 10px; } #card .tx { font-size: 12.5px; margin: 6px 0; } #card .src { display: none; }
@@ -115,9 +130,11 @@ body.refmode .hud, body.refmode #intro { display: none !important; }
   <button class="tb" id="bEagle" type="button">黑鷹<kbd>F</kbd></button>
   <button class="tb" id="bTime" type="button">時間<kbd>T</kbd></button>
   <button class="tb" id="bView" type="button">視角<kbd>V</kbd></button>
+  <button class="tb" id="bClean" type="button">隱藏介面（看風景）</button>
   <label><input type="checkbox" id="autoIntro"> 自動介紹</label>
   <label>畫質 <select id="qSel"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select></label>
 </div>
+<button class="glass hud tb" id="bMenu" type="button" aria-label="選單">☰</button>
 <button class="glass hud tb" id="bInfo" type="button" hidden>ℹ</button>
 <div class="glass hud" id="prompt" hidden></div>
 <div class="glass hud" id="toast" role="status"></div>

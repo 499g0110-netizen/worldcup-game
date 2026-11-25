@@ -21,7 +21,8 @@ import { Birds } from './birds.js';
 import { Boats } from './boats.js';
 import { buildSalzspeicher } from './salzspeicher.js';
 import { buildRathaus } from './rathaus.js';
-import { buildStation } from './station.js';
+import { buildStation, buildShed } from './station.js';
+import { buildFountain } from './fountain.js';
 import { buildOutskirts } from './outskirts.js';
 import { buildMarien } from './marien.js';
 import { buildBridges } from './bridges.js';
@@ -375,6 +376,14 @@ async function addTileToScene(t) {
       const c = new THREE.Color(); spots.forEach(([x, z, yaw], i) => { m.compose(pv.set(x, 0, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), sv.set(1, 1, 1)); bodyM.setMatrixAt(i, m); wheelM.setMatrixAt(i, m); glassM.setMatrixAt(i, m); c.setHex(cols[Math.floor(hp(x + z) * cols.length)]); bodyM.setColorAt(i, c); });
       bodyM.castShadow = true; scene.add(bodyM, wheelM, glassM);
     } }
+  // OSM lamp nodes often sit on the road centreline: move each one out to the kerb of the nearest car road
+  t.lamps = t.lamps.map(([x, z]) => {
+    let best = null, bd = 1e9;
+    for (const sg of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { const [x1, z1, x2, z2, hw, k] = sg; if (CARFREE.has(k)) continue; const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, tt = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)), px = x1 + dx * tt, pz = z1 + dz * tt, dd = Math.hypot(x - px, z - pz); if (dd < hw && dd < bd) { bd = dd; best = { px, pz, hw, dx, dz }; } }
+    if (!best) return [x, z];
+    const L = Math.hypot(best.dx, best.dz) || 1; let nx = -best.dz / L, nz = best.dx / L; if ((x - best.px) * nx + (z - best.pz) * nz < 0) { nx = -nx; nz = -nz; }
+    return [best.px + nx * (best.hw - 0.6 + 0.9), best.pz + nz * (best.hw - 0.6 + 0.9)];
+  }).filter(([x, z]) => !insideBuilding(x, z) && !inWater(x, z));
   if (t.lamps.length) {
     const pole = new THREE.InstancedMesh(poleGeo, poleMat, t.lamps.length), head = new THREE.InstancedMesh(headGeo, lampMat, t.lamps.length);
     t.lamps.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); pole.setMatrixAt(i, m); head.setMatrixAt(i, m); });
@@ -476,6 +485,8 @@ const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
 buildMarien(scene);
 const bridgeSet = buildBridges(scene, { bridges: base.bridges || [], rings: base.rings || [], inWater, oldTown: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.15 }); extraColliders.push(...bridgeSet.colliders);
+buildShed(scene);
+const fountain = buildFountain(scene, { x: 29.5, z: 22, yaw: Math.atan2(39 - 21, -19 - 56) + Math.PI / 2 });
 const stationHero = buildStation(scene); extraColliders.push(...stationHero.colliders);
 const outskirts = buildOutskirts(scene, { tiles: new Set(Object.entries(TI.tiles).filter(([, n]) => n >= 40).map(([k]) => k)), tileSize: TI.size, inWater, touch: TOUCH, skip: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.0 });
 outskirtsRef = outskirts; for (const k of loadedTiles) outskirts.hideTile(k);
@@ -933,7 +944,7 @@ function frame() {
   if ((frameN & 63) === 7) placeBuskers();
   if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
   if (!window.__storyOpen) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
-  notes.update(dt, fx, fz, !!window.__storyOpen);
+  notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz);
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
