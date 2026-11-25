@@ -482,11 +482,84 @@ STORIES.dom.scenes.push({ d: 9, zh: '1942 年的空襲中，主教座堂也嚴�
 } });
 STORIES.dom.summary += '1942 年 3 月的空襲中主教座堂嚴重受損，戰後經過數十年才修復完成（完工年份待核對）。';
 
+
+/* ------------------------------------------------------------ 9. Lübeck Hauptbahnhof */
+function steamTrain(ctx, x, base, s, T, seed, cars = 3) {
+  for (let i = 0; i < cars; i++) { const cx = x - (i + 1) * 2.3 * s; paper(ctx, cut(rect(cx - 1.05 * s, base - 1.1 * s, 2.1 * s, 0.85 * s), seed + i, 0.6, 10), ['#5a2a22', '#2f4a3a', '#5a2a22'][i % 3], 2.2); windows(ctx, cx - 0.95 * s, base - 0.45 * s, 1.9 * s, 0.5 * s, 1, 4, C.cream, 0.8); for (const wx of [-0.7, 0.7]) paper(ctx, cut(ellipse(cx + wx * s, base - 0.2 * s, 0.2 * s, 0.2 * s, 12), seed + 10 + i, 0.3), C.ink, 2.4); }
+  paper(ctx, cut(rect(x - 1.1 * s, base - 1.0 * s, 1.6 * s, 0.6 * s), seed + 20, 0.6), C.ink, 2.3);   // boiler
+  paper(ctx, cut(rect(x - 1.6 * s, base - 1.4 * s, 0.7 * s, 1.0 * s), seed + 21, 0.6), '#2a2a30', 2.3);   // cab
+  paper(ctx, cut(rect(x + 0.2 * s, base - 1.55 * s, 0.22 * s, 0.6 * s), seed + 22, 0.4), C.ink, 2.4);   // chimney
+  for (const wx of [-1.3, -0.6, 0.1]) { ctx.save(); ctx.translate(x + wx * s, base - 0.25 * s); ctx.rotate(T * 3); paper(ctx, cut(ellipse(0, 0, 0.26 * s, 0.26 * s, 14), seed + 30, 0.3), C.red, 2.5); ctx.restore(); }
+  for (let k = 0; k < 5; k++) { const ph = (T * 0.6 + k / 5) % 1; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.55; ctx.fillStyle = '#eee'; ctx.beginPath(); ctx.arc(x + 0.3 * s - ph * 2.5 * s, base - 1.7 * s - ph * 1.4 * s, (0.2 + ph * 0.5) * s, 0, 7); ctx.fill(); ctx.restore(); }
+}
+function modernTrain(ctx, x, base, s, seed) {
+  for (let i = 0; i < 3; i++) { const cx = x - i * 2.6 * s; paper(ctx, cut([[cx - 1.25 * s, base], [cx - 1.25 * s, base - 1.05 * s], [cx + 1.1 * s, base - 1.05 * s], [cx + 1.3 * s, base - 0.6 * s], [cx + 1.3 * s, base]], seed + i, 0.5, 10), '#c8322b', 2.3); paper(ctx, cut(rect(cx - 1.1 * s, base - 0.85 * s, 2.1 * s, 0.32 * s), seed + 5 + i, 0.3), '#2a3540', 2.4); paper(ctx, cut(rect(cx - 1.25 * s, base - 0.35 * s, 2.55 * s, 0.1 * s), seed + 9 + i, 0.3), C.cream, 2.4); }
+}
+function stationFront(ctx, cx, base, s, night) {
+  const W = 6 * s;
+  paper(ctx, cut(rect(cx - W / 2, base - 2.6 * s, W, 2.6 * s), 9701), C.brick, 1.6);
+  paper(ctx, cut([[cx - W / 2 - 0.2 * s, base - 2.6 * s], [cx, base - 3.9 * s], [cx + W / 2 + 0.2 * s, base - 2.6 * s]], 9702), '#2c3442', 1.6);
+  for (let i = 0; i < 3; i++) { const ax = cx - W / 3 + i * W / 3; paper(ctx, cut([...ellipse(ax, base - 1.6 * s, 0.75 * s, 0.75 * s, 18, Math.PI, Math.PI * 2), [ax + 0.75 * s, base - 0.7 * s], [ax - 0.75 * s, base - 0.7 * s]], 9703 + i, 0.5), night ? '#f2c66e' : '#8fa8ba', 1.8); }
+  for (const [tx, tw, th] of [[-W / 2, 1.0, 4.0], [W / 2, 1.0, 4.0], [-W / 6, 0.55, 3.4], [W / 6, 0.55, 3.4]]) { paper(ctx, cut(rect(cx + tx - tw / 2 * s, base - th * s, tw * s, th * s), 9710 + tx, 0.5), C.brick2, 2); paper(ctx, cut(ellipse(cx + tx, base - th * s, tw * 0.62 * s, tw * 0.5 * s, 14, Math.PI, Math.PI * 2), 9720 + tx, 0.4), C.copper, 2.1); }
+  paper(ctx, cut(rect(cx - 0.45 * s, base - 4.8 * s, 0.9 * s, 1.1 * s), 9730), C.copper, 1.5);
+  paper(ctx, cut(rect(cx - W / 2, base - 0.7 * s, W, 0.7 * s), 9731), '#cdbf9e', 2);
+}
+STORIES.bahnhof = {
+  title: 'Der Lübecker Hauptbahnhof', zh: '呂貝克中央車站的故事', kind: '史實', music: 'jesu',
+  summary: '呂貝克的鐵路始於 1851 年：呂貝克—比興（Büchen）鐵路通車，把城市接上通往漢堡與柏林的鐵路網，第一座車站就設在霍爾斯滕門旁。1865 年直達漢堡的鐵路開通，客貨量快速成長，舊車站很快就不敷使用，還擠在古城門邊。1906 至 1908 年，新車站在更西邊落成，由建築師 Fritz Klingholz 設計，1908 年 5 月 1 日啟用，就是今天看到的紅磚建築：三扇巨大的拱窗、銅綠圓頂的塔樓與中央鐘塔。2008 年車站百年之際完成整修，同年漢堡—呂貝克線也完成電氣化。今天這裡是什勒斯維希—霍爾斯坦邦最重要的車站之一，有開往漢堡（約 40 至 45 分鐘）、基爾、特拉沃明德、呂內堡等地的列車。依德國鐵路公布的概略數字，每天約有三萬名旅客與訪客進出這座車站（各年統計不同，數字待核對）。',
+  scenes: [
+    { d: 9, zh: '1851 年，呂貝克—比興鐵路通車，呂貝克第一次接上德國的鐵路網，第一座車站就在霍爾斯滕門旁。', de: '1851 · Lübeck–Büchen', draw(ctx, t, T) {
+      sky(ctx, '#d3dce3', C.paper); sun(ctx, 1380, 170, 50);
+      pop(ctx, t, 0.1, () => drawHolstentor(ctx, 1150, 700, 220, 1.2));
+      pop(ctx, t, 0.3, () => { paper(ctx, cut(rect(200, 560, 520, 140), 9801), C.cream, 1.3); paper(ctx, cut([[180, 560], [460, 470], [740, 560]], 9802), C.slate, 1.4); windows(ctx, 220, 700, 480, 120, 1, 6); });
+      pop(ctx, t, 0.2, () => { paper(ctx, cut(rect(0, 700, 1600, 220), 9803, 2), C.slate, 2); ctx.save(); ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; for (const y of [745, 775]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1600, y); ctx.stroke(); } ctx.restore(); });
+      steamTrain(ctx, -200 + easeOut(t / 8) * 900, 760, 110, T, 9810);
+    } },
+    { d: 9, zh: '1865 年，直達漢堡的鐵路開通，旅客和貨物越來越多，擠在古城門邊的舊車站很快就不夠用了。', de: '1865 · Hamburg–Lübeck', draw(ctx, t, T) {
+      sky(ctx, '#e3d3b0', C.paper2);
+      pop(ctx, t, 0.2, () => { paper(ctx, cut(rect(0, 700, 1600, 220), 9820, 2), C.slate, 2); ctx.save(); ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; for (const y of [745, 775]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1600, y); ctx.stroke(); } ctx.restore(); });
+      steamTrain(ctx, 300 + easeOut(t / 8) * 900, 760, 100, T, 9830, 5);
+      for (let i = 0; i < 14; i++) pop(ctx, t, 0.4 + i * 0.12, () => paper(ctx, cut(person(80 + i * 105, 700, 90 + (i % 3) * 15), 9840 + i, 0.5, 8), [C.navy, C.ink, C.red, C.wood, C.navy2][i % 5], 2.5));
+      pop(ctx, t, 1, () => { paper(ctx, cut(rect(560, 180, 480, 130), 9860), C.cream, 2.6); T_(ctx, 'Hamburg ⇄ Lübeck', 800, 262, 46, C.ink); });
+    } },
+    { d: 10, zh: '1906 到 1908 年，新車站在更西邊落成，由建築師 Fritz Klingholz 設計，1908 年 5 月 1 日啟用。', de: '1. Mai 1908 · Fritz Klingholz', draw(ctx, t, T) {
+      sky(ctx, '#cbd6e0', C.paper); sun(ctx, 1380, 160, 50);
+      const k = clamp(t / 5);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 760 - 700 * k, 1600, 900); ctx.clip(); stationFront(ctx, 800, 760, 110, false); ctx.restore();
+      if (t < 5) pop(ctx, t, 0.2, () => { for (let i = 0; i < 6; i++) paper(ctx, rect(480 + i * 130, 260, 6, 500), C.wood, 2.4); for (let j = 0; j < 4; j++) paper(ctx, rect(470, 320 + j * 120, 680, 6), C.wood, 2.4); });
+      pop(ctx, t, 5.2, () => { paper(ctx, cut(rect(1180, 180, 300, 110), 9870), C.cream, 2.6); T_(ctx, '1908', 1330, 255, 60, C.red, 'Georgia, serif', 700); });
+      pop(ctx, t, 0.1, () => paper(ctx, cut(rect(0, 760, 1600, 160), 9871, 2), C.slate, 2.4));
+    } },
+    { d: 9, zh: '紅磚與白色石帶、三扇巨大的拱窗、銅綠圓頂的塔樓和中央鐘塔——傍晚亮燈時最好看。', de: 'Backstein, Kupfer, drei große Bögen', draw(ctx, t, T) {
+      sky(ctx, '#1e3a6b', '#3a5a8b'); stars(ctx, 20, 31, T);
+      pop(ctx, t, 0.1, () => stationFront(ctx, 800, 780, 125, true));
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(800, 560, 30, 800, 560, 520); g.addColorStop(0, 'rgba(255,200,120,0.25)'); g.addColorStop(1, 'rgba(255,200,120,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1600, 900); ctx.restore();
+      for (let i = 0; i < 5; i++) pop(ctx, t, 0.8 + i * 0.3, () => walker(ctx, 300 + i * 250 + Math.sin(T * 0.4 + i) * 40, 800, 100, T * 3 + i, [C.navy2, C.red, C.copper2, C.wood, C.ink][i], 9880 + i * 10));
+      pop(ctx, t, 0.1, () => paper(ctx, cut(rect(0, 780, 1600, 140), 9890, 2), '#2a2a34', 2.6));
+    } },
+    { d: 9, zh: '2008 年車站滿一百年，完成整修；同一年，往漢堡的鐵路也完成電氣化。', de: '2008 · 100 Jahre, elektrifiziert', draw(ctx, t, T) {
+      sky(ctx, '#d6dee5', C.paper);
+      pop(ctx, t, 0.1, () => { ctx.save(); ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 3; for (let x = 100; x < 1600; x += 300) { ctx.beginPath(); ctx.moveTo(x, 760); ctx.lineTo(x, 430); ctx.lineTo(x + 60, 430); ctx.stroke(); } ctx.beginPath(); ctx.moveTo(0, 450); ctx.lineTo(1600, 450); ctx.stroke(); ctx.restore(); });
+      modernTrain(ctx, 300 + easeOut(t / 8) * 1100, 740, 120, 9900);
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 740, 1600, 180), 9910, 2), C.slate, 2.2));
+      pop(ctx, t, 1.4, () => { paper(ctx, cut(rect(560, 140, 480, 140), 9911), C.cream, 2.6); T_(ctx, '1908 – 2008', 800, 225, 54, C.red, 'Georgia, serif', 700); });
+    } },
+    { d: 11, zh: '今天每天約有三萬名旅客與訪客進出這座車站，到漢堡只要 40 多分鐘，也有車開往基爾、特拉沃明德和呂內堡。', de: 'Rund 30 000 Reisende am Tag', draw(ctx, t, T) {
+      sky(ctx, '#e8dcc2', C.paper);
+      const n = Math.round(clamp((t - 0.5) / 5) * 30000);
+      pop(ctx, t, 0.3, () => { paper(ctx, cut(rect(420, 160, 760, 220), 9920), '#10203a', 2); T_(ctx, n.toLocaleString('de-DE'), 800, 290, 110, '#ffd34a', '"IBM Plex Mono", monospace', 700); T_(ctx, 'Reisende pro Tag · 每天', 800, 350, 30, '#ffffff', ZH, 500); });
+      [['Hamburg', '≈ 45 min'], ['Kiel', '≈ 75 min'], ['Travemünde', '≈ 20 min'], ['Lüneburg', '≈ 70 min']].forEach(([c2, m], i) => pop(ctx, t, 2 + i * 0.6, () => { paper(ctx, cut(rect(200 + i * 310, 460, 270, 120), 9930 + i), C.cream, 2.4); T_(ctx, c2, 335 + i * 310, 510, 34, C.ink); T_(ctx, m, 335 + i * 310, 555, 28, C.red); }));
+      for (let i = 0; i < 12; i++) { const x = ((T * 60 + i * 140) % 1700) - 50; walker(ctx, x, 800, 70, T * 4 + i, [C.navy2, C.red, C.copper2, C.wood, C.ink][i % 5], 9950 + i * 10); }
+      pop(ctx, t, 0.1, () => paper(ctx, cut(rect(0, 800, 1600, 120), 9990, 2), C.slate, 2.6));
+    } },
+  ],
+};
+
 /* ------------------------------------------------------------ which films belong to which places */
 Object.assign(STORY_AT, {
   holstentor: ['holstentor', 'sieben', 'route'], st_petri: ['sieben'], st_marien: ['st_marien', 'bach'], teufel: ['teufel', 'bach'],
   buddenbrookhaus: ['mann'], malerwinkel: ['malerwinkel'], kanal: ['kanal'], salzspeicher: ['salzspeicher', 'kanal'],
-  schiffergesellschaft: ['hanse'], st_jakobi: ['sieben'], burgtor: ['route'],
+  schiffergesellschaft: ['hanse'], st_jakobi: ['sieben'], burgtor: ['route'], hauptbahnhof: ['bahnhof'],
 });
 
 /* ------------------------------------------------------------ music & sound effects for every film */
@@ -507,6 +580,7 @@ const SFX = {
   route: [['quill'], ['steps', 'waves'], ['steps', 'bell'], ['steps', 'crowd'], ['steps'], ['steps', 'birds']],
   bach: [[], ['steps', 'birds', 'wind'], [], ['wind'], ['steps'], ['bell', 'birds']],
   kanal: [['steps', 'wind'], ['quill'], ['lock', 'canal'], ['waves', 'gull'], ['canal', 'cheer'], ['canal', 'gull']],
+  bahnhof: [['train', 'birds'], ['train', 'crowd'], ['hammer'], ['crowd'], ['train'], ['crowd', 'steps']],
   malerwinkel: [['canal', 'birds'], ['birds'], ['canal', 'oars'], ['canal', 'gull'], ['birds']],
 };
 for (const [k, v] of Object.entries(SFX)) if (STORIES[k]) STORIES[k].sfx = v;

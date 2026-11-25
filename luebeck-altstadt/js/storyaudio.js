@@ -214,6 +214,7 @@ const SHOTS = {
   cheer: [5, 2, (t) => burst(t, { f: 900, dur: 1.4, v: 0.12, a: 0.3, q: 0.6 })],
   projector: [0.083, 0, (t) => burst(t, { f: 2200, dur: 0.02, v: 0.05, q: 3 })],
   stone: [5, 0, (t) => { tone(t, 70, 0.7, 0.45, 'sine', 40, 0.4); burst(t, { f: 250, type: 'lowpass', dur: 0.6, v: 0.4 }); }],
+  train: [0.42, 0, (t) => { burst(t, { f: 260, type: 'lowpass', dur: 0.22, v: 0.25, a: 0.01 }); burst(t + 0.05, { f: 1400, dur: 0.12, v: 0.07 }); if (Math.random() < 0.06) { tone(t, 880, 1.1, 0.06, 'triangle', 860, 0.4); tone(t, 1110, 1.1, 0.05, 'triangle', 1090, 0.4); } }],
   creak: [4, 2, (t) => tone(t, 180, 0.6, 0.06, 'sawtooth', 240, 0.2)],
 };
 

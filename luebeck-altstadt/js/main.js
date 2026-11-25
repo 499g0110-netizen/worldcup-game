@@ -18,10 +18,12 @@ import { Traffic } from './traffic.js';
 import { buildShopfronts } from './shopfront.js';
 import { buildHolstentor, HOLSTEN } from './holstentor.js';
 import { Birds } from './birds.js';
+import { Boats } from './boats.js';
 import { buildSalzspeicher } from './salzspeicher.js';
 import { buildRathaus } from './rathaus.js';
 import { buildStation } from './station.js';
 import { buildOutskirts } from './outskirts.js';
+import { buildMarien } from './marien.js';
 import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
@@ -272,6 +274,10 @@ function isGrass(x, z) {
 }
 let bridges = [];
 
+function mergeGeos(list) {   // minimal merge for indexed/non-indexed BufferGeometries with position+normal
+  const pos = [], nor = []; for (let g of list) { g = g.index ? g.toNonIndexed() : g; pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); }
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return out;
+}
 async function addTileToScene(t) {
   // ground cover
   for (const gr of t.green) {
@@ -330,6 +336,17 @@ async function addTileToScene(t) {
       const want = Math.min(40, Math.floor(a / (TOUCH ? 420 : 260)));
       for (let k = 0, tries = 0; k < want && tries < want * 4 && added < (TOUCH ? 60 : 140); tries++) { const x = x0 + hp(x0 * 3 + tries * 1.7) * (x1 - x0), z = z0 + hp(z0 * 7 + tries * 2.3) * (z1 - z0); if (!pip(x, z, o) || (gr.i || []).some((h) => pip(x, z, h)) || inWater(x, z) || t.trees.some(([tx, tz]) => (tx - x) ** 2 + (tz - z) ** 2 < 49)) continue; t.trees.push([x, z]); k++; added++; }
     } }
+  // residential districts outside the old town (e.g. St. Jürgen): a tree or two in each front/back garden
+  { const hp = (n) => { const v = Math.sin(n * 12.9898) * 43758.5453; return v - Math.floor(v); }; let added = 0;
+    for (const b of t.buildings || []) {
+      const o = b.o; if (!o || o.length < 6 || added > (TOUCH ? 70 : 160)) continue;
+      let cx = 0, cz = 0; for (let k = 0; k < o.length; k += 2) { cx += o[k]; cz += o[k + 1]; } cx /= o.length / 2; cz /= o.length / 2;
+      if (Math.hypot((cx - 30) / 345, (cz + 100) / 780) < 1.05) continue;   // old town: gardens are courtyards
+      const bt = (b.t || {}).building || ''; if (!/house|detached|residential|semidetached|terrace|yes|villa|apartments|school/.test(bt)) continue;
+      let area = 0; for (let k = 0; k < o.length; k += 2) { const j = (k + 2) % o.length; area += o[k] * o[j + 1] - o[j] * o[k + 1]; } const want = Math.min(4, 1 + Math.floor(Math.abs(area) / 2 / 250)); let got = 0;
+      for (let k = 0; k < want * 3 && got < want; k++) { const a = hp(cx * 3 + cz + k * 5) * 6.283, r = 7 + Math.sqrt(Math.abs(area) / 6) * 0.5 + hp(cz * 7 + k) * 6, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        if (insideBuilding(x, z) || insideBuilding(x + 2.5, z) || insideBuilding(x - 2.5, z) || inWater(x, z) || nearRoad(x, z, 1.2)) continue; t.trees.push([x, z]); added++; got++; }
+    } }
   // Holstentorplatz is mostly open lawn in the photos: keep only a few trees around the gate
   t.trees = t.trees.filter(([x, z]) => { const d = Math.hypot(x - HOLSTEN.x, z - HOLSTEN.z); if (d < 32) return false; if (d < 85) { const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return v - Math.floor(v) < 0.3; } return true; });
   t.trees = t.trees.filter(([x, z]) => !nearRoad(x, z, 0.8, true) && !nearRoad(x, z, -0.4) && !insideBuilding(x, z));
@@ -344,6 +361,18 @@ async function addTileToScene(t) {
     });
     trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns, buildLeafCrowns(t.trees, { touch: TOUCH }));
   }
+  // cars parked along the kerbs of residential streets
+  { const spots = []; const hp = (n) => { const v = Math.sin(n * 78.233) * 43758.5453; return v - Math.floor(v); };
+    for (const r of rd.graph) { if (!['residential', 'living_street', 'unclassified', 'tertiary'].includes(r.k) || r.b) continue;
+      for (let i = 0; i < r.p.length / 2 - 1; i++) { const x1 = r.p[2 * i], z1 = r.p[2 * i + 1], x2 = r.p[2 * i + 2], z2 = r.p[2 * i + 3], L = Math.hypot(x2 - x1, z2 - z1); if (L < 8) continue; const ux = (x2 - x1) / L, uz = (z2 - z1) / L;
+        for (let d = 5; d < L - 5; d += 6.2) for (const sd of [-1, 1]) { if (hp(x1 * 3 + z1 + d * 7 + sd) > (Math.hypot((x1 - 30) / 345, (z1 + 100) / 780) < 1 ? 0.2 : 0.45)) continue; const off = r.w / 2 + 0.6, x = x1 + ux * d - uz * off * sd, z = z1 + uz * d + ux * off * sd; if (insideBuilding(x, z) || insideBuilding(x - uz * 1.3 * sd, z + ux * 1.3 * sd) || inWater(x, z) || nearRoad(x, z, -0.5)) continue; /* half on the kerb, clear of the traffic and walking lanes */ spots.push([x, z, Math.atan2(ux, uz) + (hp(d + x) < 0.5 ? Math.PI : 0)]); } } }
+    if (spots.length) {
+      if (!window.__parkedGeo) { const body = new THREE.BoxGeometry(1.78, 0.72, 4.3).translate(0, 0.55, 0), cab = new THREE.BoxGeometry(1.6, 0.55, 2.2).translate(0, 1.18, -0.2), wheel = []; for (const [wx, wz] of [[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.35], [0.82, -1.35]]) wheel.push(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 12).rotateZ(Math.PI / 2).translate(wx, 0.32, wz)); window.__parkedGeo = [mergeGeos([body, cab]), mergeGeos(wheel), new THREE.BoxGeometry(1.62, 0.5, 2.25).translate(0, 1.19, -0.2)]; }
+      const [gB, gW, gG] = window.__parkedGeo, cols = [0x1f1f22, 0xe8e6e0, 0x9aa0a6, 0x2b3a55, 0x7a2e2a, 0x5a6066, 0xf4f4f0, 0x3f5a43, 0x2b6a9b, 0xc9bfa8];
+      const bodyM = new THREE.InstancedMesh(gB, new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.55 }), spots.length), wheelM = new THREE.InstancedMesh(gW, new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }), spots.length), glassM = new THREE.InstancedMesh(gG, new THREE.MeshStandardMaterial({ color: 0x1c2630, roughness: 0.08, metalness: 0.6 }), spots.length);
+      const c = new THREE.Color(); spots.forEach(([x, z, yaw], i) => { m.compose(pv.set(x, 0, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), sv.set(1, 1, 1)); bodyM.setMatrixAt(i, m); wheelM.setMatrixAt(i, m); glassM.setMatrixAt(i, m); c.setHex(cols[Math.floor(hp(x + z) * cols.length)]); bodyM.setColorAt(i, c); });
+      bodyM.castShadow = true; scene.add(bodyM, wheelM, glassM);
+    } }
   if (t.lamps.length) {
     const pole = new THREE.InstancedMesh(poleGeo, poleMat, t.lamps.length), head = new THREE.InstancedMesh(headGeo, lampMat, t.lamps.length);
     t.lamps.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); pole.setMatrixAt(i, m); head.setMatrixAt(i, m); });
@@ -443,6 +472,7 @@ extraColliders.push(...hero.colliders);
 const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders);
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
+buildMarien(scene);
 const stationHero = buildStation(scene); extraColliders.push(...stationHero.colliders);
 const outskirts = buildOutskirts(scene, { tiles: new Set(Object.entries(TI.tiles).filter(([, n]) => n >= 40).map(([k]) => k)), tileSize: TI.size, inWater, touch: TOUCH, skip: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.0 });
 outskirtsRef = outskirts; for (const k of loadedTiles) outskirts.hideTile(k);
@@ -466,6 +496,7 @@ const grass = TOUCH && qName === 'low' ? null : new GrassField(scene, isGrass, {
 /* ------------------------------------------------------------ wild birds */
 const waterPts = []; for (let x = -900; x <= 700; x += 18) for (let z = -1000; z <= 900; z += 18) if (inWater(x, z) && inWater(x + 6, z) && inWater(x - 6, z) && inWater(x, z + 6) && inWater(x, z - 6)) waterPts.push([x, z]);
 const birds = new Birds(scene, { touch: TOUCH, water: waterPts, squares: [[-14, 19], [18, 217], [-20, 46], [256, -555], [HOLSTEN.west - 30, HOLSTEN.z]] });
+const boats = new Boats(scene, { inWater, waterPts, touch: TOUCH }); window.__boats = boats;
 /* ------------------------------------------------------------ story beacons: golden light columns above every landmark with a story film */
 const beaconU = { uTime: { value: 0 }, uK: { value: 1 } };
 const beaconMat = new THREE.ShaderMaterial({
@@ -893,7 +924,7 @@ function frame() {
   if ((frameN & 63) === 0) queueAround(fx, fz);
   if ((frameN & 63) === 7) placeBuskers();
   if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
-  if (!window.__storyOpen) birds.update(dt, fx, fz);
+  if (!window.__storyOpen) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
