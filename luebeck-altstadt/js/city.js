@@ -89,6 +89,8 @@ function roofKind(t) {
 }
 
 // async: yields to the browser every ~6 ms so frames keep rendering while a block is built (no stutter)
+// areas where OSM geometry is replaced by a hero model (Holstentor)
+export const EXCLUDE = [{ x: -351, z: 35, r: 17.5 }];
 export async function buildCity(data, { onProgress, budget = 6 } = {}) {
   let tSlice = performance.now();
   const TILE = 200, accs = new Map();
@@ -106,6 +108,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
   for (const [f, isPart] of items) {
     if (performance.now() - tSlice > budget) { await new Promise((r) => setTimeout(r, 0)); tSlice = performance.now(); }
     let o = f.o; if (o.length < 6) continue;
+    if (EXCLUDE.some((e) => { let cx = 0, cz = 0; for (let k = 0; k < o.length; k += 2) { cx += o[k]; cz += o[k + 1]; } cx /= o.length / 2; cz /= o.length / 2; return (cx - e.x) ** 2 + (cz - e.z) ** 2 < e.r * e.r; })) continue;   // replaced by a hand-built hero model
     if (signedArea(o) < 0) { // make CCW in (x,z) — with z south this is clockwise seen from above; keep one convention
       const r = []; for (let i = o.length - 2; i >= 0; i -= 2) r.push(o[i], o[i + 1]); o = r;
       if (f.ew) { const old = f.ew, m = old.length; f.ew = Array.from({ length: m }, (_, k) => old[(m - 2 - k + 2 * m) % m]).join(''); } // edge k of the reversed ring = old edge n-2-k

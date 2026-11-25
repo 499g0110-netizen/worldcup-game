@@ -15,6 +15,8 @@ import { InfoCards } from './ui.js';
 import { hasStory } from './stories.js';
 import { Traffic } from './traffic.js';
 import { buildShopfronts } from './shopfront.js';
+import { buildHolstentor, HOLSTEN } from './holstentor.js';
+import { Birds } from './birds.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
 
@@ -228,8 +230,27 @@ const lampMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xff
 const windU = { uTime: { value: 0 } };
 const crownGeo = new THREE.IcosahedronGeometry(1, TOUCH ? 2 : 4);
 { const p = crownGeo.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = Math.sin(v.x * 7.1) * Math.sin(v.y * 6.3 + 1) * Math.sin(v.z * 5.7 + 2); v.multiplyScalar(1 + n * 0.18 + (Math.sin(v.x * 19 + v.z * 23) * 0.04)); p.setXYZ(i, v.x, v.y, v.z); } crownGeo.computeVertexNormals(); }
-const crownMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-crownMat.onBeforeCompile = (sh) => { sh.uniforms.uTime = windU.uTime; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat sw = sin(uTime*1.3 + instanceMatrix[3][0]*.1)*.06; transformed.x += sw*(position.y+1.); transformed.z += sw*.6*(position.y+1.);'); };
+const crownMat = new THREE.MeshStandardMaterial({ roughness: 0.85, side: THREE.DoubleSide });
+// leafy crowns: noise-driven leaf clumps, ragged silhouette (discard near grazing angles), soft sun translucency
+crownMat.onBeforeCompile = (sh) => {
+  sh.uniforms.uTime = windU.uTime;
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime; varying vec3 vLP; varying vec3 vWN2; varying vec3 vWP2;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLP = position * 2.6 + vec3(instanceMatrix[3][0], 0.0, instanceMatrix[3][2]) * 0.37;\nfloat sw = sin(uTime*1.3 + instanceMatrix[3][0]*.1)*.06; transformed.x += sw*(position.y+1.); transformed.z += sw*.6*(position.y+1.);')
+    .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP2 = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz; vWN2 = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec3 vLP; varying vec3 vWN2; varying vec3 vWP2;
+      float lh(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
+      float ln(vec3 p){ vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+        return mix(mix(mix(lh(i), lh(i+vec3(1,0,0)), f.x), mix(lh(i+vec3(0,1,0)), lh(i+vec3(1,1,0)), f.x), f.y), mix(mix(lh(i+vec3(0,0,1)), lh(i+vec3(1,0,1)), f.x), mix(lh(i+vec3(0,1,1)), lh(i+vec3(1,1,1)), f.x), f.y), f.z); }`)
+    .replace('#include <color_fragment>', `#include <color_fragment>
+      float leaf = ln(vLP * 3.0) * 0.6 + ln(vLP * 9.0) * 0.4;
+      float rim = 1.0 - abs(dot(normalize(vWN2), normalize(cameraPosition - vWP2)));
+      if (leaf + rim * 0.9 > 1.18) discard;                       // ragged leafy outline
+      diffuseColor.rgb *= mix(0.55, 1.2, leaf) * mix(0.75, 1.0, smoothstep(-0.6, 0.8, vWN2.y));   // clumps, darker underside`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance += diffuseColor.rgb * 0.18 * smoothstep(0.4, 1.0, leaf);`);
+};
+crownMat.customProgramCacheKey = () => 'crown';
 const trunkGeo = new THREE.CylinderGeometry(0.16, 0.3, 5, 8).translate(0, 2.5, 0), poleGeo = new THREE.CylinderGeometry(0.05, 0.08, 4.4, 8).translate(0, 2.2, 0), headGeo = new THREE.CylinderGeometry(0.16, 0.24, 0.5, 6).translate(0, 4.6, 0);
 const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5, metalness: 0.6 });
 
@@ -390,11 +411,12 @@ function walkableC(x, z) { const k = Math.round(x) * 100003 + Math.round(z); if 
 /* ------------------------------------------------------------ first tiles around the spawn point */
 const teufelLM = LM.landmarks.find((l) => l.id === 'teufel');
 {
-  const first = tilesAround(teufelLM.local_xz_m[0], teufelLM.local_xz_m[1], 160);
+  const first = [...new Set([...tilesAround(-351, 35, 160), ...tilesAround(teufelLM.local_xz_m[0], teufelLM.local_xz_m[1], 120)])];
   for (let n = 0; n < first.length; n++) { status(`建立周邊街區… ${n + 1}／${first.length}`); await loadTile(first[n]); await new Promise((r) => setTimeout(r, 0)); }
 }
 const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teufelLM.local_xz_m[1] });
 extraColliders.push(...hero.colliders);
+const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders);
 
 /* ------------------------------------------------------------ actors */
 // The player starts as the built-in character (generated in code, no download), so walking, the bike and the car
@@ -411,6 +433,9 @@ if (!TOUCH && qName !== 'low' && !refMode) {
 function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
 const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) });
 
+/* ------------------------------------------------------------ wild birds */
+const waterPts = []; for (let x = -900; x <= 700; x += 18) for (let z = -1000; z <= 900; z += 18) if (inWater(x, z) && inWater(x + 6, z) && inWater(x - 6, z) && inWater(x, z + 6) && inWater(x, z - 6)) waterPts.push([x, z]);
+const birds = new Birds(scene, { touch: TOUCH, water: waterPts, squares: [[-14, 19], [18, 217], [-20, 46], [256, -555], [HOLSTEN.west - 30, HOLSTEN.z]] });
 /* ------------------------------------------------------------ story beacons: golden light columns above every landmark with a story film */
 const beaconU = { uTime: { value: 0 } };
 const beaconMat = new THREE.ShaderMaterial({
@@ -420,14 +445,14 @@ const beaconMat = new THREE.ShaderMaterial({
     void main(){ float fade = (1.0 - smoothstep(0.0, 1.0, vUv.y)) * smoothstep(0.0, 0.03, vUv.y);
       float bands = 0.65 + 0.35 * sin(vUv.y * 60.0 - uTime * 3.0);
       float edge = pow(1.0 - abs(vUv.x - 0.5) * 2.0, 0.0);
-      gl_FragColor = vec4(vec3(1.0, 0.78, 0.35) * fade * bands * 0.55, 1.0); }`,
+      gl_FragColor = vec4(vec3(1.0, 0.7, 0.25) * fade * bands * 0.32, 1.0); }`,
 });
 const beacons = [];
 for (const l of LM.landmarks) {
   if (!hasStory(l.id) || l.id === 'st_marien') continue;   // St. Marien shares the devil's beam (same churchyard)
   const g = new THREE.Group(); g.position.set(l.local_xz_m[0], 0, l.local_xz_m[1]);
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 320, 24, 1, true).translate(0, 160, 0), beaconMat); g.add(col);
-  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 320, 12, 1, true).translate(0, 160, 0), beaconMat); g.add(core);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.8, 320, 24, 1, true).translate(0, 160, 0), beaconMat); g.add(col);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 320, 12, 1, true).translate(0, 160, 0), beaconMat); g.add(core);
   const ring = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.6, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffc35a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })); ring.position.y = 0.06; g.add(ring);
   g.renderOrder = 5; scene.add(g); beacons.push({ g, ring, id: l.id });
 }
@@ -442,8 +467,9 @@ function placeBuskers() {
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
-const start = hero.statueWorld.clone().add(new THREE.Vector3().subVectors(hero.refCam.pos, hero.statueWorld).setY(0).normalize().multiplyScalar(3.5));
-const P = { x: start.x, z: start.z, y: 0, vy: 0, yaw: Math.atan2(hero.statueWorld.x - start.x, hero.statueWorld.z - start.z), speed: 0, mode: 'walk', t: 0 };
+// spawn: on Holstentorplatz, west of the gate, looking at its field side (like the reference photo)
+const start = new THREE.Vector3(HOLSTEN.west - 38, 0, HOLSTEN.z + 6);
+const P = { x: start.x, z: start.z, y: 0, vy: 0, yaw: Math.atan2(HOLSTEN.x - start.x, HOLSTEN.z - start.z), speed: 0, mode: 'walk', t: 0 };
 // parked bike & car near the Markt / Breite Straße (verified road positions are placed by snapping to the nearest OSM road)
 function nearestRoadPoint(x, z, kinds) { let best = null, bd = 1e9; for (const r of roads.graph) { if (kinds && !kinds.includes(r.k)) continue; for (let i = 0; i < r.p.length / 2 - 1; i++) { const x1 = r.p[2 * i], z1 = r.p[2 * i + 1], x2 = r.p[2 * i + 2], z2 = r.p[2 * i + 3], dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)), px = x1 + dx * t, pz = z1 + dz * t, d = Math.hypot(x - px, z - pz); if (d < bd) { bd = d; best = { x: px, z: pz, yaw: Math.atan2(dx, dz), w: r.w }; } } } return best; }
 {
@@ -831,6 +857,8 @@ function frame() {
   if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }
   if ((frameN & 63) === 0) queueAround(fx, fz);
   if ((frameN & 63) === 7) placeBuskers();
+  if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
+  if (!window.__storyOpen) birds.update(dt, fx, fz);
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
