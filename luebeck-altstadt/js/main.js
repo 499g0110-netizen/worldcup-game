@@ -18,6 +18,8 @@ import { Traffic } from './traffic.js';
 import { buildShopfronts } from './shopfront.js';
 import { buildHolstentor, HOLSTEN } from './holstentor.js';
 import { Birds } from './birds.js';
+import { buildSalzspeicher } from './salzspeicher.js';
+import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
 
@@ -257,17 +259,27 @@ const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5
 
 const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
 const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
+const greenGrid = new Map(), roadGrid = new Map();   // lawns (OSM green polygons) and road strips, for the grass tufts
+function nearRoad(x, z) { for (const [x1, z1, x2, z2, hw] of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)); if (Math.hypot(x - x1 - dx * t, z - z1 - dz * t) < hw) return true; } return false; }
+function isGrass(x, z) {
+  if (inWater(x, z) || insideBuilding(x, z) || nearRoad(x, z)) return false;
+  for (const gr of greenGrid.get(Math.floor(x / 32) + ',' + Math.floor(z / 32)) || []) if (pip(x, z, gr.o) && !(gr.i || []).some((h) => pip(x, z, h))) return true;
+  return Math.hypot((x - 30) / 345, (z + 100) / 780) > 0.97;   // open land outside the paved old-town island
+}
 let bridges = [];
 
 async function addTileToScene(t) {
   // ground cover
   for (const gr of t.green) {
+    { let a = 1e9, b = 1e9, c2 = -1e9, d = -1e9; for (let k = 0; k < gr.o.length; k += 2) { a = Math.min(a, gr.o[k]); c2 = Math.max(c2, gr.o[k]); b = Math.min(b, gr.o[k + 1]); d = Math.max(d, gr.o[k + 1]); }
+      for (let gx = Math.floor(a / 32); gx <= Math.floor(c2 / 32); gx++) for (let gz = Math.floor(b / 32); gz <= Math.floor(d / 32); gz++) { const k = gx + ',' + gz; if (!greenGrid.has(k)) greenGrid.set(k, []); greenGrid.get(k).push(gr); } }
     const sh = new THREE.Shape(toV2(gr.o)); for (const h of gr.i || []) sh.holes.push(new THREE.Path(toV2(h)));
     const m = new THREE.Mesh(flatShape(sh, 0.012), M.grass); m.receiveShadow = true; scene.add(m);
   }
   const rd = buildRoads(t);
   for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
   roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b);
+  for (const r of rd.graph) for (let i = 0; i < r.p.length / 2 - 1; i++) { const sg = [r.p[2 * i], r.p[2 * i + 1], r.p[2 * i + 2], r.p[2 * i + 3], r.w / 2 + 0.6]; for (let gx = Math.floor((Math.min(sg[0], sg[2]) - sg[4]) / 16); gx <= Math.floor((Math.max(sg[0], sg[2]) + sg[4]) / 16); gx++) for (let gz = Math.floor((Math.min(sg[1], sg[3]) - sg[4]) / 16); gz <= Math.floor((Math.max(sg[1], sg[3]) + sg[4]) / 16); gz++) { const k = gx + ',' + gz; if (!roadGrid.has(k)) roadGrid.set(k, []); roadGrid.get(k).push(sg); } }
   // buildings
   const c = await buildCity(t, { budget: TOUCH ? 5 : 8 });
   for (const [key, a] of c.accs) {
@@ -312,14 +324,11 @@ async function addTileToScene(t) {
     t.trees.forEach(([x, z], i) => {
       const k = 0.8 + ((Math.sin(x * 12.9 + z * 78.2) * 43758.5) % 1 + 1) % 1 * 0.6;
       m.compose(pv.set(x, 0, z), q.identity(), sv.set(k, k, k)); trunk.setMatrixAt(i, m);
-      for (let j = 0; j < 4; j++) {
-        const a = j * 1.9 + x, r = j ? 1.6 * k : 0, sc = (j ? 2.3 : 3.0) * k;
-        q.setFromEuler(new THREE.Euler(a, a * 2, a * 3));
-        m.compose(pv.set(x + Math.cos(a) * r, (6 + (j ? Math.sin(a) * 1.2 : 1.5)) * k, z + Math.sin(a) * r), q, sv.set(sc, sc * 0.85, sc)); crowns.setMatrixAt(i * 4 + j, m);
-        col.setHSL(0.24 + Math.sin(a) * 0.02, 0.38, 0.17 + j * 0.02); crowns.setColorAt(i * 4 + j, col);
-      }
+      q.setFromEuler(new THREE.Euler(x, x * 2, x * 3));
+      m.compose(pv.set(x, 6.3 * k, z), q, sv.set(2.7 * k, 2.3 * k, 2.7 * k)); crowns.setMatrixAt(i, m);   // dense inner mass so the leaf cards never look see-through
+      col.setHSL(0.25, 0.4, 0.12); crowns.setColorAt(i, col);
     });
-    trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns);
+    trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns, buildLeafCrowns(t.trees, { touch: TOUCH }));
   }
   if (t.lamps.length) {
     const pole = new THREE.InstancedMesh(poleGeo, poleMat, t.lamps.length), head = new THREE.InstancedMesh(headGeo, lampMat, t.lamps.length);
@@ -418,6 +427,7 @@ const teufelLM = LM.landmarks.find((l) => l.id === 'teufel');
 const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teufelLM.local_xz_m[1] });
 extraColliders.push(...hero.colliders);
 const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders);
+const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 
 /* ------------------------------------------------------------ actors */
 // The player starts as the built-in character (generated in code, no download), so walking, the bike and the car
@@ -434,6 +444,7 @@ if (!TOUCH && qName !== 'low' && !refMode) {
 function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
 const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) });
 
+const grass = TOUCH && qName === 'low' ? null : new GrassField(scene, isGrass, { touch: TOUCH });
 /* ------------------------------------------------------------ wild birds */
 const waterPts = []; for (let x = -900; x <= 700; x += 18) for (let z = -1000; z <= 900; z += 18) if (inWater(x, z) && inWater(x + 6, z) && inWater(x - 6, z) && inWater(x, z + 6) && inWater(x, z - 6)) waterPts.push([x, z]);
 const birds = new Birds(scene, { touch: TOUCH, water: waterPts, squares: [[-14, 19], [18, 217], [-20, 46], [256, -555], [HOLSTEN.west - 30, HOLSTEN.z]] });
@@ -446,7 +457,7 @@ const beaconMat = new THREE.ShaderMaterial({
     void main(){ float fade = (1.0 - smoothstep(0.0, 1.0, vUv.y)) * smoothstep(0.0, 0.03, vUv.y);
       float bands = 0.65 + 0.35 * sin(vUv.y * 60.0 - uTime * 3.0);
       float edge = pow(1.0 - abs(vUv.x - 0.5) * 2.0, 0.0);
-      gl_FragColor = vec4(vec3(1.0, 0.7, 0.25) * fade * bands * 0.32, 1.0); }`,
+      gl_FragColor = vec4(vec3(1.0, 0.7, 0.25) * fade * bands * 0.22, 1.0); }`,
 });
 const beacons = [];
 for (const l of LM.landmarks) {
@@ -844,7 +855,7 @@ function frame() {
     sun.position.set(cx + sunDir.x * D, sunDir.y * D, cz + sunDir.z * D); sun.target.position.set(cx, 0, cz); sun.shadow.camera.far = D * 2.5; }
   sky.position.copy(camera.position); clouds.position.copy(camera.position); cloudU.uTime.value = simT;
   if (window.__water?.material.uniforms?.time) window.__water.material.uniforms.time.value = simT * 0.5;
-  windU.uTime.value = simT; if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
+  windU.uTime.value = simT; foliageU.uTime.value = simT; if (grass && P.mode !== 'eagle') grass.update(fx, fz); if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
   // prompts
   if (P.mode === 'walk') {
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
