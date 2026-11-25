@@ -19,35 +19,65 @@ function brickCanvas(w, h, opts = {}) {
   }
   return { cv, g };
 }
-// tower skin: circumference along u, height along v (top of canvas = top of wall)
+// terracotta frieze band with white edge lines (the decorated bands of the photo)
+function frieze(g, W, y0, hPx, scale) {
+  g.fillStyle = '#efe7d8'; g.fillRect(0, y0 - 3, W, 4); g.fillRect(0, y0 + hPx - 1, W, 4);
+  g.fillStyle = '#c7693d'; g.fillRect(0, y0 + 1, W, hPx - 2);
+  const step = hPx * 1.1;
+  for (let x = 0; x < W; x += step) {   // moulded tiles: quatrefoil-ish rosettes
+    g.fillStyle = '#a9532f'; g.fillRect(x + 2, y0 + 3, step - 4, hPx - 6);
+    g.fillStyle = '#e19a64'; g.beginPath(); g.arc(x + step / 2, y0 + hPx / 2, hPx * 0.28, 0, 7); g.fill();
+    g.fillStyle = '#8f4426'; g.beginPath(); g.arc(x + step / 2, y0 + hPx / 2, hPx * 0.12, 0, 7); g.fill();
+  }
+}
+// window with a round or pointed head: dark-red brick reveal, dark glass, thin white mullion
+function win(g, cx, yb, w, h, opts = {}) {
+  const head = (inset) => { const x0 = cx - w / 2 + inset, x1 = cx + w / 2 - inset, r = (x1 - x0) / 2, ys = yb - h + r + inset;
+    g.beginPath(); g.moveTo(x0, yb); g.lineTo(x0, ys);
+    if (opts.pointed) { g.quadraticCurveTo(x0, ys - r * 1.1, cx, ys - r * 1.35); g.quadraticCurveTo(x1, ys - r * 1.1, x1, ys); } else g.arc(cx, ys, r, Math.PI, 0);
+    g.lineTo(x1, yb); g.closePath(); };
+  g.fillStyle = '#5a2418'; head(-w * 0.12); g.fill();          // moulded brick reveal
+  g.fillStyle = opts.fill || '#1b1a1e'; head(0); g.fill();
+  if (opts.glass) { g.fillStyle = 'rgba(150,175,200,0.22)'; head(w * 0.12); g.fill(); g.fillStyle = '#d8d0c2'; g.fillRect(cx - 1.5, yb - h + w * 0.4, 3, h - w * 0.4); g.fillRect(cx - w / 2, yb - h * 0.45, w, 3); }
+}
+// tower skin: circumference along u, height along v (top of canvas = top of wall). Matches the field-side photo:
+// sloped plinth, gun ports, three terracotta frieze bands, few small round-headed windows per storey.
 function towerTexture() {
   const W = 2048, H = 1024, { cv, g } = brickCanvas(W, H), mH = H / 18.5, mW = W / (2 * Math.PI * 6.25);
-  const band = (y, hgt, col) => { g.fillStyle = col; g.fillRect(0, H - y * mH - hgt * mH, W, hgt * mH); };
-  // white plaster bands and terracotta frieze (photo: two pale rings and a decorated band)
-  band(0.0, 0.6, '#7a6a5a'); band(5.2, 0.35, '#e8e0d0'); band(9.4, 0.35, '#e8e0d0'); band(13.6, 0.5, '#e8e0d0');
-  for (let x = 0; x < W; x += 0.55 * mW) { g.fillStyle = '#b86a3e'; g.fillRect(x, H - 9.75 * mH, 0.35 * mW, 0.35 * mH); }   // frieze tiles
-  // rows of arched windows: blind arches with white reveals; a few real openings
-  const arch = (cx, y, ww, hh, open) => {
-    const x0 = cx - ww / 2, top = H - (y + hh) * mH;
-    g.fillStyle = '#e9e2d4'; g.beginPath(); g.moveTo(x0 - 4, H - y * mH); g.lineTo(x0 - 4, top + ww * mW * 0.5); g.arc(cx, top + ww * mW * 0.5, ww * mW / 2 + 4, Math.PI, 0); g.lineTo(x0 + ww * mW + 4, H - y * mH); g.fill();
-    g.fillStyle = open ? '#1c1a1c' : '#7a3a2a'; g.beginPath(); g.moveTo(x0, H - y * mH); g.lineTo(x0, top + ww * mW * 0.5); g.arc(cx, top + ww * mW * 0.5, ww * mW / 2, Math.PI, 0); g.lineTo(x0 + ww * mW, H - y * mH); g.fill();
-    if (open) { g.strokeStyle = '#d8d2c4'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, top + 6); g.lineTo(cx, H - y * mH); g.stroke(); }
-  };
-  for (let i = 0; i < 22; i++) arch((i + 0.5) * W / 22, 14.3, 0.9, 2.6, i % 2 === 0);       // upper row, dense (photo)
-  for (let i = 0; i < 16; i++) arch((i + 0.5) * W / 16, 10.2, 0.9, 2.4, i % 3 === 0);       // second row
-  for (let i = 0; i < 8; i++) arch((i + 0.5) * W / 8, 6.0, 0.7, 1.6, true);                 // small windows
-  for (let i = 0; i < 10; i++) { g.fillStyle = '#1c1a1c'; g.fillRect((i + 0.5) * W / 10 - 0.25 * mW, H - 2.4 * mH, 0.5 * mW, 0.5 * mH); }   // gun ports
+  const Y = (y) => H - y * mH;
+  g.fillStyle = 'rgba(40,20,15,0.35)'; g.fillRect(0, Y(1.3), W, 1.3 * mH);
+  for (const [y, h] of [[4.6, 0.55], [9.6, 0.55], [14.4, 0.5]]) frieze(g, W, Y(y + h), h * mH, mW);
+  g.fillStyle = '#efe7d8'; g.fillRect(0, Y(18.5), W, 0.25 * mH);
+  for (let i = 0; i < 12; i++) { g.fillStyle = '#1c1a1c'; g.fillRect((i + 0.5) * W / 12 - 0.3 * mW, Y(2.6), 0.6 * mW, 0.45 * mH); }   // gun ports
+  for (let i = 0; i < 6; i++) win(g, (i + 0.25) * W / 6, Y(6.4), 0.75 * mW, 1.9 * mH, { glass: i % 2 === 0 });
+  for (let i = 0; i < 7; i++) win(g, (i + 0.7) * W / 7, Y(11.2), 0.85 * mW, 2.1 * mH, { glass: true });
+  for (let i = 0; i < 8; i++) win(g, (i + 0.45) * W / 8, Y(15.6), 1.0 * mW, 2.2 * mH, { glass: true, pointed: i % 2 === 1 });
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.RepeatWrapping; return t;
 }
-// middle block field side: stepped gable with three rows of arched windows and the inscription
-function gableTexture(field) {
-  const W = 1024, H = 2048, { cv, g } = brickCanvas(W, H, { bh: 9 }), mW = W / 7.6, mH = H / 26;
-  const arch = (cx, y, ww, hh, col) => { const x0 = cx - ww / 2; g.fillStyle = '#e9e2d4'; g.beginPath(); g.moveTo(x0 - 5, H - y * mH); g.lineTo(x0 - 5, H - (y + hh) * mH + ww * mW / 2); g.arc(cx, H - (y + hh) * mH + ww * mW / 2, ww * mW / 2 + 5, Math.PI, 0); g.lineTo(x0 + ww * mW + 5, H - y * mH); g.fill(); g.fillStyle = col; g.beginPath(); g.moveTo(x0, H - y * mH); g.lineTo(x0, H - (y + hh) * mH + ww * mW / 2); g.arc(cx, H - (y + hh) * mH + ww * mW / 2, ww * mW / 2, Math.PI, 0); g.lineTo(x0 + ww * mW, H - y * mH); g.fill(); };
-  // gate arch drawn as dark (the real passage is cut in geometry; this frames it)
-  g.fillStyle = '#e8e0d0'; g.fillRect(0, H - 7.6 * mH, W, 0.35 * mH);
-  if (field) { g.fillStyle = '#2b2320'; g.fillRect(0.4 * mW, H - 8.6 * mH, 6.8 * mW, 0.85 * mH); g.fillStyle = '#d9b45a'; g.font = `600 ${0.55 * mH}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('CONCORDIA DOMI FORIS PAX', W / 2, H - 8.18 * mH); }
-  else { g.fillStyle = '#d9b45a'; g.font = `600 ${0.6 * mH}px Georgia, serif`; g.textAlign = 'center'; g.fillText('S · P · Q · L', W / 2, H - 8.0 * mH); }
-  for (const [y, n, hh] of [[9.6, 4, 2.6], [13.2, 4, 2.6], [16.8, 4, 2.4], [20.2, 3, 2.2], [23.0, 2, 1.6]]) for (let i = 0; i < n; i++) arch((i + 0.5) * W / n, y, 0.75, hh, i % 2 ? '#1c1a1c' : '#7a3a2a');
+// middle block facade (u across 10.6 m, v over 26 m): gate arch surround, inscription band, rows of round-headed
+// windows between frieze bands, and the stepped gable with tall pale blind panels.
+function gableTexture(field, w, H1, ridge, steps, sw, dh, zcL, aw) {
+  const W = 1024, H = 2048, { cv, g } = brickCanvas(W, H, { bh: 9 }), mW = W / w, mH = H / 26, Y = (y) => H - y * mH, X = (x) => x * mW;
+  g.fillStyle = 'rgba(40,20,15,0.35)'; g.fillRect(0, Y(1.2), W, 1.2 * mH);
+  // arch surround: alternating glazed / red voussoirs
+  for (let k = 0; k <= 22; k++) { const a = Math.PI + k / 22 * Math.PI, r0 = aw, r1 = aw + 0.55; g.fillStyle = k % 2 ? '#3a1f18' : '#a24b30'; g.beginPath(); g.arc(X(zcL), Y(4.6), r1 * mW, a, a + Math.PI / 22 + 0.01); g.arc(X(zcL), Y(4.6), r0 * mW, a + Math.PI / 22 + 0.01, a, true); g.fill(); }
+  frieze(g, W, Y(7.0), 0.4 * mH); 
+  if (field) { g.fillStyle = '#c7693d'; g.fillRect(0, Y(7.9), W, 0.85 * mH); g.fillStyle = '#efe7d8'; g.fillRect(0, Y(7.95), W, 3); g.fillStyle = '#3a2010'; g.font = `700 ${0.6 * mH}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('CONCORDIA DOMI FORIS PAX', W / 2, Y(7.45)); }
+  else { g.fillStyle = '#d9b45a'; g.font = `600 ${0.6 * mH}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('S · P · Q · L', W / 2, Y(7.45)); }
+  for (let i = 0; i < 7; i++) win(g, X((i + 0.5) * w / 7), Y(8.4), 0.55 * mW, 1.1 * mH, { glass: true });
+  frieze(g, W, Y(10.1), 0.4 * mH);
+  for (let i = 0; i < 6; i++) win(g, X((i + 0.5) * w / 6), Y(10.6), 0.95 * mW, 2.9 * mH, { glass: i % 2 === 0, fill: i % 2 ? '#7a3424' : undefined });
+  frieze(g, W, Y(14.3), 0.4 * mH);
+  for (let i = 0; i < 6; i++) win(g, X((i + 0.5) * w / 6), Y(14.8), 0.9 * mW, 2.8 * mH, { glass: i % 2 === 1, fill: i % 2 ? undefined : '#7a3424' });
+  frieze(g, W, Y(H1), 0.35 * mH);
+  // gable: tall blind panels with pale plaster fill, topped by round heads, following the steps
+  const n = 6;
+  for (let i = 0; i < n; i++) {
+    const cx = (i + 0.5) * w / n, d = Math.abs(cx - w / 2), lvl = Math.max(0, Math.floor((w / 2 - d) / sw)), top = H1 + Math.min(steps, lvl) * dh - 0.5;
+    if (top - H1 < 1.5) continue;
+    win(g, X(cx), Y(H1 + 0.6), 0.85 * mW, (top - H1 - 0.6) * mH, { fill: '#e3dbcd' });
+    if (top - H1 > 4) win(g, X(cx), Y(H1 + 1.5), 0.45 * mW, 1.6 * mH, { glass: true });
+  }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 }
 
@@ -75,7 +105,7 @@ export function buildHolstentor(scene) {
   // middle block between the towers (z ≈ 30.3 – 39.6), with the gate passage running east–west
   const z0 = 29.6, z1 = 40.2, x0 = HOLSTEN.west + 0.3, x1 = HOLSTEN.east - 0.2, H1 = 18.5;
   const body = new THREE.Shape(); body.moveTo(z0, 0); body.lineTo(z1, 0); body.lineTo(z1, H1); body.lineTo(z0, H1); body.lineTo(z0, 0);
-  const hole = new THREE.Path(); const zc = (z0 + z1) / 2, aw = 1.9; hole.moveTo(zc - aw, 0); hole.lineTo(zc - aw, 4.6); hole.absarc(zc, 4.6, aw, Math.PI, 0, true); hole.lineTo(zc + aw, 0); hole.lineTo(zc - aw, 0); body.holes.push(hole);
+  const hole = new THREE.Path(); const zc = (z0 + z1) / 2, aw = 2.15; hole.moveTo(zc - aw, 0); hole.lineTo(zc - aw, 4.6); hole.absarc(zc, 4.6, aw, Math.PI, 0, true); hole.lineTo(zc + aw, 0); hole.lineTo(zc - aw, 0); body.holes.push(hole);
   const bodyG = new THREE.ExtrudeGeometry(body, { depth: x1 - x0, bevelEnabled: false });
   bodyG.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, x0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1));   // (shape x, y, depth) → (world x0+depth, y, z)
   { const p = bodyG.attributes.position, uv = bodyG.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getZ(i) + p.getX(i)) / 2.5, p.getY(i) / 2.5); }
@@ -90,17 +120,18 @@ export function buildHolstentor(scene) {
   }
   G.add(new THREE.Mesh(rf, new THREE.MeshStandardMaterial({ color: 0x4a3f3a, roughness: 0.7, side: THREE.DoubleSide })));
   for (const [gx, field] of [[x0 - 0.05, true], [x1 + 0.05, false]]) {
-    const tex = gableTexture(field), mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, side: THREE.DoubleSide });
-    // stepped silhouette: 5 steps up to the ridge, each step topped with a small pinnacle
+    // stepped silhouette: 5 steps up to the ridge
     const s = new THREE.Shape(), w = z1 - z0, steps = 5, dh = (ridgeH + 1.5 - H1) / steps, sw = (w / 2 - 0.6) / steps;
+    const tex = gableTexture(field, w, H1, ridgeH, steps, sw, dh, zc - z0, aw), mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, side: THREE.DoubleSide });
+    const holeL = new THREE.Path(); holeL.moveTo(zc - z0 - aw, 0); holeL.lineTo(zc - z0 - aw, 4.6); holeL.absarc(zc - z0, 4.6, aw, Math.PI, 0, true); holeL.lineTo(zc - z0 + aw, 0); holeL.lineTo(zc - z0 - aw, 0);
     s.moveTo(0, 0); s.lineTo(w, 0); s.lineTo(w, H1);
     for (let i = 0; i < steps; i++) { const y = H1 + i * dh, hw = w / 2 - i * sw, hw2 = w / 2 - (i + 1) * sw; s.lineTo(w / 2 + hw, y + dh); s.lineTo(w / 2 + hw2, y + dh); }
     s.lineTo(w / 2 - 0.6, H1 + steps * dh);
     for (let i = steps - 1; i >= 0; i--) { const y = H1 + i * dh, hw = w / 2 - i * sw; s.lineTo(w / 2 - hw, y + dh); s.lineTo(w / 2 - hw, y); }
     s.lineTo(0, H1); s.lineTo(0, 0);
-    s.holes.push(hole);
+    s.holes.push(holeL);
     const g = new THREE.ShapeGeometry(s, 8); const p = g.attributes.position, uv = g.attributes.uv;
-    for (let i = 0; i < p.count; i++) { const zz = z0 + p.getX(i), yy = p.getY(i); uv.setXY(i, p.getX(i) / w, yy / 26); p.setXYZ(i, gx, yy, field ? zz : zz); }
+    for (let i = 0; i < p.count; i++) { const zz = z0 + p.getX(i), yy = p.getY(i); uv.setXY(i, field ? p.getX(i) / w : 1 - p.getX(i) / w, yy / 26); /* city side seen from the east: mirrored so the lettering reads correctly */ p.setXYZ(i, gx, yy, field ? zz : zz); }
     const m = new THREE.Mesh(g, mat); G.add(m);
   }
   // passage vault (dark), a heavy wooden gate leaf folded back, granite threshold

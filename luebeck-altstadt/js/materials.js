@@ -45,7 +45,7 @@ export function makeFacade(base) {
         float vn2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash12(i), hash12(i+vec2(1,0)), f.x), mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), f.x), f.y); }
         // ---- interior mapping: a real-looking shop room behind the glass, ray-traced per pixel (box room, no textures)
         // p = (u along wall, v height, 0) metres; d = view ray in (along, up, into the wall); room spans [u0,u1] x [0,H] x [0,D]
-        // kinds: 0 bakery · 1 clothing · 2 books · 3 café · 4 florist · 5 department store · 6 shoes/pharmacy
+        // kinds: 0 bakery · 1 clothing · 2 books · 3 café · 4 florist · 5 department store · 6 drugstore
         float shopKind(float id) { return floor(hash12(vec2(id, 17.0)) * 7.0); }
         // goods on a wall: a = horizontal coordinate along the wall, y = height
         vec3 wallGoods(float kind, float a, float y, float id, vec3 wall, out float hit) {
@@ -91,11 +91,15 @@ export function makeFacade(base) {
             c = mix(c, mix(vec3(0.85), vec3(hash12(floor(vec2(a / 0.25, y / 0.33)) + id), 0.6, 0.7) * 0.7 + 0.2, box), shelf);
             float esc = step(abs(y - 0.6 - fract(a * 0.1) * 2.2), 0.08);
             c = mix(c, vec3(1.0,0.95,0.85) * 1.5, esc * 0.6); hit = shelf;
-          } else {                        // shoes / pharmacy: white shelves with small boxes
-            float row = floor(y / 0.32), fy = fract(y / 0.32), on = step(0.3, y) * step(y, 2.2);
-            float item = step(0.2, fy) * step(fy, 0.6) * step(0.25, fract(a / 0.22)) * step(fract(a / 0.22), 0.8);
-            vec3 col = mix(vec3(0.95), vec3(0.2 + 0.6 * hash12(vec2(floor(a / 0.22), row + id)), 0.3, 0.3), 0.5);
-            c = mix(vec3(0.96), mix(vec3(0.85), col, item), on); hit = on;
+          } else {                        // drugstore (Drogeriemarkt): white gondolas packed with colourful bottles and boxes, mustard accent wall
+            float row = floor(y / 0.3), fy = fract(y / 0.3), on = step(0.25, y) * step(y, 2.05);
+            float cw = 0.09 + 0.08 * hash12(vec2(row, id)), ca = floor(a / cw), fa = fract(a / cw);
+            float tall = 0.35 + 0.5 * hash12(vec2(ca, row + id * 3.0));
+            float item = step(0.08, fy) * step(fy, 0.08 + 0.8 * tall) * step(0.1, fa) * step(fa, 0.9);
+            vec3 col = 0.5 + 0.45 * cos(6.2832 * (hash12(vec2(ca * 1.7, row + id)) + vec3(0.0, 0.33, 0.67)));
+            col = mix(col, vec3(0.97), step(0.7, hash12(vec2(ca, row * 5.0 + id))));
+            vec3 shelf = mix(vec3(0.96), vec3(0.88), step(fy, 0.06));
+            c = mix(y > 2.3 ? vec3(0.93, 0.68, 0.26) : vec3(0.97), mix(shelf, col, item), on); hit = on;
           }
           return c;
         }
@@ -179,7 +183,7 @@ export function makeFacade(base) {
         diffuseColor.rgb = mix(diffuseColor.rgb, frameCol, max(disp, shopDoor * step(0.3, bu) * step(bu, 0.7) * step(fv, 0.8)));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02), glassArea * (1.0 - mull));
         float sk = mod(floor(bayI / 3.0) * 3.0 + wk - 1.0, 7.0);
-        vec3 signCol = sk < 0.5 ? vec3(0.55,0.35,0.15) : sk < 1.5 ? vec3(0.08,0.08,0.09) : sk < 2.5 ? vec3(0.12,0.22,0.18) : sk < 3.5 ? vec3(0.35,0.12,0.1) : sk < 4.5 ? vec3(0.2,0.35,0.2) : sk < 5.5 ? vec3(0.85,0.85,0.82) : vec3(0.1,0.3,0.45);
+        vec3 signCol = sk < 0.5 ? vec3(0.55,0.35,0.15) : sk < 1.5 ? vec3(0.08,0.08,0.09) : sk < 2.5 ? vec3(0.12,0.22,0.18) : sk < 3.5 ? vec3(0.35,0.12,0.1) : sk < 4.5 ? vec3(0.2,0.35,0.2) : sk < 5.5 ? vec3(0.85,0.85,0.82) : vec3(0.96,0.96,0.95);
         diffuseColor.rgb = mix(diffuseColor.rgb, signCol, fascia);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, vous);
         // rain streaks running down from each window sill, and a darker weathered band under the eaves
@@ -219,9 +223,9 @@ export function makeMaterials(dir = 'assets/tex') {
   M.roof_slate = pbr('roof_slates_02', 2.0, { color: 0x8a8f96 });
   M.roof_copper = pbr('green_metal_rust', 3.0, { color: 0x9fd8c0, metalness: 0.35, roughness: 0.9 });
   M.roof_flat = pbr('asphalt_02', 4.0, { color: 0x6a6866 });
-  M.cobble = pbr('cobblestone_floor_08', 2.0, { normalStrength: 1.4 });
+  M.cobble = pbr('cobblestone_floor_08', 2.0, { normalStrength: 1.4, color: 0xe6d6bf });   // warm grey-beige granite setts like the Markt photos
   M.asphalt = pbr('asphalt_02', 4.0);
-  M.pave = pbr('pavement_03', 2.0);
+  M.pave = pbr('pavement_03', 2.0, { color: 0xeadccb });
   M.grass = pbr('leafy_grass', 3.0, { color: 0x9ccf7a });   // tinted toward the lush summer green of the aerial photo
   M.granite = pbr('granite_tile', 1.2, { normalStrength: 1.5 });
   M.rock = pbr('rock_04', 1.6, { normalStrength: 1.6 });

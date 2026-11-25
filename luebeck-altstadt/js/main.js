@@ -19,6 +19,7 @@ import { buildShopfronts } from './shopfront.js';
 import { buildHolstentor, HOLSTEN } from './holstentor.js';
 import { Birds } from './birds.js';
 import { buildSalzspeicher } from './salzspeicher.js';
+import { buildRathaus } from './rathaus.js';
 import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
@@ -155,7 +156,7 @@ const WATER = base.water.filter((w) => w.o.length >= 6);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uPave; uniform sampler2D uPaveR; varying vec2 vW;')
       .replace('#include <map_fragment>', `#include <map_fragment>
         vec2 e = (vW - vec2(30.0, -100.0)) / vec2(345.0, 780.0); float inTown = 1.0 - smoothstep(0.92, 1.0, length(e));
-        vec4 pv = texture2D(uPave, vW * 0.5); diffuseColor.rgb = mix(diffuseColor.rgb, pv.rgb * 0.95, inTown);`)
+        vec4 pv = texture2D(uPave, vW * 0.5); diffuseColor.rgb = mix(diffuseColor.rgb, pv.rgb * vec3(1.0, 0.94, 0.86), inTown);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, texture2D(uPaveR, vW * 0.5).g, inTown);');
   };
   landMat.customProgramCacheKey = () => 'land';
@@ -259,8 +260,9 @@ const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5
 
 const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
 const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
-const greenGrid = new Map(), roadGrid = new Map();   // lawns (OSM green polygons) and road strips, for the grass tufts
-function nearRoad(x, z) { for (const [x1, z1, x2, z2, hw] of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)); if (Math.hypot(x - x1 - dx * t, z - z1 - dz * t) < hw) return true; } return false; }
+const greenGrid = new Map(), roadGrid = new Map(), CARFREE = new Set(['pedestrian', 'footway', 'path', 'steps']);   // lawns (OSM green polygons) and road strips, for the grass tufts
+// carOnly: ignore car-free pedestrian zones and footpaths; extra: additional clearance in metres
+function nearRoad(x, z, extra = 0, carOnly = false) { for (const [x1, z1, x2, z2, hw0, k] of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { if (carOnly && CARFREE.has(k)) continue; const hw = hw0 + extra, dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)); if (Math.hypot(x - x1 - dx * t, z - z1 - dz * t) < hw) return true; } return false; }
 function isGrass(x, z) {
   if (inWater(x, z) || insideBuilding(x, z) || nearRoad(x, z)) return false;
   for (const gr of greenGrid.get(Math.floor(x / 32) + ',' + Math.floor(z / 32)) || []) if (pip(x, z, gr.o) && !(gr.i || []).some((h) => pip(x, z, h))) return true;
@@ -279,7 +281,7 @@ async function addTileToScene(t) {
   const rd = buildRoads(t);
   for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
   roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b);
-  for (const r of rd.graph) for (let i = 0; i < r.p.length / 2 - 1; i++) { const sg = [r.p[2 * i], r.p[2 * i + 1], r.p[2 * i + 2], r.p[2 * i + 3], r.w / 2 + 0.6]; for (let gx = Math.floor((Math.min(sg[0], sg[2]) - sg[4]) / 16); gx <= Math.floor((Math.max(sg[0], sg[2]) + sg[4]) / 16); gx++) for (let gz = Math.floor((Math.min(sg[1], sg[3]) - sg[4]) / 16); gz <= Math.floor((Math.max(sg[1], sg[3]) + sg[4]) / 16); gz++) { const k = gx + ',' + gz; if (!roadGrid.has(k)) roadGrid.set(k, []); roadGrid.get(k).push(sg); } }
+  for (const r of rd.graph) for (let i = 0; i < r.p.length / 2 - 1; i++) { const sg = [r.p[2 * i], r.p[2 * i + 1], r.p[2 * i + 2], r.p[2 * i + 3], r.w / 2 + 0.6, r.k]; for (let gx = Math.floor((Math.min(sg[0], sg[2]) - sg[4]) / 16); gx <= Math.floor((Math.max(sg[0], sg[2]) + sg[4]) / 16); gx++) for (let gz = Math.floor((Math.min(sg[1], sg[3]) - sg[4]) / 16); gz <= Math.floor((Math.max(sg[1], sg[3]) + sg[4]) / 16); gz++) { const k = gx + ',' + gz; if (!roadGrid.has(k)) roadGrid.set(k, []); roadGrid.get(k).push(sg); } }
   // buildings
   const c = await buildCity(t, { budget: TOUCH ? 5 : 8 });
   for (const [key, a] of c.accs) {
@@ -319,6 +321,7 @@ async function addTileToScene(t) {
       }
     }
   }
+  t.trees = t.trees.filter(([x, z]) => !nearRoad(x, z, 0.8, true) && !nearRoad(x, z, -0.4) && !insideBuilding(x, z));
   if (t.trees.length) {
     const trunk = new THREE.InstancedMesh(trunkGeo, M.wood, t.trees.length), crowns = new THREE.InstancedMesh(crownGeo, crownMat, t.trees.length * 4);
     t.trees.forEach(([x, z], i) => {
@@ -428,6 +431,7 @@ const hero = buildHero(scene, M, city.segs, { x: teufelLM.local_xz_m[0], z: teuf
 extraColliders.push(...hero.colliders);
 const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders);
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
+const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
 
 /* ------------------------------------------------------------ actors */
 // The player starts as the built-in character (generated in code, no download), so walking, the bike and the car
@@ -442,7 +446,7 @@ if (!TOUCH && qName !== 'low' && !refMode) {
     .catch((err) => { $('#charload').textContent = ''; console.warn('detailed character not loaded, keeping the built-in one', err); }), 4000);
 }
 function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
-const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) });
+const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) && !nearRoad(x, z, 0.8, true) });
 
 const grass = TOUCH && qName === 'low' ? null : new GrassField(scene, isGrass, { touch: TOUCH });
 /* ------------------------------------------------------------ wild birds */
@@ -653,7 +657,7 @@ function seatHuman(seatWorld, yaw, legTargets, handTargets, kneePole, elbowPole,
   H.root.position.set(0, 0, 0); H.root.rotation.set(0, yaw, lean); H.root.updateMatrixWorld(true);
   const hips = B.Hips.getWorldPosition(new THREE.Vector3());
   H.root.position.copy(seatWorld).sub(hips).add(new THREE.Vector3(0, 0.08, 0)); H.root.updateMatrixWorld(true);
-  B.Spine.rotation.set(0.12, 0, 0); B.Spine1.rotation.set(0.08, 0, 0);   // absolute, not +=: the built-in idle clip has no Spine track, so += accumulated every frame and spun the rider B.Hips.updateMatrixWorld(true);
+  B.Spine.rotation.set(0.12, 0, 0); B.Spine1.rotation.set(0.08, 0, 0); B.Hips.updateMatrixWorld(true);   // absolute, not +=: the built-in idle clip has no Spine track, so += accumulated every frame and spun the rider
   twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, legTargets[0], kneePole[0]);
   twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, legTargets[1], kneePole[1]);
   twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, handTargets[0], elbowPole[0]);

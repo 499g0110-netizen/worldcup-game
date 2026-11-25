@@ -12,7 +12,7 @@ export const KINDS = [
   { de: 'CAFÉ', bg: '#5a1f18', fg: '#f1e2c0', awn: [0xf1ece0, 0x2f4a3a] },
   { de: 'BLUMEN', bg: '#33522f', fg: '#f4efe4' },
   { de: 'KAUFHAUS', bg: '#e9e6df', fg: '#1d2230' },
-  { de: 'SCHUHE', bg: '#1c4a6b', fg: '#f4efe4' },
+  { de: 'DROGERIE', bg: '#ffffff', fg: '#1d3f8f', swoosh: true, modern: true },
 ];
 
 let signMat = null;
@@ -30,6 +30,9 @@ function signMaterial() {
     const txt = k.de.split('').join(' ');
     g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowOffsetY = 3; g.shadowBlur = 4;
     g.fillText(txt, W / 2, y + R / 2 + 4); g.shadowColor = 'transparent';
+    if (k.swoosh) {   // generic red–yellow ribbon under the lettering (own design, no real logo)
+      g.lineCap = 'round'; for (const [c2, dy] of [['#f2b630', 0], ['#d8332b', -9]]) { g.strokeStyle = c2; g.lineWidth = 8; g.beginPath(); g.moveTo(W * 0.22, y + R - 22 + dy); g.bezierCurveTo(W * 0.4, y + R - 4 + dy, W * 0.6, y + R - 40 + dy, W * 0.78, y + R - 20 + dy); g.stroke(); }
+    }
   });
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   signMat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.45, metalness: 0.1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 });
@@ -59,7 +62,8 @@ export function buildShopfronts(list) {
       // brass lamp bracket over the sign
       for (const a of [a0 + 0.4, a1 - 0.4]) { frameBox(det, x1, 0, z1, ux, uz, a - 0.012, a + 0.012, y1 + 0.2, y1 + 0.23, -0.4, 0, IRON); frameBox(det, x1, 0, z1, ux, uz, a - 0.06, a + 0.06, y1 + 0.12, y1 + 0.2, -0.44, -0.34, IRON); }   // slim gooseneck lamps
       // pilasters framing the shop
-      for (const a of [a0 - 0.12, a1 + 0.04]) frameBox(det, x1, 0, z1, ux, uz, a, a + 0.08, minH, minH + 2.44, -0.07, 0, C(0xe9e4da).multiplyScalar(f.brick ? 0.75 : 1));
+      for (const a of [a0 - 0.12, a1 + 0.04]) frameBox(det, x1, 0, z1, ux, uz, a, a + 0.08, minH, minH + 2.44, -0.07, 0, K.modern ? C(0x1a1c1e) : C(0xe9e4da).multiplyScalar(f.brick ? 0.75 : 1));
+      if (K.modern) frameBox(det, x1, 0, z1, ux, uz, a0 - 0.12, a1 + 0.12, minH + 2.36, minH + 2.46, -0.09, 0, C(0x1a1c1e));   // black steel transom
       // awning for bakeries and cafés: striped canvas sloping out over the windows
       if (K.awn) {
         const out = 1.35, ya = minH + 2.42, yb = minH + 2.02, st = 0.32;
