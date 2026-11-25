@@ -1,3 +1,4 @@
+import { hasStory, openStory, storyList } from './stories.js';
 // Landmark intro cards: enter/exit hysteresis, one card at a time, manual close sticks for the current visit,
 // global "auto intro" switch, reopen via the ℹ button or the I key, never pops up while riding/driving.
 const TEXT = {
@@ -29,6 +30,12 @@ export class InfoCards {
     this.el.querySelector('.x').addEventListener('click', () => this.close(true));
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) { this.close(true); e.stopPropagation(); } if ((e.key === 'i' || e.key === 'I') && !e.target.closest?.('input,select')) this.toggle(); });
     this.btn.addEventListener('click', () => this.toggle());
+    const list = document.querySelector('#slist'), items = list.querySelector('.items');
+    for (const s of storyList()) { const b2 = document.createElement('button'); b2.className = 'it'; b2.type = 'button'; b2.innerHTML = `<div class="a"></div><div class="b"></div><div class="c"></div>`; b2.querySelector('.a').textContent = s.title; b2.querySelector('.b').textContent = '▶ ' + s.zh; b2.querySelector('.c').textContent = s.kind; b2.onclick = () => { closeList(); openStory(s.id); }; items.appendChild(b2); }
+    const closeList = () => { list.classList.remove('on'); setTimeout(() => (list.hidden = true), 250); };
+    list.querySelector('.x').onclick = closeList;
+    for (const ev of ['pointerdown', 'touchstart', 'wheel']) list.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+    document.querySelector('#bStories').addEventListener('click', () => { list.hidden = false; requestAnimationFrame(() => list.classList.add('on')); });
     const auto = document.querySelector('#autoIntro'); auto.checked = this.auto;
     auto.addEventListener('change', () => { this.auto = auto.checked; try { localStorage.setItem('lub-auto', this.auto ? '1' : '0'); } catch { /* */ } });
     // clicks on the card must not reach the canvas (camera drag / actions)
@@ -53,6 +60,7 @@ export class InfoCards {
     this.el.querySelector('.de').textContent = l.name_de; this.el.querySelector('.zh').textContent = l.name_zh;
     this.el.querySelector('.addr').textContent = l.address;
     this.el.querySelector('.tx').textContent = TEXT[l.id];
+    const sb = this.el.querySelector('.storybtn'); sb.hidden = !hasStory(l.id); sb.onclick = (e) => { e.stopPropagation(); openStory(l.id); };
     this.el.querySelector('.src').innerHTML = `位置：<a href="https://www.openstreetmap.org/${l.osm}" target="_blank" rel="noopener">OpenStreetMap ${l.osm}</a>（ODbL，取得 ${l.fetched_at.slice(0, 10)}）` + (l.unverified.length ? `<br>待核對：${l.unverified.join('；')}` : '');
     this.el.hidden = false; requestAnimationFrame(() => this.el.classList.add('on'));
   }

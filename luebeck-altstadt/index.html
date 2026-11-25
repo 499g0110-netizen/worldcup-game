@@ -6,7 +6,7 @@
 <title>Lübeck Altstadt</title>
 <meta name="description" content="依 OpenStreetMap 真實地理資料重建、可步行、騎腳踏車與開車探索的 3D 呂貝克舊城。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500&family=UnifrakturMaguntia&display=swap">
 <style>
 /* Layout: full-screen WebGL world; compact neutral HUD in the corners; intro card on the left. Single dark-glass look by design (game view). */
 :root {
@@ -54,6 +54,32 @@ canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 #card .tx { font-size: 13.5px; line-height: 1.7; margin: 10px 0 8px; }
 #card .src { font-size: 11px; line-height: 1.6; color: var(--mute); border-top: 1px solid var(--line); padding-top: 8px; }
 #card a { color: var(--copper); }
+
+/* story player: dark paper-theatre frame */
+#story, #slist { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(10,12,18,.78); padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); opacity: 0; transition: opacity .25s; }
+#story.on, #slist.on { opacity: 1; }
+.sbox { width: min(1100px, 100%); max-height: 100%; overflow: auto; background: #1b1d22; border: 1px solid rgba(201,162,74,.45); border-radius: 14px; padding: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+.shead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.shead .ttl { font: 400 30px/1.1 "UnifrakturMaguntia", Georgia, serif; color: #e1c27a; }
+.shead .ttlzh { font: 500 13px var(--f-body); color: var(--mute); margin-top: 4px; }
+.sbox .x { all: unset; cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; font-size: 22px; color: var(--ink); }
+.sbox .x:hover, .sbox .x:focus-visible { background: rgba(255,255,255,.1); }
+.stage { position: relative; border-radius: 8px; overflow: hidden; background: #0e1016; }
+.stage canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.subs { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; padding: 0 8%; pointer-events: none; }
+.subs .cap { display: inline; font: 500 clamp(13px, 2vw, 20px)/1.6 var(--f-body); color: #fff; background: rgba(20,22,30,.72); padding: 3px 10px; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.subs .capde { font: italic 400 clamp(11px, 1.4vw, 15px) Georgia, serif; color: #e1c27a; margin-top: 6px; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+.sctl { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.sctl button { all: unset; cursor: pointer; font: 500 13px var(--f-mono); color: var(--ink); padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; min-width: 24px; text-align: center; }
+.sctl button:hover, .sctl button:focus-visible { border-color: #c9a24a; }
+.seek { flex: 1; padding: 10px 0; cursor: pointer; } .seek .bar { height: 4px; background: rgba(255,255,255,.15); border-radius: 2px; } .seek .bar i { display: block; height: 100%; width: 0; background: #c9a24a; border-radius: 2px; }
+.desc { font: 400 14px/1.8 var(--f-body); color: #d8d3ca; margin: 12px 2px 2px; max-width: 75ch; }
+#slist .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+#slist .it { all: unset; cursor: pointer; padding: 14px; border-radius: 10px; background: #23262d; border: 1px solid var(--line); }
+#slist .it:hover, #slist .it:focus-visible { border-color: #c9a24a; }
+#slist .it .a { font: 400 20px/1.2 "UnifrakturMaguntia", Georgia, serif; color: #e1c27a; } #slist .it .b { font: 500 13px var(--f-body); color: var(--ink); margin-top: 4px; } #slist .it .c { font: 400 11px var(--f-mono); color: var(--mute); margin-top: 4px; }
+.storybtn { all: unset; cursor: pointer; display: inline-block; margin: 2px 0 10px; padding: 8px 14px; border-radius: 8px; background: #c9a24a; color: #1b1d22; font: 700 13px var(--f-body); }
+.storybtn:hover, .storybtn:focus-visible { background: #e1c27a; }
 #perf { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px); padding: 6px 10px; font: 400 11px var(--f-mono); }
 /* intro overlay */
 #intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(15,16,18,.55); padding: 16px max(16px, env(safe-area-inset-left, 0px)); transition: opacity .6s, visibility .6s; }
@@ -84,6 +110,7 @@ body.refmode .hud, body.refmode #intro { display: none !important; }
 <div class="glass hud" id="mapBox"><canvas id="mini" width="336" height="336"></canvas><div class="cap">N ↑ · © OpenStreetMap</div></div>
 <div class="glass hud" id="tools">
   <button class="tb" id="bAct" type="button">上／下車<kbd>E</kbd></button>
+  <button class="tb" id="bStories" type="button">故事</button>
   <button class="tb" id="bEagle" type="button">黑鷹<kbd>F</kbd></button>
   <button class="tb" id="bTime" type="button">時間<kbd>T</kbd></button>
   <button class="tb" id="bView" type="button">視角<kbd>V</kbd></button>
@@ -96,8 +123,18 @@ body.refmode .hud, body.refmode #intro { display: none !important; }
 <div class="glass hud" id="perf" hidden></div>
 <section class="glass" id="card" hidden aria-live="polite" role="dialog" aria-label="景點介紹">
   <button class="x" type="button" aria-label="關閉介紹">×</button>
-  <div class="de"></div><div class="zh"></div><div class="addr"></div><p class="tx"></p><div class="src"></div>
+  <div class="de"></div><div class="zh"></div><div class="addr"></div><p class="tx"></p><button class="storybtn" type="button" hidden>▶ 故事動畫</button><div class="src"></div>
 </section>
+
+<div id="story" hidden role="dialog" aria-label="故事動畫">
+  <div class="sbox">
+    <div class="shead"><div><div class="ttl"></div><div class="ttlzh"></div></div><button class="x" type="button" aria-label="關閉故事">×</button></div>
+    <div class="stage"><canvas></canvas><div class="subs"><div class="cap"></div><div class="capde"></div></div></div>
+    <div class="sctl"><button class="play" type="button" aria-label="播放／暫停">❚❚</button><div class="seek"><div class="bar"><i></i></div></div><button class="again" type="button">重播</button></div>
+    <p class="desc"></p>
+  </div>
+</div>
+<div id="slist" hidden role="dialog" aria-label="故事列表"><div class="sbox"><div class="shead"><div><div class="ttl">Lübecker Geschichten</div><div class="ttlzh">呂貝克景點故事動畫</div></div><button class="x" type="button" aria-label="關閉">×</button></div><div class="items"></div></div></div>
 <div id="stick" class="hud"><i></i></div>
 <div id="intro"><div class="box">
   <h2>Lübeck</h2>

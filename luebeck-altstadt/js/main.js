@@ -741,6 +741,7 @@ const perf = { frames: 0, acc: 0, worst: 0, last: performance.now() };
 const clock = new THREE.Clock(); let simT = 0, frameN = 0;
 function frame() {
   requestAnimationFrame(frame);
+  if (window.__storyOpen) { clock.getDelta(); return; }   // story film on top: pause the 3D world (saves battery on phones)
   const dt = Math.min(clock.getDelta(), 0.05); simT += dt;
   if (started) {
     if (P.mode === 'walk') walkStep(dt);
