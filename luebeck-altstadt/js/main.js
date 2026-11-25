@@ -55,7 +55,7 @@ const Q = QUALITY[qName];
 
 /* ------------------------------------------------------------ renderer */
 const canvas = $('#world');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !Q.aa, powerPreference: 'high-performance', logarithmicDepthBuffer: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !Q.aa, powerPreference: 'high-performance', logarithmicDepthBuffer: false }); window.__ri = () => ({ ...renderer.info.memory, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, progs: renderer.info.programs?.length, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null });
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.dpr));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -84,7 +84,7 @@ status('讀取地圖資料…');
 const hintData = fetch('data/hint.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
 const [base, LM, TI] = await Promise.all(['data/base.json', 'data/landmarks.json', 'data/tiles/index.json'].map((u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); })));
 const M = makeMaterials(TOUCH || qName === 'low' ? 'assets/tex_s' : 'assets/tex');
-const STREAM_R = TOUCH ? 420 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
+const STREAM_R = TOUCH ? 380 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
 /* ------------------------------------------------------------ sky & light */
 // sky dome tuned to the summer photos: deep blue zenith, pale horizon, warm glow around the sun
 const SU = { sunPosition: { value: new THREE.Vector3(0, 1, 0) }, uZenith: { value: new THREE.Color(0x2f6cc9) }, uHorizon: { value: new THREE.Color(0xc4dcf2) }, uGlow: { value: new THREE.Color(0xfff0d0) }, uNight: { value: 0 } };
@@ -236,7 +236,7 @@ function rippleTex(fine) {
 /* minimap canvas, drawn incrementally as tiles arrive (2048 px for 2.4 km) */
 const MAP = (() => {
   // covers the old town and the districts around it (±2.6 km), incl. St. Jürgen
-  const S = 5200, R = TOUCH ? 2048 : 3072, cv = document.createElement('canvas'); cv.width = cv.height = R; const g = cv.getContext('2d'), k = R / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
+  const S = 5200, R = TOUCH ? 1536 : 3072, cv = document.createElement('canvas'); cv.width = cv.height = R; const g = cv.getContext('2d'), k = R / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
   g.fillStyle = '#e8e4da'; g.fillRect(0, 0, R, R);
   const poly = (o, fill) => { g.beginPath(); for (let i = 0; i < o.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(o[i]), Z(o[i + 1])); g.closePath(); g.fillStyle = fill; g.fill(); };
   for (const w of WATER) poly(w.o, '#9cc1d6');
@@ -283,7 +283,17 @@ crownMat.customProgramCacheKey = () => 'crown';
 const trunkGeo = new THREE.CylinderGeometry(0.16, 0.3, 5, 8).translate(0, 2.5, 0), poleGeo = new THREE.CylinderGeometry(0.05, 0.08, 4.4, 8).translate(0, 2.2, 0), headGeo = new THREE.CylinderGeometry(0.16, 0.24, 0.5, 6).translate(0, 4.6, 0);
 const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5, metalness: 0.6 });
 for (const g of [crownGeo, trunkGeo, poleGeo, headGeo]) g.userData.shared = true;
-const tileGroups = new Map(), everLoaded = new Set(); window.__tileCount = () => tileGroups.size;
+const tileGroups = new Map(), everLoaded = new Set();
+// static meshes never change after creation: once a geometry is on the GPU drop its JavaScript copy
+// (roughly halves memory on phones; nothing reads these arrays afterwards)
+function freeArrays(root) {
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || !o.geometry || o.geometry.userData.shared || o.geometry.userData.freed) return;
+    const g = o.geometry; g.userData.freed = true; if (!g.boundingSphere) g.computeBoundingSphere();
+    for (const a of Object.values(g.attributes)) a.onUpload(function () { this.array = null; });
+    if (g.index) g.index.onUpload(function () { this.array = null; });
+  });
+} window.__tileCount = () => tileGroups.size;
 
 const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
 const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
@@ -419,6 +429,7 @@ async function addTileToScene(t) {
     pole.castShadow = true; tg.add(pole, head);
   }
   if (firstTime) drawTileOnMap(t, c, rd);
+  freeArrays(tg);
   wCache.clear();
 }
 
@@ -443,7 +454,7 @@ async function loadTile(k) {
     await addTileToScene(t); outskirtsRef?.hideTile(k);
   } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
 }
-const UNLOAD_R = TOUCH ? 700 : qName === 'low' ? 1100 : 1600;
+const UNLOAD_R = TOUCH ? 560 : qName === 'low' ? 1100 : 1600;
 function unloadFar(x, z) {
   const S = TI.size;
   for (const [k, tg] of tileGroups) {
@@ -528,12 +539,13 @@ extraColliders.push(...hero.colliders);
 const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders);
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
-buildMarien(scene);
+const marienG = buildMarien(scene);
 const hint = await hintData.then((h) => (h ? buildHint(scene, h) : null)); window.__hint = hint;
 const bridgeSet = buildBridges(scene, { bridges: base.bridges || [], rings: base.rings || [], inWater, oldTown: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.15 }); extraColliders.push(...bridgeSet.colliders);
-buildShed(scene);
+const shedG = buildShed(scene);
 const fountain = buildFountain(scene, { x: 29.5, z: 22, yaw: Math.atan2(39 - 21, -19 - 56) + Math.PI / 2 });
 const stationHero = buildStation(scene); extraColliders.push(...stationHero.colliders);
+for (const g of [holsten.group, salz.group, rathausHero.group, marienG, bridgeSet.group, shedG, stationHero.group]) if (g) freeArrays(g);
 const outskirts = buildOutskirts(scene, { tiles: new Set(Object.entries(TI.tiles).filter(([, n]) => n >= 40).map(([k]) => k)), tileSize: TI.size, inWater, touch: TOUCH, skip: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.0 });
 outskirtsRef = outskirts; for (const k of loadedTiles) outskirts.hideTile(k);
 

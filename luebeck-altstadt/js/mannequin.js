@@ -229,7 +229,11 @@ export function createMannequin(scene, look = randomLook()) {
     if (p) bones[p].add(b); bones[n] = b; list.push(b);
   }
   const mat = PEOPLE_MAT;   // one shared material for everybody (cheap), detail comes from the shader below
-  const mesh = new THREE.SkinnedMesh(bodyGeometry(look), mat);
+  const geo = bodyGeometry(look); geo.computeBoundingSphere();
+  for (const a of Object.values(geo.attributes)) a.onUpload(function () { this.array = null; });   // free the CPU copy once it is on the GPU (memory on phones)
+  const mesh = new THREE.SkinnedMesh(geo, mat);
+  mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.95, 0), 1.4);   // fixed bounds: the renderer must not recompute them from the (freed) vertex array
+  mesh.boundingBox = new THREE.Box3(new THREE.Vector3(-0.9, -0.1, -0.9), new THREE.Vector3(0.9, 2.1, 0.9));
   mesh.add(bones.Hips); mesh.updateMatrixWorld(true); mesh.bind(new THREE.Skeleton(list));
   mesh.castShadow = true; mesh.frustumCulled = false;
   const model = new THREE.Group(); model.add(mesh); model.scale.setScalar(look.height || 1);

@@ -49,9 +49,9 @@ function along(r, s) {
 
 export class Traffic {
   constructor(scene, roads, { touch, isFree }) {
-    this.scene = scene; this.roads = roads; this.isFree = isFree;
+    this.scene = scene; this.roads = roads; this.isFree = isFree; this.touch = touch;
     this.R = touch ? 110 : 180;
-    this.want = touch ? { ped: 24, car: 4, bike: 4, bus: 1, group: 6, bench: 3, cafe: 3 } : { ped: 70, car: 12, bike: 9, bus: 3, group: 11, bench: 6, cafe: 8 };
+    this.want = touch ? { ped: 16, car: 4, bike: 3, bus: 1, group: 3, bench: 2, cafe: 2 } : { ped: 70, car: 12, bike: 9, bus: 3, group: 11, bench: 6, cafe: 8 };
     this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [], cafe: [], busker: [] };
     this.buskers = []; this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }
@@ -103,7 +103,7 @@ export class Traffic {
     if (kind === 'group') {   // 2–3 people standing and talking
       const obj = new THREE.Group(); this.scene.add(obj);
       if (Math.random() < 0.45) {   // tourist group gathered around a guide holding up a little flag
-        const people = [], n = 5 + Math.floor(Math.random() * 5), flagC = pick([0xd8332b, 0xf2b630, 0x2b6a9b, 0x3c8a4a]);
+        const people = [], n = (this.touch ? 3 : 5) + Math.floor(Math.random() * (this.touch ? 3 : 5)), flagC = pick([0xd8332b, 0xf2b630, 0x2b6a9b, 0x3c8a4a]);
         const g = createMannequin(this.scene); g.root.removeFromParent(); obj.add(g.root); g.guide = true; g.talk = 0; people.push(g);
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.5, 5), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.7, roughness: 0.4 })); pole.position.set(0.32, 1.85, 0.1); obj.add(pole);
         const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.24), new THREE.MeshStandardMaterial({ color: flagC, side: THREE.DoubleSide, roughness: 0.8 })); flag.position.set(0.5, 2.45, 0.1); obj.add(flag); g.flag = flag;

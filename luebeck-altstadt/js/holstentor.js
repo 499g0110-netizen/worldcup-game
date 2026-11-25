@@ -3,6 +3,7 @@
 // a narrow middle block with a stepped gable on the field (west) side, the gate passage, and the
 // inscription CONCORDIA DOMI FORIS PAX over the field-side arch. Everything is drawn in code.
 import * as THREE from 'three';
+const LOW = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;   // phones: half-size textures
 
 // OSM: towers centred at (-350.9, 24.4) and (-350.8, 45.3), radius ≈ 6.2 m, walls ≈ 18.5 m, roofs to 38 m
 export const HOLSTEN = { x: -350.9, z: 34.9, towers: [[-350.9, 24.45], [-350.8, 45.3]], r: 6.25, wall: 18.5, top: 38, west: -357.4, east: -344.3 };
@@ -43,7 +44,7 @@ function win(g, cx, yb, w, h, opts = {}) {
 // tower skin: circumference along u, height along v (top of canvas = top of wall). Matches the field-side photo:
 // sloped plinth, gun ports, three terracotta frieze bands, few small round-headed windows per storey.
 function towerTexture() {
-  const W = 2048, H = 1024, { cv, g } = brickCanvas(W, H), mH = H / 18.5, mW = W / (2 * Math.PI * 6.25);
+  const W = LOW ? 1024 : 2048, H = LOW ? 512 : 1024, { cv, g } = brickCanvas(W, H, { bh: LOW ? 3 : 6 }), mH = H / 18.5, mW = W / (2 * Math.PI * 6.25);
   const Y = (y) => H - y * mH;
   g.fillStyle = 'rgba(40,20,15,0.35)'; g.fillRect(0, Y(1.3), W, 1.3 * mH);
   for (const [y, h] of [[4.6, 0.55], [9.6, 0.55], [14.4, 0.5]]) frieze(g, W, Y(y + h), h * mH, mW);
@@ -57,7 +58,7 @@ function towerTexture() {
 // middle block facade (u across 10.6 m, v over 26 m): gate arch surround, inscription band, rows of round-headed
 // windows between frieze bands, and the stepped gable with tall pale blind panels.
 function gableTexture(field, w, H1, ridge, steps, sw, dh, zcL, aw) {
-  const W = 1024, H = 2048, { cv, g } = brickCanvas(W, H, { bh: 9 }), mW = W / w, mH = H / 26, Y = (y) => H - y * mH, X = (x) => x * mW;
+  const W = LOW ? 512 : 1024, H = LOW ? 1024 : 2048, { cv, g } = brickCanvas(W, H, { bh: LOW ? 4.5 : 9 }), mW = W / w, mH = H / 26, Y = (y) => H - y * mH, X = (x) => x * mW;
   g.fillStyle = 'rgba(40,20,15,0.35)'; g.fillRect(0, Y(1.2), W, 1.2 * mH);
   // arch surround: alternating glazed / red voussoirs
   for (let k = 0; k <= 22; k++) { const a = Math.PI + k / 22 * Math.PI, r0 = aw, r1 = aw + 0.55; g.fillStyle = k % 2 ? '#3a1f18' : '#a24b30'; g.beginPath(); g.arc(X(zcL), Y(4.6), r1 * mW, a, a + Math.PI / 22 + 0.01); g.arc(X(zcL), Y(4.6), r0 * mW, a + Math.PI / 22 + 0.01, a, true); g.fill(); }

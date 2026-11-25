@@ -3,6 +3,7 @@
 // (east) and the Holstentorplatz (west) side, alternating Renaissance stepped gables and Baroque curved gables,
 // rows of small windows with wooden shutters, iron wall anchors and steep red tile roofs. Drawn in code.
 import * as THREE from 'three';
+const LOW = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
 // OSM parts (z0, z1, total height); x span of the block
 const PARTS = [[49.2, 59.8, 10], [59.1, 68.9, 17], [68.1, 76.7, 15], [75.8, 82.7, 14], [81.3, 93.7, 15], [91.1, 105.8, 15]];
@@ -43,7 +44,7 @@ function pathIn(g, pts, sx, sy, H) { g.beginPath(); pts.forEach(([x, y], i) => (
 
 // facade texture: brick, floor bands, windows with shutters, loading doors on the axis, wall anchors
 function gableTexture(style, W, e, H, col, seed, river) {
-  const PX = 64, cw = Math.ceil(W * PX), ch = Math.ceil(H * PX), cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d');
+  const PX = LOW ? 30 : 64, cw = Math.ceil(W * PX), ch = Math.ceil(H * PX), cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d');
   let s = seed; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   g.fillStyle = '#4e3128'; g.fillRect(0, 0, cw, ch);
   const bh = 0.075 * PX, bl = 0.26 * PX;
@@ -124,5 +125,5 @@ export function buildSalzspeicher(scene) {
   quay.position.set(X1 + 1.3, 0.2, (PARTS[0][0] + PARTS.at(-1)[1]) / 2); quay.receiveShadow = true; group.add(quay);
   scene.add(group);
   const zc = (PARTS[0][0] + PARTS.at(-1)[1]) / 2;
-  return { colliders: [{ c: new THREE.Vector3((X0 + X1) / 2, 0, zc), yaw: 0, hx: L / 2 + 0.3, hz: (PARTS.at(-1)[1] - PARTS[0][0]) / 2 + 0.2 }] };
+  return { group, colliders: [{ c: new THREE.Vector3((X0 + X1) / 2, 0, zc), yaw: 0, hx: L / 2 + 0.3, hz: (PARTS.at(-1)[1] - PARTS[0][0]) / 2 + 0.2 }] };
 }
