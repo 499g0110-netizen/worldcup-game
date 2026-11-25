@@ -264,6 +264,24 @@ async function addTileToScene(t) {
   }
   // trees & lamps (OSM nodes)
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3(), col = new THREE.Color();
+  // riverbank trees: OSM maps only ~700 individual trees; the photos show the Trave lined with trees.
+  // Plant a row 5–12 m back from the quay wherever the ground is open (no building, not water). Deterministic.
+  if (t.__k) {
+    const [ti, tj] = t.__k.split('_').map(Number), S = TI.size, x0 = ti * S, z0 = tj * S;
+    const h = (n) => { const v = Math.sin(n * 12.9898) * 43758.5453; return v - Math.floor(v); };
+    for (const w of WATER) for (const ring of [w.o, ...(w.i || [])]) {
+      const n = ring.length / 2; let acc = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n, ax = ring[2 * i], az = ring[2 * i + 1], bx = ring[2 * j], bz = ring[2 * j + 1], L = Math.hypot(bx - ax, bz - az); if (L < 0.5) continue;
+        for (let d = (11 - acc % 11); d < L; d += 11) {
+          const px = ax + (bx - ax) * d / L, pz = az + (bz - az) * d / L; if (px < x0 || px >= x0 + S || pz < z0 || pz >= z0 + S) continue;
+          const nx = -(bz - az) / L, nz = (bx - ax) / L, off = 5 + h(px * 0.3 + pz) * 7;
+          for (const sg of [1, -1]) { const tx = px + nx * off * sg, tz = pz + nz * off * sg; if (!inWater(tx, tz) && !insideBuilding(tx, tz) && !insideBuilding(tx + 2, tz) && !insideBuilding(tx - 2, tz)) { t.trees.push([tx + (h(px) - 0.5) * 3, tz + (h(pz) - 0.5) * 3]); break; } }
+        }
+        acc += L;
+      }
+    }
+  }
   if (t.trees.length) {
     const trunk = new THREE.InstancedMesh(trunkGeo, M.wood, t.trees.length), crowns = new THREE.InstancedMesh(crownGeo, crownMat, t.trees.length * 4);
     t.trees.forEach(([x, z], i) => {
@@ -304,6 +322,7 @@ async function loadTile(k) {
   if (loadedTiles.has(k)) return; loadedTiles.add(k);
   try {
     const t = await fetch(`data/tiles/${k}.json`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    t.__k = k;
     await addTileToScene(t);
   } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
 }
@@ -756,10 +775,11 @@ function frame() {
   else if (refMode) { camera.position.copy(hero.refCam.pos); camera.lookAt(hero.refCam.look); }
   else updateCamera(dt);
   const fx = P.mode === 'eagle' ? eagle.x : P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'eagle' ? eagle.z : P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
-  { const sb = P.mode === 'eagle' ? Q.shadowBox * 3 : Q.shadowBox, sc = sun.shadow.camera; if (sc.right !== sb) { sc.left = -sb; sc.right = sb; sc.top = sb; sc.bottom = -sb; sc.updateProjectionMatrix(); } }
+  { const sb = window.__freeCam?.shadowBox || (P.mode === 'eagle' ? Q.shadowBox * 3 : Q.shadowBox), sc = sun.shadow.camera; if (sc.right !== sb) { sc.left = -sb; sc.right = sb; sc.top = sb; sc.bottom = -sb; sc.updateProjectionMatrix(); } }
   windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
   P.vx = fx; P.vz = fz; if (!refMode) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
-  sun.position.set(camera.position.x + sunDir.x * 300, sunDir.y * 300, camera.position.z + sunDir.z * 300); sun.target.position.set(camera.position.x, 0, camera.position.z);
+  { const f = window.__freeCam, cx = f?.shadowBox ? f.look[0] : camera.position.x, cz = f?.shadowBox ? f.look[2] : camera.position.z, D = f?.shadowBox ? 1500 : 300;
+    sun.position.set(cx + sunDir.x * D, sunDir.y * D, cz + sunDir.z * D); sun.target.position.set(cx, 0, cz); sun.shadow.camera.far = D * 2.5; }
   sky.position.copy(camera.position); clouds.position.copy(camera.position); cloudU.uTime.value = simT;
   if (window.__water?.material.uniforms?.time) window.__water.material.uniforms.time.value = simT * 0.5;
   windU.uTime.value = simT; if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
