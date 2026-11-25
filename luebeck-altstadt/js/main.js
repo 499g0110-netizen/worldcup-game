@@ -330,6 +330,8 @@ async function addTileToScene(t) {
       const want = Math.min(40, Math.floor(a / (TOUCH ? 420 : 260)));
       for (let k = 0, tries = 0; k < want && tries < want * 4 && added < (TOUCH ? 60 : 140); tries++) { const x = x0 + hp(x0 * 3 + tries * 1.7) * (x1 - x0), z = z0 + hp(z0 * 7 + tries * 2.3) * (z1 - z0); if (!pip(x, z, o) || (gr.i || []).some((h) => pip(x, z, h)) || inWater(x, z) || t.trees.some(([tx, tz]) => (tx - x) ** 2 + (tz - z) ** 2 < 49)) continue; t.trees.push([x, z]); k++; added++; }
     } }
+  // Holstentorplatz is mostly open lawn in the photos: keep only a few trees around the gate
+  t.trees = t.trees.filter(([x, z]) => { const d = Math.hypot(x - HOLSTEN.x, z - HOLSTEN.z); if (d < 32) return false; if (d < 85) { const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return v - Math.floor(v) < 0.3; } return true; });
   t.trees = t.trees.filter(([x, z]) => !nearRoad(x, z, 0.8, true) && !nearRoad(x, z, -0.4) && !insideBuilding(x, z));
   if (t.trees.length) {
     const trunk = new THREE.InstancedMesh(trunkGeo, M.wood, t.trees.length), crowns = new THREE.InstancedMesh(crownGeo, crownMat, t.trees.length * 4);

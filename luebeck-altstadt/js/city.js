@@ -148,7 +148,8 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
     const tileKey = Math.floor(cx / TILE) + ',' + Math.floor(cz / TILE);
     const wallAcc = acc((brick ? 'brick|' : 'plaster|') + tileKey, true);
     const roofAcc = acc('roof_' + rk + '|' + tileKey);
-    const roofTint = rk === 'tile' ? new THREE.Color().setHSL(0.03 + hash(seed * 3) * 0.02, 0.35 + hash(seed * 9) * 0.2, 0.5 + hash(seed * 11) * 0.16) : new THREE.Color(1, 1, 1);
+    // clay tiles like the aerial photos: mostly bright terracotta-orange, some deeper red, a few weathered brown-grey
+    const rr = hash(seed * 17), roofTint = rk === 'tile' ? (rr < 0.1 ? new THREE.Color().setHSL(0.05, 0.12, 0.42 + hash(seed * 5) * 0.1) : new THREE.Color().setHSL(0.035 + hash(seed * 3) * 0.03, 0.55 + hash(seed * 9) * 0.25, 0.56 + hash(seed * 11) * 0.14)) : new THREE.Color(1, 1, 1);
     // ---- gabled: split outline by the ridge line
     let ridge = null;
     if (shape === 'gabled' || shape === 'saltbox' || shape === 'mansard' || shape === 'gambrel' || shape === 'half-hipped' || shape === 'round') {
