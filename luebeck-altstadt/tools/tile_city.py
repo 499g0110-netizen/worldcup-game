@@ -20,6 +20,6 @@ for k, v in tiles.items():
     json.dump(v, open(os.path.join(D, 'tiles', k + '.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
     index[k] = sum(len(x) for x in v.values())
 json.dump({'size': T, 'tiles': index}, open(os.path.join(D, 'tiles', 'index.json'), 'w'))
-json.dump({'meta': d['meta'], 'water': d['water']}, open(os.path.join(D, 'base.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
+json.dump({'meta': d['meta'], 'water': d['water'], 'bridges': d.get('bridges', []), 'rings': d.get('rings', [])}, open(os.path.join(D, 'base.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
 sizes = sorted(os.path.getsize(os.path.join(D, 'tiles', k + '.json')) for k in tiles)
 print(len(tiles), 'tiles; base', os.path.getsize(os.path.join(D, 'base.json')) // 1024, 'KB; tile KB min/median/max', sizes[0] // 1024, sizes[len(sizes) // 2] // 1024, sizes[-1] // 1024)

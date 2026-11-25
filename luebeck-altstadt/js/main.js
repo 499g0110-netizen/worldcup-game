@@ -24,6 +24,8 @@ import { buildRathaus } from './rathaus.js';
 import { buildStation } from './station.js';
 import { buildOutskirts } from './outskirts.js';
 import { buildMarien } from './marien.js';
+import { buildBridges } from './bridges.js';
+import { FloatingNotes } from './notes.js';
 import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
@@ -473,6 +475,7 @@ const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
 buildMarien(scene);
+const bridgeSet = buildBridges(scene, { bridges: base.bridges || [], rings: base.rings || [], inWater, oldTown: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.15 }); extraColliders.push(...bridgeSet.colliders);
 const stationHero = buildStation(scene); extraColliders.push(...stationHero.colliders);
 const outskirts = buildOutskirts(scene, { tiles: new Set(Object.entries(TI.tiles).filter(([, n]) => n >= 40).map(([k]) => k)), tileSize: TI.size, inWater, touch: TOUCH, skip: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.0 });
 outskirtsRef = outskirts; for (const k of loadedTiles) outskirts.hideTile(k);
@@ -497,6 +500,11 @@ const grass = TOUCH && qName === 'low' ? null : new GrassField(scene, isGrass, {
 const waterPts = []; for (let x = -900; x <= 700; x += 18) for (let z = -1000; z <= 900; z += 18) if (inWater(x, z) && inWater(x + 6, z) && inWater(x - 6, z) && inWater(x, z + 6) && inWater(x, z - 6)) waterPts.push([x, z]);
 const birds = new Birds(scene, { touch: TOUCH, water: waterPts, squares: [[-14, 19], [18, 217], [-20, 46], [256, -555], [HOLSTEN.west - 30, HOLSTEN.z]] });
 const boats = new Boats(scene, { inWater, waterPts, touch: TOUCH }); window.__boats = boats;
+const academyLM = LM.landmarks.find((l) => l.id === 'musikhochschule');
+const notes = window.__notes = new FloatingNotes(scene, { touch: TOUCH, sources: () => [
+  ...(academyLM ? [{ x: academyLM.local_xz_m[0], z: academyLM.local_xz_m[1], y0: 3, y1: 11, r: 10, rate: 2.2, music: true, key: 'academy' }] : []),
+  ...traffic.agents.filter((a) => a.kind === 'busker').map((a, i) => ({ x: a.x, z: a.z, y0: 1.5, y1: 2.2, r: 0.6, rate: 0.6, key: 'busker' + Math.round(a.x) + '_' + Math.round(a.z) })),
+] });
 /* ------------------------------------------------------------ story beacons: golden light columns above every landmark with a story film */
 const beaconU = { uTime: { value: 0 }, uK: { value: 1 } };
 const beaconMat = new THREE.ShaderMaterial({
@@ -925,6 +933,7 @@ function frame() {
   if ((frameN & 63) === 7) placeBuskers();
   if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
   if (!window.__storyOpen) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
+  notes.update(dt, fx, fz, !!window.__storyOpen);
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   composer ? composer.render() : renderer.render(scene, camera);
   // perf

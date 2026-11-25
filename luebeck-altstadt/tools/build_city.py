@@ -87,6 +87,7 @@ def feature(tags, outer, inner=()):
     }
 
 buildings, parts, water, green, roads, rails, pois = [], [], [], [], [], [], []
+bridges, rings = [], []   # man_made=bridge outlines; roundabout rings (for the central islands)
 used_as_outer = set()
 for rid, (members, tags) in rels.items():
     if tags.get('type') != 'multipolygon': continue
@@ -115,6 +116,13 @@ for wid, (refs, tags) in ways.items():
         p = P();  (p and water.append({'o': flat(p), 'i': None, 'n': tags.get('name')}))
     elif closed and (tags.get('leisure') in ('park', 'garden') or tags.get('landuse') in ('grass', 'meadow', 'village_green', 'recreation_ground')):
         p = P();  (p and green.append({'o': flat(p), 'i': None}))
+    elif closed and tags.get('man_made') == 'bridge':
+        p = P();  (p and bridges.append({'o': flat(p), 'n': tags.get('name')}))
+    if 'highway' in tags and closed and tags.get('junction') in ('roundabout', 'circular'):
+        p = P()
+        if p:
+            roads.append({'p': [c for q in p for c in q], 'k': tags['highway'], 'n': tags.get('name'), 'w': num(tags.get('width')), 'l': num(tags.get('lanes')), 's': tags.get('surface'), 'b': tags.get('bridge') == 'yes', 'o': 'yes'})
+            rings.append({'o': flat(p), 'n': tags.get('name'), 'k': tags['highway'], 'l': num(tags.get('lanes'))})
     elif 'highway' in tags and not closed or (tags.get('highway') == 'pedestrian' and tags.get('area') != 'yes' and not closed):
         p = P()
         if p: roads.append({'p': [c for q in p for c in q], 'k': tags['highway'], 'n': tags.get('name'), 'w': num(tags.get('width')),
@@ -181,7 +189,7 @@ out = {
         'crs': 'ETRS89 / UTM 32N (EPSG:25832) -> local metres, x=east, z=south',
         'origin_latlon': ORIGIN_LATLON, 'origin_utm': [round(E0, 2), round(N0, 2)],
     },
-    'buildings': buildings, 'parts': parts, 'water': water, 'green': green, 'roads': roads, 'rails': rails, 'pois': pois, 'trees': trees, 'lamps': lamps,
+    'buildings': buildings, 'parts': parts, 'water': water, 'green': green, 'roads': roads, 'rails': rails, 'pois': pois, 'trees': trees, 'lamps': lamps, 'bridges': bridges, 'rings': rings,
 }
 json.dump(out, open(OUT, 'w'), separators=(',', ':'), ensure_ascii=False)
 print({k: len(v) for k, v in out.items() if isinstance(v, list)}, os.path.getsize(OUT) // 1024, 'KB')

@@ -134,10 +134,7 @@ export function buildHolstentor(scene) {
     for (let i = 0; i < p.count; i++) { const zz = z0 + p.getX(i), yy = p.getY(i); uv.setXY(i, field ? p.getX(i) / w : 1 - p.getX(i) / w, yy / 26); /* city side seen from the east: mirrored so the lettering reads correctly */ p.setXYZ(i, gx, yy, field ? zz : zz); }
     const m = new THREE.Mesh(g, mat); G.add(m);
   }
-  // passage vault (dark), a heavy wooden gate leaf folded back, granite threshold
-  const vault = new THREE.Mesh(new THREE.CylinderGeometry(aw, aw, x1 - x0, 24, 1, true, Math.PI / 2, Math.PI).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a2a24, roughness: 0.9, side: THREE.DoubleSide })); vault.position.set((x0 + x1) / 2, 4.6, zc); G.add(vault);
-  for (const sd of [-1, 1]) { const wv = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 4.6), new THREE.MeshStandardMaterial({ color: 0x4a3028, roughness: 0.9, side: THREE.DoubleSide })); wv.rotation.y = 0; wv.position.set((x0 + x1) / 2, 2.3, zc + sd * aw); G.add(wv); }
-  const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.15, 4.2, 1.8), new THREE.MeshStandardMaterial({ color: 0x3b2618, roughness: 0.7 })); leaf.position.set(x0 + 1.2, 2.1, zc - aw + 0.12); leaf.rotation.y = Math.PI / 2; G.add(leaf);
+  // (the passage walls and barrel vault come from the extruded hole in the middle block itself)
   G.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   const colliders = [
     { c: { x: towers[0][0], z: towers[0][1] }, yaw: 0, hx: r * 0.9, hz: r * 0.9 },
