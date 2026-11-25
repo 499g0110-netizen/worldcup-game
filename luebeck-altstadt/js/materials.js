@@ -99,12 +99,12 @@ export function makeFacade(base) {
           }
           return c;
         }
-        vec3 shopRoom(vec2 p, vec3 d, float u0, float u1, float id, float night) {
+        vec3 shopRoom(vec2 p, vec3 d, float u0, float u1, float id, float night, float kind) {
           const float H = 3.0, D = 6.0;
           vec3 o = vec3(p, 0.0);
           float tx = ((d.x > 0.0 ? u1 : u0) - o.x) / d.x, ty = ((d.y > 0.0 ? H : 0.0) - o.y) / d.y, tz = D / max(d.z, 1e-4);
           float t = min(tx, min(ty, tz)); vec3 h = o + d * t;
-          float kind = shopKind(id), hitG;
+          float hitG;
           vec3 wall = kind > 4.5 ? vec3(0.93) : mix(vec3(0.86,0.8,0.7), vec3(0.75,0.82,0.8), step(0.5, hash12(vec2(id, 3.0))));
           vec3 col;
           if (t == ty && d.y < 0.0) {           // floor
@@ -130,7 +130,7 @@ export function makeFacade(base) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         float shop = step(vWall.x, -0.0001); float bayF = vM.x * abs(vWall.x); float bu = fract(bayF); float bayI = floor(bayF);
         float st = vM.y / 3.2; float fv = fract(st); float fl = floor(st);
-        float style = vWall.y; float paintedOnly = step(1.5, style); style -= paintedOnly * 2.0;   // dormers: +2
+        float wk = floor(vWall.y / 10.0); float style = vWall.y - wk * 10.0; float paintedOnly = step(1.5, style); style -= paintedOnly * 2.0;   // dormers: +2
         float isArch = step(1.1, style);
         // segmental arch head on brick windows: round the top 12 % of the opening
         float archY = 0.8 - 0.07 * isArch * (1.0 - pow((bu - 0.5) / 0.2, 2.0));
@@ -169,7 +169,7 @@ export function makeFacade(base) {
           float bw = 1.0 / abs(vWall.x);
           float shopI = floor(bayI / 3.0);   // one shop spans three window bays
           float u0 = shopI * 3.0 * bw + 0.1, u1 = (shopI * 3.0 + 3.0) * bw - 0.1;
-          interior = shopRoom(vec2(vM.x, vM.y - fl * 3.2), d, u0, u1, shopI + floor(vWPos.x * 0.05) * 7.0 + floor(vWPos.z * 0.05) * 13.0, uNight);
+          interior = shopRoom(vec2(vM.x, vM.y - fl * 3.2), d, u0, u1, shopI + floor(vWPos.x * 0.05) * 7.0 + floor(vWPos.z * 0.05) * 13.0, uNight, mod(shopI * 3.0 + wk - 1.0, 7.0));
           // glass: tinted, with a fresnel reflection of the sky
           float fres = pow(1.0 - clamp(dot(-V, N), 0.0, 1.0), 4.0);
           vec3 refl = mix(vec3(0.24,0.25,0.27), vec3(0.42,0.5,0.6), clamp(V.y * -3.0 + 0.3, 0.0, 1.0));   // street & facades opposite, sky only when looking up
@@ -178,12 +178,12 @@ export function makeFacade(base) {
         vec3 frameCol = vec3(0.14,0.13,0.12);
         diffuseColor.rgb = mix(diffuseColor.rgb, frameCol, max(disp, shopDoor * step(0.3, bu) * step(bu, 0.7) * step(fv, 0.8)));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02), glassArea * (1.0 - mull));
-        float sk = shopKind(floor(bayI / 3.0) + floor(vWPos.x * 0.05) * 7.0 + floor(vWPos.z * 0.05) * 13.0);
+        float sk = mod(floor(bayI / 3.0) * 3.0 + wk - 1.0, 7.0);
         vec3 signCol = sk < 0.5 ? vec3(0.55,0.35,0.15) : sk < 1.5 ? vec3(0.08,0.08,0.09) : sk < 2.5 ? vec3(0.12,0.22,0.18) : sk < 3.5 ? vec3(0.35,0.12,0.1) : sk < 4.5 ? vec3(0.2,0.35,0.2) : sk < 5.5 ? vec3(0.85,0.85,0.82) : vec3(0.1,0.3,0.45);
         diffuseColor.rgb = mix(diffuseColor.rgb, signCol, fascia);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, vous);
         // rain streaks running down from each window sill, and a darker weathered band under the eaves
-        float under = step(0.33, bu) * step(bu, 0.67) * (1.0 - step(0.27, fv)) * vWall.y * step(0.5, style);
+        float under = step(0.33, bu) * step(bu, 0.67) * (1.0 - step(0.27, fv)) * min(vWall.y, 1.0) * step(0.5, style);
         float drip = hash12(vec2(floor(bu * 18.0), bayI)) * smoothstep(0.27, 0.0, fv);
         diffuseColor.rgb *= 1.0 - under * drip * 0.22;
         diffuseColor.rgb *= 1.0 - 0.1 * smoothstep(vWall.z - 1.2, vWall.z, vM.y) * step(0.5, vWall.y);

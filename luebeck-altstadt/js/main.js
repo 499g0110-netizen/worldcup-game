@@ -14,6 +14,7 @@ import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './act
 import { InfoCards } from './ui.js';
 import { hasStory } from './stories.js';
 import { Traffic } from './traffic.js';
+import { buildShopfronts } from './shopfront.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
 
@@ -253,6 +254,7 @@ async function addTileToScene(t) {
     const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
   }
   windowLOD.add(c.windows, c.doors);
+  for (const m of buildShopfronts(c.shopfronts)) scene.add(m);
   for (const sg of c.segs) {
     const i = city.segs.push(sg) - 1; if (sg[5] > 1.5) continue;  // pieces floating above ground don't block walkers
     const x0 = Math.floor(Math.min(sg[0], sg[2]) / SEG_CELL), x1 = Math.floor(Math.max(sg[0], sg[2]) / SEG_CELL), z0 = Math.floor(Math.min(sg[1], sg[3]) / SEG_CELL), z1 = Math.floor(Math.max(sg[1], sg[3]) / SEG_CELL);

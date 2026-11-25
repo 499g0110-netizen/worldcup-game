@@ -129,6 +129,38 @@ function skyline(base, seed = 1, h0 = 120) {   // row of Lübeck gable houses
   return out;
 }
 
+
+/* ---- extra pieces for the longer films ---- */
+function islandMap(ctx, t, T) {   // stylised map: oval old-town island between Trave (west) and Wakenitz (east)
+  paper(ctx, cut(rect(0, 0, 1600, 900), 501, 3, 40), '#c9d6b0', 0.3);
+  const riv = (pts, col, sd, dpt) => paper(ctx, cut(pts, sd, 2, 18), col, dpt);
+  const L = [], R = [];
+  for (let i = 0; i <= 20; i++) { const y = 60 + i * 40, w = Math.sin(i / 20 * Math.PI); L.push([520 - w * 120 + Math.sin(i * 0.7) * 20, y]); R.push([1080 + w * 120 + Math.sin(i * 0.6) * 18, y]); }
+  riv([...L.map(([x, y]) => [x - 45, y]), ...L.slice().reverse().map(([x, y]) => [x + 45, y])], C.sea, 502, 0.8);
+  riv([...R.map(([x, y]) => [x - 35, y]), ...R.slice().reverse().map(([x, y]) => [x + 35, y])], C.sea, 503, 0.8);
+  const isl = [...L.map(([x, y]) => [x + 50, y]), ...R.slice().reverse().map(([x, y]) => [x - 40, y])];
+  pop(ctx, t, 0.4, () => paper(ctx, cut(isl, 504, 2, 20), C.paper2, 1.2));
+}
+function piles(ctx, t, base, n, x0, gap) { for (let i = 0; i < n; i++) { const k = clamp((t - 0.6 - i * 0.25) / 0.8); paper(ctx, cut([[x0 + i * gap - 10, base - 40], [x0 + i * gap + 10, base - 40], [x0 + i * gap + 10, base - 40 + 300 * k], [x0 + i * gap, base - 30 + 320 * k], [x0 + i * gap - 10, base - 40 + 300 * k]], 520 + i, 0.6, 10), C.wood, 2); } }
+function soldier(cx, base, s) { return [...ellipse(cx, base - 1.55 * s, 0.13 * s, 0.13 * s, 12), [cx + 0.35 * s, base - 1.75 * s], [cx + 0.2 * s, base - 1.62 * s], [cx + 0.2 * s, base - 1.35 * s], [cx + 0.25 * s, base - 0.75 * s], [cx + 0.2 * s, base], [cx + 0.05 * s, base], [cx, base - 0.55 * s], [cx - 0.05 * s, base], [cx - 0.2 * s, base], [cx - 0.25 * s, base - 0.75 * s], [cx - 0.2 * s, base - 1.35 * s], [cx - 0.2 * s, base - 1.62 * s], [cx - 0.35 * s, base - 1.75 * s]]; }
+function person(cx, base, s) { return [...ellipse(cx, base - 1.55 * s, 0.13 * s, 0.13 * s, 12), [cx + 0.22 * s, base - 1.3 * s], [cx + 0.28 * s, base - 0.55 * s], [cx + 0.15 * s, base], [cx - 0.15 * s, base], [cx - 0.28 * s, base - 0.55 * s], [cx - 0.22 * s, base - 1.3 * s]]; }
+function piano(cx, base, s) { return [[cx - s, base - 0.75 * s], [cx + 0.4 * s, base - 0.75 * s], [cx + 0.95 * s, base - 0.55 * s], [cx + s, base - 0.45 * s], [cx + s, base - 0.38 * s], [cx - s, base - 0.38 * s]]; }
+function noteGlyph(ctx, x, y, s, col) { ctx.save(); ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, s * 0.55, s * 0.4, -0.4, 0, 7); ctx.fill(); ctx.fillRect(x + s * 0.45, y - s * 2.2, s * 0.14, s * 2.2); ctx.beginPath(); ctx.moveTo(x + s * 0.59, y - s * 2.2); ctx.quadraticCurveTo(x + s * 1.3, y - s * 1.6, x + s * 1.0, y - s * 1.0); ctx.lineTo(x + s * 0.59, y - s * 1.7); ctx.fill(); ctx.restore(); }
+function hanseMap(ctx, t, T, cities) {
+  sky(ctx, '#d7dfe2', '#e8dfca');
+  paper(ctx, cut(wave(520, 30, 0.004, 1), 601), C.grass, 0.8);
+  paper(ctx, cut([[300, 120], [1500, 80], [1600, 380], [1200, 420], [900, 360], [700, 470], [420, 380]], 602, 3, 30), C.sea, 1);   // Baltic
+  paper(ctx, cut([[0, 260], [260, 230], [380, 420], [180, 520], [0, 500]], 603, 3, 30), C.sea, 1);                                   // North Sea
+  const home = [640, 520];
+  cities.forEach(([name, x, y], i) => {
+    const k = clamp((t - 0.8 - i * 0.5) / 0.8); if (k <= 0) return;
+    ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -T * 30; ctx.beginPath(); ctx.moveTo(...home); ctx.lineTo(home[0] + (x - home[0]) * k, home[1] + (y - home[1]) * k); ctx.stroke(); ctx.restore();
+    if (k >= 1) { paper(ctx, cut(ellipse(x, y, 14, 14, 12), 610 + i, 0.5), C.gold, 2); ctx.save(); ctx.fillStyle = C.ink; ctx.font = '600 26px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(name, x, y - 24); ctx.restore(); }
+  });
+  paper(ctx, cut(ellipse(home[0], home[1], 20, 20, 14), 620, 0.5), C.red, 2.4); ctx.save(); ctx.fillStyle = C.red; ctx.font = '700 30px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('Lübeck', home[0], home[1] + 52); ctx.restore();
+}
+function copperSpire(ctx, t, x, base, s, from = C.brick3, to = C.copper) { const k = clamp(t / 6); const c = (a, b) => { const p = (h) => parseInt(h.slice(1), 16); const A = p(a), B = p(b); const m = (sh) => Math.round(((A >> sh) & 255) * (1 - k) + ((B >> sh) & 255) * k); return `rgb(${m(16)},${m(8)},${m(0)})`; }; paper(ctx, cut(spire(x, base, s * 0.5, s * 1.7), 640, 0.8), c(from, to), 2); }
+
 /* =============================== timeline helpers =============================== */
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const easeOut = (t) => 1 - Math.pow(1 - clamp(t), 3);
@@ -389,6 +421,190 @@ export const STORIES = {
     ],
   },
 };
+
+STORIES.musikhochschule = {
+  title: 'Musik an der Petersgrube', zh: '呂貝克音樂學院與布拉姆斯', kind: '史實',
+  summary: '呂貝克音樂學院（Musikhochschule Lübeck）位在聖伯多祿教堂旁的大彼得溝街（Große Petersgrube），校舍由一整排歷史老屋改建，走在街上常能聽到窗內傳出的練琴聲。學院附設的布拉姆斯研究所（Brahms-Institut）收藏大量與作曲家約翰尼斯·布拉姆斯有關的手稿、書信與照片，是重要的布拉姆斯研究中心；學院每年也舉辦以布拉姆斯為主題的音樂節。布拉姆斯 1833 年出生於另一座漢薩城市漢堡，作品包括四首交響曲與《德意志安魂曲》。特拉沃河畔的 An der Obertrave 也有一座他的雕像。（研究所成立年份、館藏數量等細節待核對）',
+  scenes: [
+    { d: 8, zh: '聖伯多祿教堂旁的大彼得溝街，一整排老房子裡藏著一所音樂學院。', de: 'Große Petersgrube', draw(ctx, t, T) {
+      sky(ctx, '#d3dce3', C.paper); sun(ctx, 1350, 170, 50);
+      pop(ctx, t, 0.1, () => paper(ctx, cut(spire(1180, 520, 120, 440), 701), C.copper, 0.8));
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(1120, 380, 120, 360), 702), C.brick2, 0.9));
+      pop(ctx, t, 0.4, () => { const cols = [C.cream, '#e3c9a0', C.brick, '#d9b98a', C.paper2, C.brick3, '#c98d6b']; for (let i = 0; i < 7; i++) { const x = 60 + i * 150, h = 230 + (i % 3) * 30; paper(ctx, cut(i % 2 ? steppedHouse(x, 760, 140, h, 4) : gableHouse(x, 760, 140, h, 0.75), 703 + i), cols[i], 1.4); windows(ctx, x, 760, 140, h, 3, 3, i === 3 && Math.sin(T * 2) > 0 ? C.gold2 : C.ink); } });
+      for (let i = 0; i < 5; i++) { const ph = (T * 0.4 + i * 0.2) % 1; noteGlyph(ctx, 560 + i * 40 + Math.sin(T + i) * 20, 480 - ph * 300, 14, `rgba(29,34,48,${1 - ph})`); }
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 712, 2), C.slate, 2.4));
+    } },
+    { d: 8, zh: '約翰尼斯·布拉姆斯，1833 年出生在另一座漢薩城市——漢堡。', de: 'Johannes Brahms, *1833 in Hamburg', draw(ctx, t, T) {
+      sky(ctx, '#2f4566', '#5e6f88'); stars(ctx, 30, 9, T);
+      pop(ctx, t, 0.2, () => { for (const h of skyline(760, 31, 90)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1); });
+      pop(ctx, t, 0.6, () => { const x = 800; paper(ctx, cut([...ellipse(x, 380, 70, 80, 24), [x + 60, 430], [x + 75, 520], [x + 40, 560], [x - 40, 560], [x - 75, 520], [x - 60, 430]], 720, 1), C.cream, 2); paper(ctx, cut(ellipse(x, 345, 72, 55, 22, Math.PI, Math.PI * 2), 721), '#7a6a5a', 2.2); paper(ctx, cut([...ellipse(x, 450, 60, 70, 20, 0, Math.PI), [x - 60, 440], [x + 60, 440]], 722), '#9a8a78', 2.2); paper(ctx, cut([[x - 150, 760], [x - 130, 600], [x - 60, 560], [x + 60, 560], [x + 130, 600], [x + 150, 760]], 723, 1), C.ink, 2.2); });
+    } },
+    { d: 8, zh: '他寫下四首交響曲與《德意志安魂曲》，是十九世紀德國最重要的作曲家之一。', de: 'Vier Sinfonien · Ein deutsches Requiem', draw(ctx, t, T) {
+      sky(ctx, '#e8dcc2', C.paper2);
+      pop(ctx, t, 0.2, () => paper(ctx, cut(piano(800, 700, 320), 730, 1), C.ink, 2));
+      pop(ctx, t, 0.3, () => { for (const x of [540, 1060]) paper(ctx, cut(rect(x, 590, 14, 110), 731), C.ink, 2); });
+      // sheet music sliding across
+      pop(ctx, t, 0.6, () => { paper(ctx, cut(rect(560, 180, 480, 300), 732, 1), C.cream, 2.4); ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; for (let r = 0; r < 3; r++) for (let l = 0; l < 5; l++) { ctx.beginPath(); ctx.moveTo(590, 220 + r * 90 + l * 10); ctx.lineTo(1010, 220 + r * 90 + l * 10); ctx.stroke(); } ctx.restore(); for (let i = 0; i < 18; i++) noteGlyph(ctx, 610 + (i % 9) * 45, 260 + Math.floor(i / 9) * 90 - ((i * 7) % 5) * 5, 7, C.ink); });
+      for (let i = 0; i < 6; i++) { const ph = (T * 0.35 + i / 6) % 1; noteGlyph(ctx, 300 + i * 180, 560 - ph * 400, 16, `rgba(156,59,40,${1 - ph})`); }
+    } },
+    { d: 9, zh: '學院的布拉姆斯研究所收藏了大量布拉姆斯的手稿、書信與照片，世界各地的研究者都會來這裡。', de: 'Das Brahms-Institut', draw(ctx, t, T) {
+      sky(ctx, '#d6dde3', C.paper);
+      pop(ctx, t, 0.2, () => { paper(ctx, cut([[400, 760], [400, 420], [800, 280], [1200, 420], [1200, 760]], 740, 1.2), C.cream, 1.4); windows(ctx, 440, 760, 720, 300, 2, 6); paper(ctx, cut([[380, 430], [800, 270], [1220, 430], [1220, 445], [800, 290], [380, 445]], 741), C.slate, 1.6); });
+      for (let i = 0; i < 6; i++) pop(ctx, t, 1 + i * 0.35, () => { ctx.save(); ctx.translate(250 + i * 220, 180 + Math.sin(T + i) * 10); ctx.rotate(Math.sin(i) * 0.15); paper(ctx, cut(rect(-55, -40, 110, 80), 750 + i, 0.6), C.salt, 2.8); ctx.strokeStyle = C.navy; ctx.lineWidth = 2; for (let l = 0; l < 4; l++) { ctx.beginPath(); ctx.moveTo(-40, -20 + l * 14); ctx.lineTo(40 - (l % 2) * 20, -20 + l * 14); ctx.stroke(); } ctx.restore(); });
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 760, 2), C.grass2, 2.4));
+    } },
+    { d: 8, zh: '每年學院都舉辦以布拉姆斯為主題的音樂節，學生和音樂家在老城裡演奏他的作品。', de: 'Brahms-Festival', draw(ctx, t, T) {
+      sky(ctx, C.night, '#2a2238'); stars(ctx, 50, 13, T);
+      pop(ctx, t, 0.1, () => paper(ctx, cut([...ellipse(800, 700, 700, 120, 40, Math.PI, Math.PI * 2)], 770, 2), '#3a2a22', 1.4));
+      for (let i = 0; i < 7; i++) pop(ctx, t, 0.4 + i * 0.15, () => paper(ctx, cut(person(400 + i * 130, 690, 110), 771 + i, 0.6, 8), C.ink, 2.2));
+      pop(ctx, t, 0.8, () => paper(ctx, cut(piano(800, 700, 160), 780), C.ink, 2.4));
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(800, 560, 10, 800, 560, 420); g.addColorStop(0, 'rgba(255,210,140,0.35)'); g.addColorStop(1, 'rgba(255,210,140,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1600, 900); ctx.restore();
+      for (let i = 0; i < 8; i++) { const ph = (T * 0.3 + i / 8) % 1; noteGlyph(ctx, 500 + i * 80, 520 - ph * 380, 14, `rgba(225,194,122,${1 - ph})`); }
+    } },
+    { d: 8, zh: '在特拉沃河畔的 An der Obertrave，還能找到一座布拉姆斯的雕像。', de: 'An der Obertrave', draw(ctx, t, T) {
+      sky(ctx, '#cbd6e0', C.paper); sun(ctx, 1320, 180, 55);
+      pop(ctx, t, 0.1, () => { for (const h of skyline(560, 41, 90)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1); });
+      pop(ctx, t, 0.3, () => paper(ctx, cut(wave(600, 8, 0.01, T), 790), C.sea, 1.6));
+      pop(ctx, t, 0.6, () => { paper(ctx, cut(rect(700, 640, 200, 130), 791), '#9a948c', 2.4); paper(ctx, cut([...ellipse(800, 420, 38, 42, 16), [835, 470], [870, 640], [730, 640], [765, 470]], 792, 0.8, 8), '#6a5a48', 2.6); });
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 770, 1600, 150), 793, 2), C.slate, 2.4));
+    } },
+  ],
+};
+STORIES.brahms = STORIES.musikhochschule;
+
+STORIES.hanse = {
+  title: 'Königin der Hanse', zh: '漢薩之后', kind: '史實',
+  summary: '漢薩同盟是中世紀北歐商人與城市的聯盟，掌控波羅的海與北海的貿易長達數百年。呂貝克 1226 年成為帝國自由市，憑著連接北海與波羅的海的地理位置，成為同盟的領頭城市，被稱為「漢薩之后」。同盟各城代表召開的「漢薩大會」（Hansetag）多半在呂貝克舉行；「呂貝克法」被波羅的海沿岸上百座城市採用。同盟在卑爾根、諾夫哥羅德、倫敦、布魯日設有大型商站。隨著大西洋航線興起與各國王權強化，同盟逐漸衰落，最後一次漢薩大會於 1669 年在呂貝克召開。直到今天，呂貝克仍自稱「漢薩城市」（Hansestadt），車牌字首就是 HL——Hansestadt Lübeck。',
+  scenes: [
+    { d: 8, zh: '中世紀的北歐，商人們結成一個聯盟，一起保護貿易與航路——這就是漢薩同盟。', de: 'Die Hanse', draw(ctx, t, T) {
+      sky(ctx, '#b8c9d6', '#e7ddc8');
+      pop(ctx, t, 0.1, () => paper(ctx, cut(wave(560, 14, 0.006, T * 0.8), 801), C.sea, 1));
+      for (let i = 0; i < 3; i++) drawKogge(ctx, 260 + i * 480 + Math.sin(T * 0.4 + i) * 30, 560 + i * 10, 120 + i * 20, Math.sin(T * 1.6 + i) * 0.04, 1.4 + i * 0.3);
+      pop(ctx, t, 0.3, () => paper(ctx, cut(wave(680, 20, 0.005, T * 1.2 + 2), 802), C.sea2, 2.6));
+    } },
+    { d: 9, zh: '呂貝克位在北海與波羅的海之間的咽喉，1226 年成為帝國自由市，很快就領導整個同盟。', de: '1226 · Freie Reichsstadt', draw(ctx, t, T) { hanseMap(ctx, t, T, []);
+      pop(ctx, t, 1.2, () => { ctx.save(); ctx.translate(640, 380); paper(ctx, cut([[-60, -80], [60, -80], [60, 30], [0, 80], [-60, 30]], 810), C.cream, 2.6); paper(ctx, cut([[-60, -25], [60, -25], [60, 30], [0, 80], [-60, 30]], 811), C.red, 2.7); paper(ctx, cut(ellipse(0, -100, 30, 22, 14), 812), C.gold, 2.8); ctx.restore(); }); } },
+    { d: 10, zh: '同盟在卑爾根、諾夫哥羅德、倫敦、布魯日設立商站，鹽、鯡魚、毛皮、布料在航線上流動。', de: 'Kontore: Bergen · Nowgorod · London · Brügge', draw(ctx, t, T) {
+      hanseMap(ctx, t, T, [['Bergen', 560, 120], ['Nowgorod', 1480, 200], ['London', 120, 560], ['Brügge', 230, 690], ['Visby', 1000, 300], ['Danzig', 1000, 560]]); } },
+    { d: 9, zh: '各城代表在呂貝克召開「漢薩大會」，呂貝克的城市法典也被上百座城市採用。', de: 'Hansetag · Lübisches Recht', draw(ctx, t, T) {
+      sky(ctx, '#e3d3b0', C.paper2);
+      pop(ctx, t, 0.2, () => paper(ctx, cut(ellipse(800, 620, 520, 120, 40), 820, 1.5), C.wood, 1.6));
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, x = 800 + Math.cos(a) * 600, y = 600 + Math.sin(a) * 160; pop(ctx, t, 0.6 + i * 0.15, () => paper(ctx, cut(person(x, y + 30, 120), 821 + i, 0.6, 8), [C.navy2, C.red, C.copper2, C.wood, C.navy, C.brick, C.slate, C.gold][i], 2.2 + Math.sin(a) * 0.5)); }
+      pop(ctx, t, 2.0, () => { ctx.save(); ctx.translate(800, 590); paper(ctx, cut(rect(-90, -60, 180, 120), 830), C.cream, 2.8); ctx.fillStyle = C.ink; ctx.font = '600 22px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('Lübisches', 0, -10); ctx.fillText('Recht', 0, 20); ctx.restore(); });
+    } },
+    { d: 9, zh: '大西洋航線興起、王權強化，同盟漸漸衰落；最後一次漢薩大會在 1669 年的呂貝克落幕。', de: '1669 · Der letzte Hansetag', draw(ctx, t, T) {
+      sky(ctx, '#d9b98a', '#efe3c7'); sun(ctx, 800, 640, 120, '#f0a050');
+      pop(ctx, t, 0.2, () => paper(ctx, cut(wave(640, 10, 0.006, T * 0.5), 840), C.sea, 1.6));
+      drawKogge(ctx, 800 - easeOut(t / 9) * 400, 620, 130, Math.sin(T) * 0.03, 2);
+      pop(ctx, t, 0.3, () => paper(ctx, cut(wave(700, 14, 0.005, T * 0.7 + 1), 841), C.sea2, 2.6));
+    } },
+    { d: 8, zh: '直到今天，呂貝克仍自稱「漢薩城市」，車牌上的 HL 就是 Hansestadt Lübeck 的縮寫。', de: 'Hansestadt Lübeck · HL', draw(ctx, t, T) {
+      sky(ctx, '#cfd9e2', C.paper);
+      pop(ctx, t, 0.2, () => { for (const h of skyline(700, 51, 110)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1); });
+      pop(ctx, t, 0.8, () => { paper(ctx, cut(rect(540, 380, 520, 120), 850, 1), '#f4f4f0', 2.6); paper(ctx, cut(rect(540, 380, 60, 120), 851, 0.6), '#2b4a9b', 2.7); ctx.save(); ctx.fillStyle = C.ink; ctx.font = '700 84px "DIN Alternate", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('HL · 1226', 840, 470); ctx.restore(); });
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 700, 1600, 220), 852, 2), C.slate, 2.4));
+    } },
+  ],
+};
+
+STORIES.luebeck = {
+  title: 'Lübeck – Eine Stadtgeschichte', zh: '呂貝克：一座城市的故事', kind: '史實（附說明）',
+  summary: '呂貝克建在特拉沃河與瓦克尼茨河環抱的一座小島上。1143 年霍爾斯坦伯爵阿道夫二世建城；1159 年大火後，獅子亨利重新建城，1173 年為主教座堂奠基。1226 年，皇帝腓特烈二世授予帝國自由市地位，呂貝克隨即成為漢薩同盟的領頭城市。北德缺乏石材，人們燒製黏土磚來蓋教堂與商人屋，發展出影響整個波羅的海的「磚造哥德式」；鬆軟的河岸地則靠打入成排的橡木樁來承重。教堂屋頂與尖塔鋪的是銅板，銅在風雨中慢慢氧化，生成青綠色的銅鏽（patina），所以老城的屋頂和尖塔看起來是綠色的。漢薩衰落後，1806 年拿破崙的軍隊攻進呂貝克；1937 年依《大漢堡法》，呂貝克失去延續數百年的獨立地位，併入普魯士。1942 年 3 月棕枝主日的空襲燒毀了大片老城，三座大教堂嚴重受損。戰後居民一磚一瓦重建，1987 年舊城列入聯合國世界遺產。這座城市也孕育了諾貝爾文學獎得主湯瑪斯·曼（《布登勃洛克家族》）與諾貝爾和平獎得主維利·勃蘭特。',
+  scenes: [
+    { d: 9, zh: '在特拉沃河與瓦克尼茨河之間，有一座橢圓形的小島。', de: 'Zwischen Trave und Wakenitz', draw(ctx, t, T) { islandMap(ctx, t, T); } },
+    { d: 9, zh: '1143 年，霍爾斯坦伯爵阿道夫二世在島上建立了呂貝克。', de: '1143 · Adolf II. von Schauenburg', draw(ctx, t, T) { islandMap(ctx, t, T);
+      for (let i = 0; i < 8; i++) pop(ctx, t, 1 + i * 0.25, () => { const x = 680 + (i % 4) * 70, y = 360 + Math.floor(i / 4) * 120; paper(ctx, cut(gableHouse(x, y, 50, 40, 0.8), 901 + i, 0.6, 8), C.wood, 2); }); } },
+    { d: 9, zh: '1159 年一場大火後，獅子亨利重新建城，1173 年為主教座堂奠下基石。', de: '1159 · Heinrich der Löwe', draw(ctx, t, T) {
+      sky(ctx, '#d3dae0', C.paper);
+      if (t < 3) for (let i = 0; i < 6; i++) paper(ctx, cut(flame(300 + i * 200, 760, 120, T + i), 910 + i), i % 2 ? C.fire : C.fire2, 1.4);
+      pop(ctx, t, 3, () => { const x = 960, y = 640; paper(ctx, cut([...ellipse(x, y, 140, 70, 24), [x + 130, y + 120], [x + 100, y + 120], [x + 90, y + 50], [x - 90, y + 50], [x - 100, y + 120], [x - 130, y + 120]], 920, 1, 10), C.gold, 2); paper(ctx, cut(ellipse(x - 150, y - 50, 70, 70, 24), 921, 1.5, 8), '#b38432', 2.2); });
+      pop(ctx, t, 4, () => { for (const p of churchTwin(380, 760, 180, C.brick2, C.copper2)) paper(ctx, cut(p.pts, 922), p.col, 1.6); });
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 760, 1600, 160), 923, 2), C.grass2, 2.4));
+    } },
+    { d: 9, zh: '1226 年，皇帝腓特烈二世授予呂貝克帝國自由市的地位，城市只聽命於皇帝。', de: '1226 · Reichsfreiheitsbrief', draw(ctx, t, T) {
+      sky(ctx, '#e8dcc2', C.paper2);
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(500, 160, 600, 560), 930, 1.4), C.cream, 2));
+      pop(ctx, t, 0.6, () => { ctx.save(); ctx.strokeStyle = 'rgba(29,34,48,0.65)'; ctx.lineWidth = 3; for (let l = 0; l < 14; l++) { ctx.beginPath(); ctx.moveTo(560, 220 + l * 30); ctx.lineTo(1040 - (l % 3) * 60, 220 + l * 30); ctx.stroke(); } ctx.restore(); });
+      pop(ctx, t, 1.6, () => { paper(ctx, cut(ellipse(800, 680, 70, 70, 24), 931, 1), C.red, 2.8); paper(ctx, cut(ellipse(800, 680, 45, 45, 20), 932, 0.6), '#8a1f18', 3); });
+    } },
+    { d: 10, zh: '北德沒有石材，人們就燒製黏土磚，蓋出高聳的「磚造哥德式」教堂，影響了整個波羅的海沿岸。', de: 'Backsteingotik', draw(ctx, t, T) {
+      sky(ctx, '#d0d9e1', C.paper);
+      // brick kiln and stacks of bricks
+      pop(ctx, t, 0.2, () => { paper(ctx, cut([[180, 760], [180, 560], [260, 480], [340, 560], [340, 760]], 940, 1), C.brick2, 1.6); paper(ctx, cut(flame(260, 700, 60, T), 941), C.fire, 1.8); });
+      for (let r = 0; r < 6; r++) for (let c = 0; c < 4 - (r % 2); c++) pop(ctx, t, 0.6 + (r * 4 + c) * 0.05, () => paper(ctx, cut(rect(420 + c * 46 + (r % 2) * 23, 740 - r * 22, 42, 18), 950 + r * 4 + c, 0.4, 8), r % 3 ? C.brick : C.brick3, 2.2));
+      pop(ctx, t, 1.8, () => { const p = churchTwin(900, 760, 260); const k = clamp((t - 1.8) / 6); for (const sh of p) { ctx.save(); ctx.beginPath(); ctx.rect(0, 760 - 760 * k, 1600, 900); ctx.clip(); paper(ctx, cut(sh.pts, 960), sh.col, 1.6); ctx.restore(); } });
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 760, 1600, 160), 961, 2), C.grass2, 2.4));
+    } },
+    { d: 9, zh: '河岸的土地又濕又軟，工匠先把成排的橡木樁打進地裡，再把沉重的磚牆蓋在木樁上。', de: 'Auf Eichenpfählen gebaut', draw(ctx, t, T) {
+      sky(ctx, '#cbd6e0', C.paper);
+      pop(ctx, t, 0.1, () => paper(ctx, cut(rect(0, 520, 1600, 400), 970, 2), '#7d6748', 1));
+      piles(ctx, t, 560, 9, 420, 90);
+      pop(ctx, t, 3.6, () => { paper(ctx, cut(rect(380, 470, 840, 90), 975), '#8a8a84', 2.2); paper(ctx, cut(steppedHouse(480, 470, 640, 200, 5), 976), C.brick, 2.4); windows(ctx, 480, 470, 640, 200, 3, 6); });
+    } },
+    { d: 11, zh: '教堂的屋頂和尖塔鋪著銅板。銅在風雨中慢慢氧化，生出一層青綠色的銅鏽——所以呂貝克的尖塔是綠色的。', de: 'Kupfer wird grün: die Patina', draw(ctx, t, T) {
+      sky(ctx, '#b9c3cf', '#e4d8c0');
+      // rain streaks
+      ctx.save(); ctx.strokeStyle = 'rgba(70,90,110,0.35)'; ctx.lineWidth = 2; for (let i = 0; i < 60; i++) { const x = (i * 97 + T * 300) % 1700 - 50, y = (i * 53 + T * 600) % 900; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 12, y + 30); ctx.stroke(); } ctx.restore();
+      pop(ctx, t, 0.2, () => { paper(ctx, cut(rect(640, 420, 320, 380), 980), C.brick, 1.4); copperSpire(ctx, t - 0.5, 800, 420, 320, '#c46a3c', '#5f9b86'); });
+      ctx.save(); ctx.fillStyle = C.ink; ctx.font = '500 34px Georgia, serif'; ctx.textAlign = 'center'; ctx.globalAlpha = clamp((t - 2) * 0.7); ctx.fillText(t < 5 ? 'Cu' : 'Cu  →  Patina', 1250, 300); ctx.restore();
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(0, 800, 1600, 120), 981, 2), C.slate, 2.4));
+    } },
+    { d: 9, zh: '鹽、鯡魚、毛皮與布料讓商人致富，他們沿著街道蓋起一排排高窄的山牆屋。', de: 'Kaufmannshäuser', draw(ctx, t, T) {
+      sky(ctx, '#d9e1e7', C.paper); sun(ctx, 1380, 170, 55);
+      pop(ctx, t, 0.2, () => { const cols = [C.brick, C.brick2, C.cream, C.brick3, '#d8b98a', C.brick]; for (let i = 0; i < 6; i++) { const x = 160 + i * 215; paper(ctx, cut(i % 3 === 2 ? gableHouse(x, 740, 200, 300, 0.75) : steppedHouse(x, 740, 200, 300, 5), 990 + i), cols[i], 1.4); windows(ctx, x, 740, 200, 300, 4, 3); } });
+      for (let i = 0; i < 4; i++) pop(ctx, t, 1.4 + i * 0.4, () => paper(ctx, cut(barrel(300 + i * 320, 800, 70), 1000 + i), C.wood, 2.6));
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 740, 1600, 180), 1005, 2), C.slate, 2.2));
+    } },
+    { d: 9, zh: '1806 年，拿破崙戰爭打到北德，法軍攻進呂貝克，城市被佔領。', de: '1806 · Napoleon', draw(ctx, t, T) {
+      sky(ctx, '#9aa3ad', '#d8cdb8');
+      pop(ctx, t, 0.1, () => { for (const h of skyline(700, 61, 120)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1); });
+      for (let i = 0; i < 9; i++) { const x = -100 + i * 110 + easeOut(t / 7) * 500; pop(ctx, t, 0.5 + i * 0.1, () => paper(ctx, cut(soldier(x, 800, 160), 1010 + i, 0.6, 8), C.navy, 2.4)); }
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 800, 1600, 120), 1020, 2), C.slate, 2.6));
+    } },
+    { d: 9, zh: '1937 年，依照《大漢堡法》，呂貝克失去延續數百年的自由市地位，併入普魯士。', de: '1937 · Groß-Hamburg-Gesetz', draw(ctx, t, T) {
+      sky(ctx, '#c9c4bb', '#e8e1d2');
+      pop(ctx, t, 0.2, () => paper(ctx, cut(rect(500, 180, 600, 520), 1030, 1.4), C.cream, 2));
+      pop(ctx, t, 0.6, () => { ctx.save(); ctx.strokeStyle = 'rgba(29,34,48,0.6)'; ctx.lineWidth = 3; for (let l = 0; l < 12; l++) { ctx.beginPath(); ctx.moveTo(560, 240 + l * 30); ctx.lineTo(1040 - (l % 4) * 50, 240 + l * 30); ctx.stroke(); } ctx.restore(); });
+      if (t > 2) { ctx.save(); ctx.globalAlpha = clamp(t - 2); ctx.strokeStyle = C.red; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(540, 220); ctx.lineTo(1060, 680); ctx.moveTo(1060, 220); ctx.lineTo(540, 680); ctx.stroke(); ctx.restore(); }
+    } },
+    { d: 10, zh: '1942 年 3 月棕枝主日的夜裡，空襲燒毀大片老城，聖瑪利亞教堂、主教座堂與聖伯多祿教堂都陷入火海。', de: 'Palmsonntag 1942', draw(ctx, t, T) {
+      sky(ctx, C.night, '#3a2530'); stars(ctx, 40, 7, T);
+      pop(ctx, t, 0.1, () => { for (const h of skyline(760, 71, 120)) paper(ctx, cut(h.pts, h.x | 0), '#3a2a2a', 1); for (const p of churchTwin(620, 760, 240, '#3a2a2a', '#2a3a35')) paper(ctx, cut(p.pts, 1040), p.col, 1.4); });
+      if (t > 1) for (let i = 0; i < 10; i++) { ctx.save(); ctx.globalAlpha = clamp(t - 1); paper(ctx, cut(flame(120 + i * 150, 760 - (i % 3) * 60, 80 + (i % 4) * 25, T + i), 1050 + i), i % 2 ? C.fire : C.fire2, 2.2); ctx.restore(); }
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 1060, 2), '#241c22', 2.6));
+    } },
+    { d: 10, zh: '戰後，居民一磚一瓦重建老城。碎裂的大鐘被留在教堂裡，提醒大家和平的可貴。', de: 'Wiederaufbau', draw(ctx, t, T) {
+      sky(ctx, '#cfd9e2', C.paper); sun(ctx, 1320, 180, 55);
+      pop(ctx, t, 0.1, () => { const p = churchTwin(560, 760, 250); const k = clamp(t / 7); for (const sh of p) { ctx.save(); ctx.beginPath(); ctx.rect(0, 760 - 700 * k, 1600, 900); ctx.clip(); paper(ctx, cut(sh.pts, 1070), sh.col, 1.6); ctx.restore(); } });
+      pop(ctx, t, 0.4, () => { for (let i = 0; i < 5; i++) paper(ctx, rect(480 + i * 90, 300, 6, 460), C.wood, 2.2); for (let j = 0; j < 4; j++) paper(ctx, rect(470, 360 + j * 110, 380, 6), C.wood, 2.2); });
+      for (let i = 0; i < 4; i++) pop(ctx, t, 1 + i * 0.3, () => paper(ctx, cut(person(1000 + i * 120, 760, 120), 1080 + i, 0.6, 8), [C.navy2, C.red, C.wood, C.copper2][i], 2.4));
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 1090, 2), C.grass2, 2.4));
+    } },
+    { d: 9, zh: '1987 年，呂貝克舊城列入聯合國教科文組織世界遺產。', de: '1987 · UNESCO-Welterbe', draw(ctx, t, T) {
+      sky(ctx, '#cfdbe6', C.paper);
+      pop(ctx, t, 0.2, () => { drawHolstentor(ctx, 800, 760, 300, 1.6); });
+      pop(ctx, t, 1.4, () => { ctx.save(); ctx.translate(800, 220); ctx.rotate(Math.sin(T) * 0.03); paper(ctx, cut(ellipse(0, 0, 110, 110, 40), 1100, 1), C.cream, 2.6); ctx.strokeStyle = C.navy; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(0, 0, 80, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.rect(-50, -50, 100, 100); ctx.stroke(); ctx.restore(); });
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 1101, 2), C.grass2, 2.4));
+    } },
+    { d: 10, zh: '這座城市也孕育了文學家湯瑪斯·曼與政治家維利·勃蘭特——兩人都是諾貝爾獎得主。', de: 'Thomas Mann · Willy Brandt', draw(ctx, t, T) {
+      sky(ctx, '#e8dcc2', C.paper2);
+      pop(ctx, t, 0.3, () => { for (let i = 0; i < 7; i++) paper(ctx, cut(rect(360 + i * 36, 420 - (i % 3) * 20, 32, 320 + (i % 3) * 20), 1110 + i, 0.5), [C.red, C.navy, C.copper2, C.wood, C.brick, C.navy2, C.gold][i], 2); ctx.save(); ctx.fillStyle = C.cream; ctx.font = '600 20px Georgia, serif'; ctx.translate(386, 700); ctx.rotate(-Math.PI / 2); ctx.fillText('Buddenbrooks', 0, 0); ctx.restore(); });
+      pop(ctx, t, 1.2, () => { for (const [x, c] of [[1000, C.ink], [1200, C.navy]]) paper(ctx, cut(person(x, 760, 200), 1120 + x, 0.8, 8), c, 2.2); });
+      pop(ctx, t, 2.2, () => { for (const x of [1000, 1200]) { paper(ctx, cut(ellipse(x, 380, 40, 40, 20), 1130 + x, 0.6), C.gold, 2.8); } });
+      pop(ctx, t, 0.3, () => paper(ctx, cut(rect(0, 760, 1600, 160), 1140, 2), C.slate, 2.4));
+    } },
+    { d: 10, zh: '今天的呂貝克，有杏仁糖的香氣、音樂學院的琴聲、河上的船，以及八百多年的故事。', de: 'Lübeck heute', draw(ctx, t, T) {
+      sky(ctx, '#e0c48e', '#efe2c7'); sun(ctx, 1380, 250, 70, '#f0b45e');
+      pop(ctx, t, 0.1, () => { for (const p of churchTwin(820, 600, 150)) paper(ctx, cut(p.pts, 1150), p.col, 1); });
+      pop(ctx, t, 0.2, () => { for (const h of skyline(620, 81, 90)) paper(ctx, cut(h.pts, h.x | 0), h.col, 1.2); });
+      pop(ctx, t, 0.4, () => drawHolstentor(ctx, 330, 640, 160, 1.6));
+      pop(ctx, t, 0.5, () => paper(ctx, cut(wave(650, 6, 0.01, T), 1151), '#5f86a0', 2));
+      drawKogge(ctx, 1000 + Math.sin(T * 0.3) * 60, 670, 90, Math.sin(T * 1.4) * 0.03, 2.4);
+      for (let i = 0; i < 5; i++) { const ph = (T * 0.3 + i / 5) % 1; noteGlyph(ctx, 600 + i * 90, 420 - ph * 260, 13, `rgba(29,34,48,${0.8 - ph * 0.8})`); }
+    } },
+  ],
+};
+
 STORIES.markt = STORIES.rathaus;
 
 /* =============================== player =============================== */
@@ -427,7 +643,7 @@ export function openStory(id) {
       ctx.save(); ctx.globalAlpha = clamp(time / 0.8); ctx.fillStyle = C.gold2; ctx.textAlign = 'center';
       ctx.font = `64px "UnifrakturMaguntia", "Old English Text MT", Georgia, serif`; ctx.fillText(S.title, 800, 420);
       ctx.font = `500 34px "Noto Sans TC", sans-serif`; ctx.fillStyle = C.cream; ctx.fillText(S.zh, 800, 490);
-      ctx.font = `400 22px "IBM Plex Mono", monospace`; ctx.globalAlpha *= 0.75; ctx.fillText(S.kind === '傳說' ? 'EINE LÜBECKER SAGE · 呂貝克傳說' : 'AUS DER GESCHICHTE LÜBECKS · 呂貝克的歷史', 800, 540);
+      ctx.font = `400 22px "IBM Plex Mono", monospace`; ctx.globalAlpha *= 0.75; ctx.fillText(S.kind === '傳說' ? 'EINE LÜBECKER SAGE · 呂貝克傳說' : 'AUS DER GESCHICHTE LÜBECKS · 呂貝克的歷史', 800, 540); ctx.globalAlpha = 0.6; ctx.fillText(`${Math.round(total)} 秒`, 800, 590);
       ctx.restore(); frameBorder(ctx); cap.textContent = ''; capDe.textContent = ''; return;
     }
     let tt = time - 3, i = 0; while (i < S.scenes.length - 1 && tt > S.scenes[i].d) { tt -= S.scenes[i].d; i++; }
@@ -442,4 +658,4 @@ export function openStory(id) {
   };
   last = performance.now(); rafId = requestAnimationFrame(loop);
 }
-export function storyList() { return Object.entries(STORIES).filter(([k]) => k !== 'markt').map(([id, s]) => ({ id, title: s.title, zh: s.zh, kind: s.kind })); }
+export function storyList() { return Object.entries(STORIES).filter(([k]) => !['markt', 'brahms'].includes(k)).sort(([a], [b]) => (b === 'luebeck') - (a === 'luebeck') || (b === 'hanse') - (a === 'hanse')).map(([id, s]) => ({ id, title: s.title, zh: s.zh, kind: s.kind })); }

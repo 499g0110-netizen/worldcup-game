@@ -2,6 +2,8 @@ import { hasStory, openStory, storyList } from './stories.js';
 // Landmark intro cards: enter/exit hysteresis, one card at a time, manual close sticks for the current visit,
 // global "auto intro" switch, reopen via the ℹ button or the I key, never pops up while riding/driving.
 const TEXT = {
+  musikhochschule: '呂貝克音樂學院，位於聖伯多祿教堂旁的大彼得溝街，校舍由一整排歷史老屋改建；附設布拉姆斯研究所，收藏大量布拉姆斯的手稿與書信。',
+  brahms: '作曲家約翰尼斯·布拉姆斯的雕像，位在特拉沃河畔的 An der Obertrave。布拉姆斯 1833 年生於漢堡。',
   holstentor: '舊城西側的城門，1464–1478 年建成，兩座圓塔頂著尖錐屋頂。朝城內那一面刻著「CONCORDIA DOMI FORIS PAX」（城內和睦，城外和平）。現為城市歷史博物館。',
   salzspeicher: '特拉沃河畔的六棟磚造倉庫，建於 16 至 18 世紀，存放從呂內堡運來、準備轉運到斯堪地那維亞的鹽。',
   st_petri: '聖伯多祿教堂，現為不舉行常規禮拜的文化與大學教堂；塔上有觀景台，可以俯瞰舊城。',

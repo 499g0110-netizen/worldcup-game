@@ -508,6 +508,55 @@
    "neighbours": null,
    "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
    "unverified": []
+  },
+  {
+   "id": "musikhochschule",
+   "name_zh": "呂貝克音樂學院",
+   "name_de": "Musikhochschule Lübeck",
+   "address": "Große Petersgrube, 23552 Lübeck",
+   "osm": "node/991207111",
+   "lat": 53.8647485,
+   "lon": 10.6818316,
+   "coord_source": "OpenStreetMap node/991207111",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -203.7,
+    199.79
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "確切門牌",
+    "布拉姆斯研究所位置與館藏細節"
+   ]
+  },
+  {
+   "id": "brahms",
+   "name_zh": "布拉姆斯雕像",
+   "name_de": "Johannes-Brahms-Statue",
+   "address": "An der Obertrave, 23552 Lübeck",
+   "osm": "node/1732230213",
+   "lat": 53.8650574,
+   "lon": 10.6796545,
+   "coord_source": "OpenStreetMap node/1732230213",
+   "fetched_at": "2026-11-24T14:39Z",
+   "local_xz_m": [
+    -347.67,
+    168.82
+   ],
+   "footprint": null,
+   "height_m": null,
+   "height_source": "—",
+   "photo": null,
+   "neighbours": null,
+   "license": "Geometry: © OpenStreetMap contributors, ODbL 1.0",
+   "unverified": [
+    "雕像作者與年份"
+   ]
   }
  ]
 }

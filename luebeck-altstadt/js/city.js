@@ -35,7 +35,7 @@ function obb(o) {
 }
 
 /* ------------------------------------------------------- geometry accumulator */
-class Acc {
+export class Acc {
   constructor(extra = 0) { this.p = []; this.n = []; this.u = []; this.c = []; this.w = extra ? [] : null; }
   tri(a, b, c, ua, ub, uc, col, wall, tops) {   // tops: optional per-vertex wall-top height (gable roofline) replacing wall[2]
     const e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2], e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
@@ -58,7 +58,7 @@ const NOWALL = [0, 0, 99, -1];
 
 
 // box in a local frame: origin o, axis a (horizontal unit), out n (horizontal unit, ⟂ a), sizes along a/up/n
-function frameBox(acc, ox, oy, oz, ax, az, a0, a1, y0, y1, n0, n1, col, W = NOWALL) {
+export function frameBox(acc, ox, oy, oz, ax, az, a0, a1, y0, y1, n0, n1, col, W = NOWALL) {
   const nx = -az, nz = ax;   // right-handed: out = up × along
   const P = (a, y, nn) => [ox + ax * a + nx * nn, oy + y, oz + az * a + nz * nn];
   const q = (p1, p2, p3, p4, u1, u2, u3, u4, nrm) => {
@@ -96,7 +96,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
   const segs = [];               // collision segments [x1,z1,x2,z2,top]
   const windows = [];            // near-LOD window placements
   const doors = [];
-  const footprints = [];         // for the minimap & queries
+  const footprints = [], shopfronts = [];         // for the minimap & queries
   let nB = 0;
 
   const items = [];
@@ -183,7 +183,9 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
       const win = ewOut[i] === '1' && !isChurchish && (!isPart || partOk) && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
       const nb = Math.max(1, Math.round(L / BAY)), scale = nb / L;
       const dBay = i === doorEdge ? Math.floor(nb / 2) : -1;
-      const W = [win ? (shop ? -scale : scale) : 0, win ? (brick ? 1.25 : 1) : 0, eave, dBay];   // negative bay scale = shop front on the ground floor
+      const wk = Math.floor(hash(seed * 7.3 + i * 1.7) * 7);   // shop-type offset for this wall: shop n on it is kind (n*3 + wk) % 7 (same formula in the shader)
+      const W = [win ? (shop ? -scale : scale) : 0, win ? (brick ? 1.25 : 1) + (shop ? 10 * (wk + 1) : 0) : 0, eave, dBay];
+      if (shop && win && ewOut[i] === '1' && L > 3) shopfronts.push({ x1, z1, ux: (x2 - x1) / L, uz: (z2 - z1) / L, L, nb, scale, wk, minH, eave, tint, brick, seed: hash(seed * 3.1 + i) });   // negative bay scale = shop front on the ground floor
       wallAcc.tri([x1, minH, z1], [x2, y2, z2], [x2, minH, z2], [0, minH], [L, y2], [L, minH], tint, W, [y1, y2, y2]);
       wallAcc.tri([x1, minH, z1], [x1, y1, z1], [x2, y2, z2], [0, minH], [0, y1], [L, y2], tint, W, [y1, y1, y2]);
       segs.push([x1, z1, x2, z2, Math.max(y1, y2), minH]);
@@ -325,7 +327,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
     if (!isPart || minH < 1) footprints.push({ o, cx, cz, H, brick, part: isPart, name: t.name });
     if (++nB % 1500 === 0) onProgress?.(nB / items.length);
   }
-  return { accs, segs, windows, doors, footprints };
+  return { accs, segs, windows, doors, footprints, shopfronts };
 }
 
 /* ---------------------------------------------------------- roads & ground */
