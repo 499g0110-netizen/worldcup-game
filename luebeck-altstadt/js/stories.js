@@ -671,6 +671,40 @@ STORIES.luebeck = {
 STORIES.markt = STORIES.rathaus;
 
 /* =============================== player =============================== */
+// Subtitles: break after "，" (and other clause punctuation); pack clauses into lines that fit the stage width;
+// a clause longer than a line is split into near-equal parts, so no line is left with one or two characters.
+export function captionLines(text, max) {
+  const W = (str) => { let w = 0; for (const ch of str) w += /[\x00-\x7f]/.test(ch) ? 0.55 : 1; return w; };
+  // one line per clause: a new line starts after every "，" (and "。；！？")
+  const clauses = (text.match(/[^，。；！？]+[，。；！？」』）]*/g) || [text]).map((c) => c.trim()).filter(Boolean);
+  const out = [];
+  for (const c of clauses) {
+    if (W(c) <= max) { out.push(c); continue; }
+    // too long: split into n near-equal parts, preferring "、" or spaces, never inside a run of Latin letters/digits
+    const n = Math.ceil(W(c) / max), chars = [...c], target = W(c) / n;
+    let cur = '', parts = [];
+    for (let i = 0; i < chars.length; i++) {
+      cur += chars[i];
+      const next = chars[i + 1] || '', inWord = /[A-Za-z0-9.]/.test(chars[i]) && /[A-Za-z0-9.]/.test(next);
+      const atSoft = /[、 ]/.test(chars[i]);
+      if (parts.length < n - 1 && !inWord && (W(cur) >= target || (atSoft && W(cur) >= target * 0.7))) { parts.push(cur.trim()); cur = ''; }
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    out.push(...parts);
+  }
+  // never leave a tiny tail: merge a line of ≤ 3 characters into the line before it
+  for (let i = out.length - 1; i > 0; i--) if (W(out[i]) <= 3) { out[i - 1] += out[i]; out.splice(i, 1); }
+  return out;
+}
+let lastCap = '';
+function setCaption(cap, text) {
+  const st = cap.closest('.stage') || cap.parentElement, fs = parseFloat(getComputedStyle(cap).fontSize) || 16;
+  const max = Math.max(8, Math.floor((st.clientWidth * 0.84) / (fs * 1.02)));
+  const key = text + '|' + max; if (key === lastCap) return; lastCap = key;
+  cap.textContent = '';
+  captionLines(text, max).forEach((l, i) => { if (i) cap.appendChild(document.createElement('br')); cap.appendChild(document.createTextNode(l)); });
+}
+
 // a landmark can carry several films (e.g. St. Marien: the devil legend and Bach's visit)
 export const STORY_AT = {};
 export function storiesAt(id) { return [...new Set([...(STORIES[id] ? [id] : []), ...(STORY_AT[id] || [])])].filter((k) => STORIES[k]); }
@@ -723,7 +757,7 @@ export function openStory(id) {
       ctx.font = `64px "UnifrakturMaguntia", "Old English Text MT", Georgia, serif`; ctx.fillText(S.title, 800, 420);
       ctx.font = `500 34px "Noto Sans TC", sans-serif`; ctx.fillStyle = C.cream; ctx.fillText(S.zh, 800, 490);
       ctx.font = `400 22px "IBM Plex Mono", monospace`; ctx.globalAlpha *= 0.75; ctx.fillText(S.kind === '傳說' ? 'EINE LÜBECKER SAGE · 呂貝克傳說' : 'AUS DER GESCHICHTE LÜBECKS · 呂貝克的歷史', 800, 540); ctx.globalAlpha = 0.6; ctx.fillText(`${Math.round(total)} 秒`, 800, 590);
-      ctx.restore(); postFx(ctx, time, true); frameBorder(ctx); cap.textContent = ''; capDe.textContent = ''; audio.update(time, playing, -1); return;
+      ctx.restore(); postFx(ctx, time, true); frameBorder(ctx); cap.textContent = ''; lastCap = ''; capDe.textContent = ''; audio.update(time, playing, -1); return;
     }
     let tt = time - 3, i = 0; while (i < S.scenes.length - 1 && tt > S.scenes[i].d) { tt -= S.scenes[i].d; i++; }
     const sc = S.scenes[i];
@@ -734,7 +768,7 @@ export function openStory(id) {
     const fadeIn = clamp(tt / 0.5), fadeOut = i < S.scenes.length - 1 ? clamp((sc.d - tt) / 0.5) : 1;
     if (fadeIn < 1 || fadeOut < 1) { ctx.save(); ctx.fillStyle = C.paper; ctx.globalAlpha = 1 - Math.min(fadeIn, fadeOut); ctx.fillRect(0, 0, 1600, 900); ctx.restore(); }
     frameBorder(ctx);
-    cap.textContent = sc.zh; capDe.textContent = sc.de;
+    setCaption(cap, sc.zh); capDe.textContent = sc.de;
   };
   last = performance.now(); rafId = requestAnimationFrame(loop);
 }

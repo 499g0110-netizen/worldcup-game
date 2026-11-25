@@ -2,7 +2,7 @@
 // follow the street polylines, turn at junctions, stop for the player and for each other, and are recycled.
 import * as THREE from 'three';
 import { makeBike, makeCar, twoBoneIK, updateLocomotion } from './actors.js';
-import { createMannequin } from './mannequin.js';
+import { randomLook, createMannequin } from './mannequin.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const BUS_ROADS = new Set(['primary', 'secondary', 'tertiary']);
@@ -50,7 +50,7 @@ export class Traffic {
   constructor(scene, roads, { touch, isFree }) {
     this.scene = scene; this.roads = roads; this.isFree = isFree;
     this.R = touch ? 110 : 180;
-    this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1, group: 3, bench: 2, cafe: 2 } : { ped: 24, car: 12, bike: 6, bus: 3, group: 6, bench: 5, cafe: 5 };
+    this.want = touch ? { ped: 18, car: 4, bike: 4, bus: 1, group: 5, bench: 3, cafe: 3 } : { ped: 48, car: 12, bike: 9, bus: 3, group: 11, bench: 6, cafe: 8 };
     this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [], cafe: [], busker: [] };
     this.buskers = []; this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }
@@ -100,7 +100,22 @@ export class Traffic {
     const pooled = this.pool[kind].pop(); if (pooled) { pooled.obj.visible = true; return pooled; }
     if (kind === 'bus') { const b = makeBus(this.scene); return { kind, obj: b.g, bus: b }; }
     if (kind === 'group') {   // 2–3 people standing and talking
-      const obj = new THREE.Group(); this.scene.add(obj); const n = 2 + (Math.random() < 0.4 ? 1 : 0), people = [];
+      const obj = new THREE.Group(); this.scene.add(obj);
+      if (Math.random() < 0.45) {   // tourist group gathered around a guide holding up a little flag
+        const people = [], n = 5 + Math.floor(Math.random() * 5), flagC = pick([0xd8332b, 0xf2b630, 0x2b6a9b, 0x3c8a4a]);
+        const g = createMannequin(this.scene); g.root.removeFromParent(); obj.add(g.root); g.guide = true; g.talk = 0; people.push(g);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.5, 5), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.7, roughness: 0.4 })); pole.position.set(0.32, 1.85, 0.1); obj.add(pole);
+        const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.24), new THREE.MeshStandardMaterial({ color: flagC, side: THREE.DoubleSide, roughness: 0.8 })); flag.position.set(0.5, 2.45, 0.1); obj.add(flag); g.flag = flag;
+        for (let i = 0; i < n; i++) {
+          const look = randomLook(); if (Math.random() < 0.7) look.bag = pick([0x2b3a55, 0x3b2618, 0x1f1f22, 0x8a2f24, 0x3c5a3a]);   // day packs
+          const h = createMannequin(this.scene, look); h.root.removeFromParent(); obj.add(h.root);
+          const ang = -1.1 + 2.2 * i / Math.max(1, n - 1) + (Math.random() - 0.5) * 0.2, r = 2.0 + Math.random() * 0.9;
+          h.root.position.set(Math.sin(ang) * r, 0, Math.cos(ang) * r); h.root.rotation.y = ang + Math.PI; h.talk = Math.random() * 6; h.listener = true; people.push(h);
+          if (Math.random() < 0.35) { const cam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.06), new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.4 })); cam.position.set(Math.sin(ang) * (r - 0.25), 1.15, Math.cos(ang) * (r - 0.25)); cam.rotation.y = ang; obj.add(cam); }
+        }
+        return { kind, obj, people, tour: true };
+      }
+      const n = 2 + (Math.random() < 0.4 ? 1 : 0), people = [];
       for (let i = 0; i < n; i++) { const h = createMannequin(this.scene); h.root.removeFromParent(); obj.add(h.root); const a = Math.PI / 2 + i / n * Math.PI * 2; h.root.position.set(Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6); h.root.rotation.y = a + Math.PI; h.talk = Math.random() * 6; people.push(h); }
       return { kind, obj, people };
     }
@@ -164,7 +179,8 @@ export class Traffic {
       const r = pick(cand), s = rnd(0, r.len), p = along(r, s), d = Math.hypot(p.x - px, p.z - pz);
       if (d < 35 || d > this.R) continue;        // never pop in right next to the player
       if (kind === 'group' || kind === 'bench' || kind === 'cafe') {
-        const a = this.make(kind), w = r.w || 5, off = Math.max(1.2, w / 2 - (kind === 'bench' ? 0.6 : kind === 'cafe' ? 1.8 : 1.0)) * (Math.random() < 0.5 ? -1 : 1);
+        const a = this.make(kind), w = r.w || 5; let off = Math.max(1.2, w / 2 - (kind === 'bench' ? 0.6 : kind === 'cafe' ? 1.8 : 1.0)) * (Math.random() < 0.5 ? -1 : 1);
+        if (a.tour) { if (w < 5.5) { this.release(a); continue; } off = 0; }
         a.x = p.x - p.dz * off; a.z = p.z + p.dx * off; a.yaw = Math.atan2(p.dx, p.dz) + (off > 0 ? -Math.PI / 2 : Math.PI / 2); a.v = 0; a.static = true;
         if (this.isFree && !this.isFree(a.x, a.z)) { this.release(a); continue; }
         a.obj.position.set(a.x, 0, a.z); a.obj.rotation.y = a.yaw; a.obj.visible = true; this.agents.push(a); return;
@@ -221,6 +237,8 @@ export class Traffic {
           else if (a.kind === 'busker') this.perform(a, h, dt * (far ? 4 : 1));
           else {   // standing and chatting: absolute poses (never += — the mixer doesn't rewrite bones whose idle value is unchanged)
             h.mixer.update(dt * (far ? 4 : 1)); const B = h.bones;
+            if (h.listener) { B.RightArm.rotation.set(-0.1, 0, -0.1); B.RightForeArm.rotation.set(-0.3, 0, 0); B.LeftArm.rotation.set(0.05, 0, 0.08); B.LeftForeArm.rotation.set(-0.2, 0, 0); B.Head.rotation.set(0.02, Math.sin(h.talk * 0.3) * 0.25, 0); continue; }
+            if (h.guide && h.flag) h.flag.rotation.y = Math.sin(h.talk * 2.3) * 0.25;
             B.RightArm.rotation.set(-0.15 - gest * 0.35, 0, -0.12 - gest * 0.15);
             B.RightForeArm.rotation.set(-0.25 - gest * 0.85, 0, 0);
             B.LeftArm.rotation.set(0.05, 0, 0.08); B.LeftForeArm.rotation.set(-0.15, 0, 0);
@@ -323,7 +341,7 @@ export class Traffic {
   // keep the walking player out of pedestrians and parked/moving vehicles
   pushPlayer(x, z, rad) {
     for (const a of [...this.agents, ...this.buskers]) {
-      const r = a.kind === 'busker' ? 1.0 : a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : a.kind === 'group' ? 0.9 : a.kind === 'bench' ? 0.95 : a.kind === 'cafe' ? 2.2 : 0;
+      const r = a.kind === 'busker' ? 1.0 : a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : a.kind === 'group' ? (a.tour ? 3.3 : 0.9) : a.kind === 'bench' ? 0.95 : a.kind === 'cafe' ? 2.2 : 0;
       if (r) { const dx = x - a.x, dz = z - a.z, d = Math.hypot(dx, dz), m = r + rad; if (d < m && d > 1e-6) { x = a.x + dx / d * m; z = a.z + dz / d * m; } continue; }
       const co = Math.cos(a.yaw), si = Math.sin(a.yaw), dx = x - a.x, dz = z - a.z;
       let lx = dx * co - dz * si, lz = dx * si + dz * co; const hx = (a.kind === 'bus' ? 1.3 : 0.95) + rad, hz = (a.kind === 'bus' ? 6.1 : 2.1) + rad;
