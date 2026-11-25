@@ -179,7 +179,8 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
       const j = (i + 1) % n, x1 = ring[2 * i], z1 = ring[2 * i + 1], x2 = ring[2 * j], z2 = ring[2 * j + 1];
       const L = Math.hypot(x2 - x1, z2 - z1); if (L < 0.05) continue;
       const y1 = roofY(x1, z1), y2 = roofY(x2, z2);
-      const win = ewOut[i] === '1' && !isChurchish && !isPart && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
+      const partOk = isPart && minH < 1 && H < 30 && matT !== 'brick' && rk !== 'copper' && !t['roof:colour'];
+      const win = ewOut[i] === '1' && !isChurchish && (!isPart || partOk) && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
       const nb = Math.max(1, Math.round(L / BAY)), scale = nb / L;
       const dBay = i === doorEdge ? Math.floor(nb / 2) : -1;
       const W = [win ? (shop ? -scale : scale) : 0, win ? (brick ? 1.25 : 1) : 0, eave, dBay];   // negative bay scale = shop front on the ground floor
@@ -194,7 +195,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
           const topAt = y1 + (y2 - y1) * (s / L);   // gable walls: windows continue up into the gable triangle
           for (let fy = minH; fy + STOREY * 0.8 + 0.35 <= topAt + 1e-3; fy += STOREY) {
             const ground = fy < minH + 0.1;
-            if (ground && k === dBay) { doors.push({ x: px, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed + k) }); continue; }
+            if (ground && k === dBay) { if (!shop) doors.push({ x: px, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed + k) }); continue; }
             if (ground && shop) continue;   // shop fronts are painted as display windows
             if (win) windows.push({ x: px, y: fy, z: pz, nx, nz, w: 0.4 / scale, tint, seed: hash(seed * 31 + k * 7 + fy) });
           }
