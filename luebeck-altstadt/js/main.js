@@ -677,6 +677,39 @@ function inputVec() {
 
 /* ------------------------------------------------------------ mode switching */
 const prompt = $('#prompt');
+// phones: a small translucent round button instead of the big prompt bar; its label is drawn into the icon image
+const actBtn = $('#actBtn'), speedo = $('#speedo'), sctx = speedo.getContext('2d');
+const ICONS = {};
+function actIcon(kind) {
+  if (ICONS[kind]) return ICONS[kind];
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.strokeStyle = '#fff'; g.fillStyle = '#fff'; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.save(); g.translate(64, 52);
+  if (kind === 'bike') { for (const x of [-22, 22]) { g.beginPath(); g.arc(x, 8, 14, 0, 7); g.stroke(); } g.beginPath(); g.moveTo(-22, 8); g.lineTo(-6, -12); g.lineTo(14, -12); g.lineTo(22, 8); g.moveTo(-6, -12); g.lineTo(2, 8); g.lineTo(14, -12); g.moveTo(-12, -20); g.lineTo(0, -20); g.moveTo(10, -22); g.lineTo(18, -22); g.stroke(); }
+  else if (kind === 'car') { g.beginPath(); g.moveTo(-30, 10); g.lineTo(-30, -2); g.lineTo(-18, -6); g.lineTo(-10, -20); g.lineTo(12, -20); g.lineTo(20, -6); g.lineTo(30, -2); g.lineTo(30, 10); g.closePath(); g.stroke(); for (const x of [-17, 17]) { g.beginPath(); g.arc(x, 12, 7, 0, 7); g.fill(); } }
+  else if (kind === 'eagle') { g.beginPath(); g.moveTo(-34, -4); g.quadraticCurveTo(-16, -22, 0, -4); g.quadraticCurveTo(16, -22, 34, -4); g.moveTo(0, -4); g.lineTo(0, 14); g.stroke(); g.beginPath(); g.arc(0, -10, 5, 0, 7); g.fill(); }
+  else if (kind === 'off') { g.beginPath(); g.moveTo(-18, -22); g.lineTo(-18, 18); g.lineTo(6, 18); g.moveTo(-18, -22); g.lineTo(6, -22); g.stroke(); g.beginPath(); g.moveTo(0, -2); g.lineTo(30, -2); g.moveTo(20, -12); g.lineTo(30, -2); g.lineTo(20, 8); g.stroke(); }
+  else if (kind === 'land') { g.beginPath(); g.moveTo(0, -24); g.lineTo(0, 10); g.moveTo(-12, -2); g.lineTo(0, 10); g.lineTo(12, -2); g.moveTo(-26, 20); g.lineTo(26, 20); g.stroke(); }
+  g.restore();
+  const label = { bike: '騎車', car: '上車', eagle: '騎鷹', off: '下車', land: '降落' }[kind];
+  g.font = '700 26px "Noto Sans TC", "PingFang TC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 4; g.fillText(label, 64, 102);
+  return (ICONS[kind] = c.toDataURL());
+}
+let actKind = '', lastSpeed = -1;
+function setAct(kind) {
+  if (kind === actKind) return; actKind = kind; actBtn.hidden = !kind;
+  if (kind) { actBtn.style.backgroundImage = `url(${actIcon(kind)})`; actBtn.setAttribute('aria-label', { bike: '騎上腳踏車', car: '坐進駕駛座', eagle: '騎上黑鷹', off: '下車', land: '降落' }[kind]); }
+}
+function setSpeed(v) {   // tiny translucent readout, redrawn only when the number changes
+  if (v == null) { if (!speedo.hidden) speedo.hidden = true; lastSpeed = -1; return; }
+  const n = Math.round(v); if (n === lastSpeed) return; lastSpeed = n; speedo.hidden = false;
+  sctx.clearRect(0, 0, 168, 56); sctx.fillStyle = 'rgba(18,20,26,.4)'; sctx.beginPath(); sctx.roundRect(0, 0, 168, 56, 28); sctx.fill();
+  sctx.fillStyle = '#fff'; sctx.font = '600 32px "IBM Plex Mono", monospace'; sctx.textAlign = 'center'; sctx.textBaseline = 'middle'; sctx.fillText(`${n} km/h`, 84, 30);
+}
+actBtn.addEventListener('click', (e) => { e.stopPropagation(); interact(); });
+for (const ev of ['pointerdown', 'touchstart']) actBtn.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+const hinted = new Set();
+function hintOnce(k, text) { if (TOUCH && !hinted.has(k)) { hinted.add(k); toast(text); } }
 const REACH = TOUCH ? 4.0 : 2.6;   // easier to reach with a thumb stick
 // on phones the prompt itself is the button (there is no E key)
 prompt.addEventListener('click', (e) => { e.stopPropagation(); if (prompt.dataset.act === 'eagle') { callEagle(); return; } interact(); });
@@ -714,8 +747,8 @@ function summon(kind) {
     if (s2) spot = { ...s2, yaw: P.yaw };
   }
   if (!spot) { toast('這裡太窄，沒有地方停車'); return; }
-  if (kind === 'car') { Object.assign(car, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0, steerA: 0 }); car.g.position.set(car.x, 0, car.z); car.g.rotation.set(0, car.yaw, 0); toast('🚗 車子到了，走到駕駛座旁按 E（手機點提示）上車'); }
-  else { Object.assign(bike, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0 }); bike.g.position.set(bike.x, 0, bike.z); bike.g.rotation.set(0, bike.yaw, 0); toast('🚲 腳踏車到了，走過去按 E（手機點提示）騎上'); }
+  if (kind === 'car') { Object.assign(car, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0, steerA: 0 }); car.g.position.set(car.x, 0, car.z); car.g.rotation.set(0, car.yaw, 0); toast(TOUCH ? '🚗 車子到了，走到駕駛座旁點右下的上車按鈕' : '🚗 車子到了，走到駕駛座旁按 E 上車'); }
+  else { Object.assign(bike, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0 }); bike.g.position.set(bike.x, 0, bike.z); bike.g.rotation.set(0, bike.yaw, 0); toast(TOUCH ? '🚲 腳踏車到了，走過去點右下的騎車按鈕' : '🚲 腳踏車到了，走過去按 E 騎上'); }
 }
 function safeSpot(x, z, yaw, offsets) {
   for (const [ox, oz] of offsets) {
@@ -1018,17 +1051,21 @@ function frame() {
   beaconU.uK.value = Math.max(0.3, Math.min(1, 1 - (camera.position.y - 60) / 300));
   { const hy = Math.max(0, camera.position.y - 30); scene.fog.near = 700 + hy * 4; scene.fog.far = 3400 + hy * 14; }
   windU.uTime.value = simT; foliageU.uTime.value = simT; if (grass && P.mode !== 'eagle') grass.update(fx, fz); if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
-  // prompts
+  // prompts (desktop: text bar with keys; phones: small translucent icon button + tiny speed readout)
   if (P.mode === 'walk') {
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
     const nb = Math.hypot(P.x - bike.x, P.z - bike.z) < REACH, nc = Math.hypot(P.x - door.x, P.z - door.z) < REACH, ne = eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9;
-    const key = TOUCH ? '👆 點這裡　' : 'E　';
-    prompt.textContent = ne ? key + '騎上黑鷹' : nb ? key + '騎上腳踏車' : nc ? key + '坐進駕駛座' : '';
-    prompt.dataset.act = ''; prompt.hidden = !(nb || nc || ne);
-    prompt.classList.toggle('tap', TOUCH && !prompt.hidden);
-  } else if (P.mode === 'eagle') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = eagle.state === 'land' ? '降落中…' : TOUCH ? `高度 ${Math.round(eagle.y)} m · 搖桿上下＝爬升／下降　👆 點這裡降落` : `高度 ${Math.round(eagle.y)} m · ${Math.round(eagle.v * 3.6)} km/h　·　W/S 爬升／下降　A/D 轉彎　Shift 加速　空白 減速　E 降落`; prompt.hidden = false;
-  } else if (P.mode === 'bike') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = TOUCH ? `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　搖桿往上踩踏、往下煞車　👆 點這裡下車` : `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　W 踩踏　S 煞車　A/D 轉向　E 下車`; prompt.hidden = false; }
-  else if (P.mode === 'car') { prompt.classList.toggle('tap', TOUCH); prompt.textContent = TOUCH ? `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h　·　👆 點這裡下車` : `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
+    if (TOUCH) { prompt.hidden = true; setAct(ne ? 'eagle' : nb ? 'bike' : nc ? 'car' : ''); setSpeed(null); }
+    else { prompt.textContent = ne ? 'E　騎上黑鷹' : nb ? 'E　騎上腳踏車' : nc ? 'E　坐進駕駛座' : ''; prompt.dataset.act = ''; prompt.hidden = !(nb || nc || ne); }
+  } else if (TOUCH) {
+    prompt.hidden = true;
+    if (P.mode === 'eagle') { setAct(eagle.state === 'land' ? '' : 'land'); setSpeed(eagle.v * 3.6); hintOnce('eagle', '搖桿上下＝爬升／下降，左右＝轉彎'); }
+    else if (P.mode === 'bike') { setAct('off'); setSpeed(Math.abs(bike.v) * 3.6); hintOnce('bike', '搖桿往上踩踏、往下煞車'); }
+    else if (P.mode === 'car') { setAct('off'); setSpeed(Math.abs(car.v) * 3.6); hintOnce('car', '搖桿往上油門、往下煞車／倒車'); }
+    else { setAct(''); setSpeed(null); }
+  } else if (P.mode === 'eagle') { prompt.textContent = eagle.state === 'land' ? '降落中…' : `高度 ${Math.round(eagle.y)} m · ${Math.round(eagle.v * 3.6)} km/h　·　W/S 爬升／下降　A/D 轉彎　Shift 加速　空白 減速　E 降落`; prompt.hidden = false;
+  } else if (P.mode === 'bike') { prompt.textContent = `${(Math.abs(bike.v) * 3.6).toFixed(0)} km/h　·　W 踩踏　S 煞車　A/D 轉向　E 下車`; prompt.hidden = false; }
+  else if (P.mode === 'car') { prompt.textContent = `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else prompt.hidden = true;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
   if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }

@@ -112,7 +112,11 @@ body.touch #stick i { width: 42px; height: 42px; margin: -21px 0 0 -21px; backgr
 body.touch #bInfo { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 body.touch #prompt.tap { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
 body.touch #card { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); max-height: 42vh; overflow: auto; }
-body.clean .hud:not(#bMenu):not(#stick):not(#prompt) { visibility: hidden; } body.clean #tools { display: none !important; }
+/* phones: one small translucent action button (label drawn into the icon image), tiny speed readout */
+#actBtn { position: fixed; z-index: 7; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); width: 62px; height: 62px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.38); background: rgba(18,20,26,.32) center / 100% 100% no-repeat; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); cursor: pointer; touch-action: manipulation; transition: transform .12s, opacity .2s; opacity: .9; }
+#actBtn:active { transform: scale(.92); }
+#speedo { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); width: 62px; height: 21px; opacity: .8; pointer-events: none; }
+body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) { visibility: hidden; } body.clean #tools { display: none !important; }
 @media (max-width: 640px) {
   #mini { width: 112px; height: 112px; } .tb kbd { display: none; }
   #card { top: calc(env(safe-area-inset-top, 0px) + 150px); padding: 12px 14px 10px; } #card .tx { font-size: 12.5px; margin: 6px 0; } #card .src { display: none; }
@@ -139,6 +143,8 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt) { visibility: hidden; } bod
 <button class="glass hud tb" id="bMenu" type="button" aria-label="選單">☰</button>
 <button class="glass hud tb" id="bInfo" type="button" hidden>ℹ</button>
 <div class="glass hud" id="prompt" hidden></div>
+<button class="hud" id="actBtn" type="button" hidden></button>
+<canvas class="hud" id="speedo" width="168" height="56" hidden aria-hidden="true"></canvas>
 <div class="glass hud" id="toast" role="status"></div>
 <div class="glass hud" id="perf" hidden></div>
 <section class="glass" id="card" hidden aria-live="polite" role="dialog" aria-label="景點介紹">
