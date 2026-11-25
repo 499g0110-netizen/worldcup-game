@@ -46,7 +46,7 @@ export function makeFacade(base) {
         // ---- interior mapping: a real-looking shop room behind the glass, ray-traced per pixel (box room, no textures)
         // p = (u along wall, v height, 0) metres; d = view ray in (along, up, into the wall); room spans [u0,u1] x [0,H] x [0,D]
         vec3 shopRoom(vec2 p, vec3 d, float u0, float u1, float id, float night) {
-          const float H = 3.0, D = 5.0;
+          const float H = 3.0, D = 6.0;
           vec3 o = vec3(p, 0.0);
           float tx = ((d.x > 0.0 ? u1 : u0) - o.x) / d.x, ty = ((d.y > 0.0 ? H : 0.0) - o.y) / d.y, tz = D / max(d.z, 1e-4);
           float t = min(tx, min(ty, tz)); vec3 h = o + d * t;
@@ -66,20 +66,24 @@ export function makeFacade(base) {
             float onShelf = step(0.6, h.y) * step(h.y, 2.4);
             vec2 cell = vec2(floor(h.x / (0.12 + 0.18 * kind)), shelfRow);
             vec3 goods = vec3(hash12(cell + id), hash12(cell + id + 7.0), hash12(cell + id + 13.0));
-            goods = mix(goods, vec3(0.75,0.55,0.3), step(kind, 0.25) * 0.7);   // bakery: bread tones
+            goods = mix(vec3(dot(goods, vec3(0.33))), goods, 0.5) * 0.85 + 0.08; goods = mix(goods, vec3(0.75,0.55,0.3), step(kind, 0.25) * 0.7);   // bakery: bread tones
             float item = step(0.12, shelfY) * step(shelfY, 0.85) * step(0.15, fract(h.x / (0.12 + 0.18 * kind)));
             col = mix(wall, mix(vec3(0.35,0.25,0.18), goods, item), onShelf);
             col = mix(col, vec3(0.3,0.22,0.15), onShelf * step(shelfY, 0.08));
-          } else {                              // side walls: framed pictures / racks
-            float art = step(1.2, h.y) * step(h.y, 2.1) * step(0.2, fract(h.z * 0.4)) * step(fract(h.z * 0.4), 0.7);
-            col = mix(wall * 0.85, vec3(0.2,0.3,0.4) + 0.4 * hash12(vec2(floor(h.z * 0.4), id)), art * 0.8);
+          } else {                              // side walls: tall shelving units along the depth of the shop
+            float shelfY = fract(h.y / 0.5), onShelf = step(0.3, h.y) * step(h.y, 2.3);
+            vec2 cell = vec2(floor(h.z / 0.22), floor(h.y / 0.5));
+            vec3 goods = vec3(hash12(cell + id * 1.3), hash12(cell + id + 5.0), hash12(cell + id + 9.0)) * 0.8;
+            goods = mix(vec3(dot(goods, vec3(0.33))), goods, 0.5) * 0.85 + 0.08; goods = mix(goods, vec3(0.75,0.55,0.3), step(kind, 0.25) * 0.7);
+            float item = step(0.14, shelfY) * step(shelfY, 0.82) * step(0.12, fract(h.z / 0.22));
+            col = mix(wall * 0.7, mix(vec3(0.3,0.22,0.16), goods, item), onShelf);
           }
           // counter + clothes rail / display table in the middle of the room
           float tc = (1.0 - o.y) / d.y; vec3 hc = o + d * tc;
           if (d.y < 0.0 && tc > 0.0 && tc < t && hc.z > 2.2 && hc.z < 2.9 && hc.x > mix(u0, u1, 0.2) && hc.x < mix(u0, u1, 0.75)) col = mix(vec3(0.55,0.4,0.28), vec3(0.85,0.85,0.82), step(0.5, kind));
           // light falloff toward the back, warm interior light, a little brighter at night
           float fall = mix(1.0, 0.55, clamp(t / 6.0, 0.0, 1.0));
-          return col * fall * (0.55 + 0.5 * night);
+          return col * fall * (0.26 + 0.8 * night);   // by day a shop is darker than the street; at night it glows
         }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
         float shop = step(vWall.x, -0.0001); float bayF = vM.x * abs(vWall.x); float bu = fract(bayF); float bayI = floor(bayF);
@@ -111,21 +115,23 @@ export function makeFacade(base) {
         // ---- shop windows & glass doors: see-through into an interior room
         float glassArea = max(disp * step(0.1, bu) * step(bu, 0.9) * step(0.08, fv) * step(fv, 0.71), shopDoor * step(0.34, bu) * step(bu, 0.66) * step(fv, 0.72));
         float mull = 1.0 - step(0.012, abs(bu - 0.5)) * (1.0 - shopDoor);
-        vec3 interior = vec3(0.0);
+        vec3 interior = vec3(0.0); float night_ = uNight;
         if (glassArea > 0.5) {
           vec3 N = normalize(vWN); vec3 V = normalize(vWPos - cameraPosition);
           if (dot(V, N) > 0.0) N = -N;                  // double-sided walls: always look into the building
-          vec3 T = normalize(cross(N, vec3(0.0, 1.0, 0.0)));
-          float sgn = sign(dot(T, normalize(dFdx(vWPos))) * dFdx(vM.x) + dot(T, normalize(dFdy(vWPos))) * dFdy(vM.x) + 1e-6);   // match T to the direction u increases
-          T *= sgn;
+          // tangent = world direction in which u (metres along the wall) increases: cotangent frame from screen derivatives
+          vec3 dp1 = dFdx(vWPos), dp2 = dFdy(vWPos); float du1 = dFdx(vM.x), du2 = dFdy(vM.x);
+          vec3 Tg = cross(dp2, N) * du1 + cross(N, dp1) * du2; Tg.y = 0.0;
+          vec3 T = length(Tg) > 1e-8 ? normalize(Tg) : normalize(cross(N, vec3(0.0, 1.0, 0.0)));
           vec3 d = normalize(vec3(dot(V, T), V.y, -dot(V, N)));
           float bw = 1.0 / abs(vWall.x);
-          float u0 = (bayI + 0.08) * bw, u1 = (bayI + 0.92) * bw;
-          interior = shopRoom(vec2(vM.x, vM.y - fl * 3.2), d, u0, u1, bayI + floor(vM.x * 0.01) * 31.0 + floor(vWPos.x) * 0.0, uNight);
+          float shopI = floor(bayI / 3.0);   // one shop spans three window bays
+          float u0 = shopI * 3.0 * bw + 0.1, u1 = (shopI * 3.0 + 3.0) * bw - 0.1;
+          interior = shopRoom(vec2(vM.x, vM.y - fl * 3.2), d, u0, u1, shopI + floor(vWPos.x * 0.05) * 7.0 + floor(vWPos.z * 0.05) * 13.0, uNight);
           // glass: tinted, with a fresnel reflection of the sky
           float fres = pow(1.0 - clamp(dot(-V, N), 0.0, 1.0), 4.0);
           vec3 refl = mix(vec3(0.24,0.25,0.27), vec3(0.42,0.5,0.6), clamp(V.y * -3.0 + 0.3, 0.0, 1.0));   // street & facades opposite, sky only when looking up
-          interior = mix(interior, refl, 0.08 + fres * 0.38);
+          interior = mix(interior, refl * (0.35 + 0.25 * (1.0 - night_)), 0.1 + fres * 0.5);
         }
         vec3 frameCol = vec3(0.14,0.13,0.12);
         diffuseColor.rgb = mix(diffuseColor.rgb, frameCol, max(disp, shopDoor * step(0.3, bu) * step(bu, 0.7) * step(fv, 0.8)));
