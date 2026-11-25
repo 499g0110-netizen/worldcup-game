@@ -45,46 +45,88 @@ export function makeFacade(base) {
         float vn2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash12(i), hash12(i+vec2(1,0)), f.x), mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), f.x), f.y); }
         // ---- interior mapping: a real-looking shop room behind the glass, ray-traced per pixel (box room, no textures)
         // p = (u along wall, v height, 0) metres; d = view ray in (along, up, into the wall); room spans [u0,u1] x [0,H] x [0,D]
+        // kinds: 0 bakery · 1 clothing · 2 books · 3 café · 4 florist · 5 department store · 6 shoes/pharmacy
+        float shopKind(float id) { return floor(hash12(vec2(id, 17.0)) * 7.0); }
+        // goods on a wall: a = horizontal coordinate along the wall, y = height
+        vec3 wallGoods(float kind, float a, float y, float id, vec3 wall, out float hit) {
+          hit = 0.0; vec3 c = wall;
+          if (kind < 0.5) {               // bakery: baskets of bread on wooden shelves
+            float row = floor(y / 0.45), fy = fract(y / 0.45), on = step(0.5, y) * step(y, 2.1);
+            float loaf = step(0.15, fy) * step(fy, 0.6) * step(0.2, fract(a / 0.28)) * step(fract(a / 0.28), 0.85);
+            vec3 bread = mix(vec3(0.72,0.48,0.24), vec3(0.55,0.33,0.15), hash12(vec2(floor(a / 0.28), row + id)));
+            c = mix(c, mix(vec3(0.42,0.3,0.2), bread, loaf), on); hit = on;
+          } else if (kind < 1.5) {        // clothing: garments hanging from a rail
+            float on = step(0.75, y) * step(y, 1.85);
+            float gi = floor(a / 0.1), g = step(0.12, fract(a / 0.1));
+            float len = 0.75 + 0.35 * hash12(vec2(gi, id));
+            float garment = g * step(1.85 - len, y);
+            float pal = hash12(vec2(gi, id + 3.0));
+            vec3 col = pal < 0.3 ? vec3(0.12,0.14,0.2) : pal < 0.5 ? vec3(0.85,0.83,0.78) : pal < 0.65 ? vec3(0.55,0.15,0.13) : pal < 0.8 ? vec3(0.3,0.38,0.3) : vec3(0.7,0.6,0.45);
+            c = mix(c, col, on * garment); hit = on * garment;
+            c = mix(c, vec3(0.6), step(1.86, y) * step(y, 1.9));   // the rail
+          } else if (kind < 2.5) {        // books: dense shelving floor to ceiling
+            float row = floor(y / 0.38), fy = fract(y / 0.38), on = step(0.1, y) * step(y, 2.6);
+            float bi = floor(a / 0.04), book = step(0.1, fy) * step(fy, 0.82 - 0.2 * hash12(vec2(bi, row)));
+            vec3 col = mix(vec3(0.2,0.18,0.16), vec3(hash12(vec2(bi, row + id)), hash12(vec2(bi + 3.0, row)), hash12(vec2(bi, row + 9.0))) * 0.6 + 0.15, step(0.15, fract(a / 0.04)));
+            c = mix(c, mix(vec3(0.35,0.24,0.16), col, book), on); hit = on;
+          } else if (kind < 3.5) {        // café: chalkboard menu, cups on a shelf, warm wood panelling
+            c = mix(vec3(0.38,0.26,0.17), wall, step(1.1, y));
+            float board = step(1.3, y) * step(y, 2.2) * step(0.3, fract(a / 3.0)) * step(fract(a / 3.0), 0.75);
+            c = mix(c, vec3(0.12,0.16,0.13), board);
+            float chalk = board * step(0.6, hash12(floor(vec2(a * 30.0, y * 25.0))));
+            c = mix(c, vec3(0.75), chalk * step(0.7, hash12(vec2(floor(y * 12.0), id))));
+            float cups = step(1.05, y) * step(y, 1.15) * step(0.6, fract(a / 0.12));
+            c = mix(c, vec3(0.92), cups); hit = 0.5;
+          } else if (kind < 4.5) {        // florist: tiers of buckets with flowers
+            float tier = floor(y / 0.35), fy = fract(y / 0.35), on = step(0.1, y) * step(y, 1.5);
+            vec2 cell = vec2(floor(a / 0.09), floor(y / 0.06));
+            float bloom = step(0.45, hash12(cell + id));
+            vec3 fl = hash12(cell + 2.0) < 0.33 ? vec3(0.85,0.25,0.35) : hash12(cell + 5.0) < 0.5 ? vec3(0.95,0.8,0.25) : vec3(0.9,0.88,0.85);
+            vec3 col = mix(vec3(0.18,0.35,0.15), fl, bloom);
+            c = mix(c, col, on * step(0.15, fy)); hit = on;
+          } else if (kind < 5.5) {        // department store: white walls, bright displays, a glowing escalator band
+            c = vec3(0.92,0.92,0.9);
+            float shelf = step(0.4, y) * step(y, 2.0) * step(0.2, fract(a / 1.6)) * step(fract(a / 1.6), 0.8);
+            float box = step(0.15, fract(y / 0.33)) * step(0.1, fract(a / 0.25));
+            c = mix(c, mix(vec3(0.85), vec3(hash12(floor(vec2(a / 0.25, y / 0.33)) + id), 0.6, 0.7) * 0.7 + 0.2, box), shelf);
+            float esc = step(abs(y - 0.6 - fract(a * 0.1) * 2.2), 0.08);
+            c = mix(c, vec3(1.0,0.95,0.85) * 1.5, esc * 0.6); hit = shelf;
+          } else {                        // shoes / pharmacy: white shelves with small boxes
+            float row = floor(y / 0.32), fy = fract(y / 0.32), on = step(0.3, y) * step(y, 2.2);
+            float item = step(0.2, fy) * step(fy, 0.6) * step(0.25, fract(a / 0.22)) * step(fract(a / 0.22), 0.8);
+            vec3 col = mix(vec3(0.95), vec3(0.2 + 0.6 * hash12(vec2(floor(a / 0.22), row + id)), 0.3, 0.3), 0.5);
+            c = mix(vec3(0.96), mix(vec3(0.85), col, item), on); hit = on;
+          }
+          return c;
+        }
         vec3 shopRoom(vec2 p, vec3 d, float u0, float u1, float id, float night) {
           const float H = 3.0, D = 6.0;
           vec3 o = vec3(p, 0.0);
           float tx = ((d.x > 0.0 ? u1 : u0) - o.x) / d.x, ty = ((d.y > 0.0 ? H : 0.0) - o.y) / d.y, tz = D / max(d.z, 1e-4);
           float t = min(tx, min(ty, tz)); vec3 h = o + d * t;
-          float kind = hash12(vec2(id, 17.0));   // 0..1 → bakery, books, fashion, café
-          vec3 wall = mix(vec3(0.86,0.8,0.7), vec3(0.75,0.82,0.8), step(0.5, hash12(vec2(id, 3.0))));
+          float kind = shopKind(id), hitG;
+          vec3 wall = kind > 4.5 ? vec3(0.93) : mix(vec3(0.86,0.8,0.7), vec3(0.75,0.82,0.8), step(0.5, hash12(vec2(id, 3.0))));
           vec3 col;
-          if (t == ty && d.y < 0.0) {           // floor: wood planks or checker tiles
-            float plank = step(0.5, hash12(vec2(id, 5.0)));
+          if (t == ty && d.y < 0.0) {           // floor
             float ck = mod(floor(h.x * 2.0) + floor(h.z * 2.0), 2.0);
-            vec3 wood = mix(vec3(0.42,0.28,0.17), vec3(0.5,0.34,0.2), hash12(vec2(floor(h.x * 4.0), id)));
-            col = mix(mix(vec3(0.78,0.76,0.72), vec3(0.25,0.24,0.24), ck), wood * (0.9 + 0.1 * step(0.03, fract(h.x * 4.0))), plank);
-          } else if (t == ty) {                 // ceiling with a row of lamps
-            float lamp = smoothstep(0.18, 0.05, length(vec2(fract(h.x * 0.8) - 0.5, (h.z - 2.0) * 0.4)));
-            col = vec3(0.92,0.9,0.86) * 0.8 + vec3(1.0,0.9,0.7) * lamp * 2.5;
-          } else if (t == tz) {                 // back wall: shelves full of goods
-            float shelfY = fract(h.y / 0.55), shelfRow = floor(h.y / 0.55);
-            float onShelf = step(0.6, h.y) * step(h.y, 2.4);
-            vec2 cell = vec2(floor(h.x / (0.12 + 0.18 * kind)), shelfRow);
-            vec3 goods = vec3(hash12(cell + id), hash12(cell + id + 7.0), hash12(cell + id + 13.0));
-            goods = mix(vec3(dot(goods, vec3(0.33))), goods, 0.5) * 0.85 + 0.08; goods = mix(goods, vec3(0.75,0.55,0.3), step(kind, 0.25) * 0.7);   // bakery: bread tones
-            float item = step(0.12, shelfY) * step(shelfY, 0.85) * step(0.15, fract(h.x / (0.12 + 0.18 * kind)));
-            col = mix(wall, mix(vec3(0.35,0.25,0.18), goods, item), onShelf);
-            col = mix(col, vec3(0.3,0.22,0.15), onShelf * step(shelfY, 0.08));
-          } else {                              // side walls: tall shelving units along the depth of the shop
-            float shelfY = fract(h.y / 0.5), onShelf = step(0.3, h.y) * step(h.y, 2.3);
-            vec2 cell = vec2(floor(h.z / 0.22), floor(h.y / 0.5));
-            vec3 goods = vec3(hash12(cell + id * 1.3), hash12(cell + id + 5.0), hash12(cell + id + 9.0)) * 0.8;
-            goods = mix(vec3(dot(goods, vec3(0.33))), goods, 0.5) * 0.85 + 0.08; goods = mix(goods, vec3(0.75,0.55,0.3), step(kind, 0.25) * 0.7);
-            float item = step(0.14, shelfY) * step(shelfY, 0.82) * step(0.12, fract(h.z / 0.22));
-            col = mix(wall * 0.7, mix(vec3(0.3,0.22,0.16), goods, item), onShelf);
-          }
-          // counter + clothes rail / display table in the middle of the room
-          float tc = (1.0 - o.y) / d.y; vec3 hc = o + d * tc;
-          if (d.y < 0.0 && tc > 0.0 && tc < t && hc.z > 2.2 && hc.z < 2.9 && hc.x > mix(u0, u1, 0.2) && hc.x < mix(u0, u1, 0.75)) col = mix(vec3(0.55,0.4,0.28), vec3(0.85,0.85,0.82), step(0.5, kind));
-          // light falloff toward the back, warm interior light, a little brighter at night
-          float fall = mix(1.0, 0.55, clamp(t / 6.0, 0.0, 1.0));
-          return col * fall * (0.26 + 0.8 * night);   // by day a shop is darker than the street; at night it glows
-        }`)
+            vec3 wood = mix(vec3(0.42,0.28,0.17), vec3(0.5,0.34,0.2), hash12(vec2(floor(h.x * 4.0), id))) * (0.9 + 0.1 * step(0.03, fract(h.x * 4.0)));
+            col = kind > 4.5 ? vec3(0.82,0.8,0.78) : (kind < 0.5 || kind > 2.5 && kind < 3.5) ? mix(vec3(0.82,0.8,0.75), vec3(0.22,0.21,0.2), ck) : wood;
+          } else if (t == ty) {                 // ceiling with lamps
+            float lamp = smoothstep(0.18, 0.05, length(vec2(fract(h.x * 0.8) - 0.5, (fract(h.z * 0.35) - 0.5) * 0.6)));
+            col = vec3(0.92,0.9,0.86) * 0.8 + (kind > 2.5 && kind < 3.5 ? vec3(1.0,0.7,0.4) : vec3(1.0,0.95,0.85)) * lamp * 2.5;
+          } else if (t == tz) col = wallGoods(kind, h.x, h.y, id, wall, hitG);
+          else col = wallGoods(kind, h.z * 1.7, h.y, id + 11.0, wall * 0.85, hitG) * 0.9;
+          // furniture in the middle of the room
+          float tt = (0.9 - o.y) / d.y; vec3 hc = o + d * tt;
+          float mid = (d.y < 0.0 && tt > 0.0 && tt < t) ? 1.0 : 0.0;
+          if (mid > 0.5 && kind < 0.5 && hc.z > 1.2 && hc.z < 1.9 && hc.x > u0 + 0.4 && hc.x < u1 - 0.4) col = mix(vec3(0.85,0.82,0.75), vec3(0.7,0.45,0.22), step(0.5, fract(hc.x * 3.0)) * step(0.3, fract(hc.z * 3.0)));   // bakery glass counter with cakes
+          if (mid > 0.5 && kind > 2.5 && kind < 3.5) { vec2 cc = vec2(fract(hc.x / 1.4) - 0.5, fract(hc.z / 1.6) - 0.5); if (hc.z > 0.8 && length(cc) < 0.28) col = vec3(0.88,0.85,0.8); }   // café round tables
+          if (mid > 0.5 && (kind > 0.5 && kind < 1.5 || kind > 4.5) && hc.z > 2.2 && hc.z < 3.0 && hc.x > mix(u0, u1, 0.25) && hc.x < mix(u0, u1, 0.75)) col = vec3(0.8,0.78,0.74);   // display table
+          if (mid > 0.5 && kind > 3.5 && kind < 4.5 && hc.z < 1.4) { float b = step(0.5, hash12(floor(hc.xz * 8.0) + id)); col = mix(vec3(0.2,0.4,0.18), vec3(0.9,0.3,0.4), b); }   // florist buckets at the window
+          float fall = mix(1.0, 0.55, clamp(t / 7.0, 0.0, 1.0));
+          float warm = kind > 2.5 && kind < 3.5 ? 0.85 : kind > 4.5 ? 1.15 : 1.0;
+          return col * fall * warm * (0.26 + 0.8 * night);
+                }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
         float shop = step(vWall.x, -0.0001); float bayF = vM.x * abs(vWall.x); float bu = fract(bayF); float bayI = floor(bayF);
         float st = vM.y / 3.2; float fv = fract(st); float fl = floor(st);
@@ -136,7 +178,8 @@ export function makeFacade(base) {
         vec3 frameCol = vec3(0.14,0.13,0.12);
         diffuseColor.rgb = mix(diffuseColor.rgb, frameCol, max(disp, shopDoor * step(0.3, bu) * step(bu, 0.7) * step(fv, 0.8)));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02), glassArea * (1.0 - mull));
-        vec3 signCol = vec3(0.12 + 0.5 * hash12(vec2(floor(vM.x * 0.13), 7.0)), 0.1 + 0.3 * hash12(vec2(floor(vM.x * 0.13), 9.0)), 0.1 + 0.25 * hash12(vec2(floor(vM.x * 0.13), 11.0)));
+        float sk = shopKind(floor(bayI / 3.0) + floor(vWPos.x * 0.05) * 7.0 + floor(vWPos.z * 0.05) * 13.0);
+        vec3 signCol = sk < 0.5 ? vec3(0.55,0.35,0.15) : sk < 1.5 ? vec3(0.08,0.08,0.09) : sk < 2.5 ? vec3(0.12,0.22,0.18) : sk < 3.5 ? vec3(0.35,0.12,0.1) : sk < 4.5 ? vec3(0.2,0.35,0.2) : sk < 5.5 ? vec3(0.85,0.85,0.82) : vec3(0.1,0.3,0.45);
         diffuseColor.rgb = mix(diffuseColor.rgb, signCol, fascia);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.62, vous);
         // rain streaks running down from each window sill, and a darker weathered band under the eaves

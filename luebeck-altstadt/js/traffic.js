@@ -50,11 +50,37 @@ export class Traffic {
   constructor(scene, roads, { touch, isFree }) {
     this.scene = scene; this.roads = roads; this.isFree = isFree;
     this.R = touch ? 110 : 180;
-    this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1, group: 3, bench: 3 } : { ped: 24, car: 12, bike: 6, bus: 3, group: 7, bench: 7 };
-    this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [] };
-    this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
+    this.want = touch ? { ped: 10, car: 4, bike: 3, bus: 1, group: 3, bench: 2, cafe: 2 } : { ped: 24, car: 12, bike: 6, bus: 3, group: 6, bench: 5, cafe: 5 };
+    this.agents = []; this.pool = { ped: [], car: [], bike: [], bus: [], group: [], bench: [], cafe: [], busker: [] };
+    this.buskers = []; this.ends = new Map(); this.seq = 0; this.indexed = 0; this.near = []; this.nearT = 0; this.spawnT = 0; this.human = null;
   }
   setHuman(h) { this.human = h; }
+  // street performers on Lübeck's squares (fixed spots: Markt, Klingenberg, Kohlmarkt, Koberg)
+  addBuskers(spots) {
+    const acts = ['guitar', 'juggle', 'statue', 'guitar'];
+    spots.forEach(([x, z, yaw], i) => {
+      const act = acts[i % acts.length], obj = new THREE.Group(); obj.position.set(x, 0, z); obj.rotation.y = yaw; this.scene.add(obj);
+      const look = act === 'statue' ? { skin: 0xc9a44a, top: 0xc9a44a, bottom: 0xc9a44a, hair: 0xb08a35, shoes: 0xb08a35, build: 1, hairStyle: 5, cap: 0xc9a44a, height: 1 } : undefined;
+      const h = createMannequin(this.scene, look); h.root.removeFromParent(); obj.add(h.root); h.talk = Math.random() * 6;
+      if (act === 'statue') { const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.7), new THREE.MeshStandardMaterial({ color: 0x8c8780, roughness: 0.8 })); plinth.position.y = 0.225; obj.add(plinth); h.root.position.y = 0.45; h.model.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.metalness = 0.8; o.material.roughness = 0.35; } }); }
+      const a = { kind: 'busker', act, obj, x, z, yaw, people: [h], static: true, fixed: true, balls: [] };
+      if (act === 'guitar') {   // acoustic guitar held across the body (attached to the chest bone)
+        const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0xa8682e, roughness: 0.4 }), dark = new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.5 });
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.09, 20).rotateX(Math.PI / 2), wood); body.scale.set(1, 1.25, 1); g.add(body);
+        const hole = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), dark); hole.position.z = 0.047; g.add(hole);
+        const neck = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 0.03), dark); neck.position.set(0, 0.42, 0); g.add(neck);
+        g.rotation.set(0, 0, -1.2); g.position.set(0.02, 0.05, 0.16); h.bones.Spine1.add(g);
+        const caseM = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 0.38), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 })); caseM.position.set(0.3, 0.06, 0.9); obj.add(caseM);
+      }
+      if (act === 'juggle') for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 8), new THREE.MeshStandardMaterial({ color: [0xd23a2a, 0xf2c14a, 0x2b6cb0][k], roughness: 0.4 })); obj.add(b); a.balls.push(b); }
+      const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.09, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x202020, roughness: 0.8, side: THREE.DoubleSide })); hat.position.set(-0.4, 0.045, 0.8); obj.add(hat);
+      // a few people stopped to watch, in a loose arc
+      const n = 3 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < n; k++) { const w = createMannequin(this.scene); w.root.removeFromParent(); obj.add(w.root); const ang = -0.9 + k * 1.8 / (n - 1) + (Math.random() - 0.5) * 0.2, r = 2.6 + Math.random() * 0.8; w.root.position.set(Math.sin(ang) * r, 0, Math.cos(ang) * r); w.root.rotation.y = ang + Math.PI; w.talk = Math.random() * 6; a.people.push(w); }
+      obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
+      this.buskers.push(a);
+    });
+  }
   // junction index: polyline end points rounded to 1.5 m
   index() {
     const g = this.roads.graph;
@@ -66,7 +92,7 @@ export class Traffic {
       }
     }
   }
-  allowed(kind, r) { if (kind === 'group' || kind === 'bench') return ['pedestrian', 'footway'].includes(r.k) && !r.b;   // only car-free streets, never in a traffic lane
+  allowed(kind, r) { if (kind === 'group' || kind === 'bench' || kind === 'cafe') return ['pedestrian', 'footway'].includes(r.k) && !r.b && (kind !== 'cafe' || (r.w || 0) >= 5);   // only car-free streets, never in a traffic lane
     return kind === 'bus' ? BUS_ROADS.has(r.k) && !r.b : kind === 'car' ? CAR_ROADS.has(r.k) && !r.b : kind === 'bike' ? BIKE_ROADS.has(r.k) : !NO_WALK.has(r.k); }
 
   /* ---- construction (pooled) ---- */
@@ -76,6 +102,32 @@ export class Traffic {
     if (kind === 'group') {   // 2–3 people standing and talking
       const obj = new THREE.Group(); this.scene.add(obj); const n = 2 + (Math.random() < 0.4 ? 1 : 0), people = [];
       for (let i = 0; i < n; i++) { const h = createMannequin(this.scene); h.root.removeFromParent(); obj.add(h.root); const a = Math.PI / 2 + i / n * Math.PI * 2; h.root.position.set(Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6); h.root.rotation.y = a + Math.PI; h.talk = Math.random() * 6; people.push(h); }
+      return { kind, obj, people };
+    }
+    if (kind === 'cafe') {   // café terrace: 2–3 round tables with chairs under a parasol, some guests
+      const obj = new THREE.Group(); this.scene.add(obj);
+      const iron = new THREE.MeshStandardMaterial({ color: 0x23272a, roughness: 0.45, metalness: 0.7 }), top = new THREE.MeshStandardMaterial({ color: 0xe9e4da, roughness: 0.35 });
+      const cloth = new THREE.MeshStandardMaterial({ color: pick([0xe8e2d4, 0x8a2f24, 0x2f4a3a, 0xd9c7a0, 0x2b3a55]), roughness: 0.9, side: THREE.DoubleSide });
+      const people = [], n = 2 + (Math.random() < 0.5 ? 1 : 0);
+      for (let k = 0; k < n; k++) {
+        const tx = (k - (n - 1) / 2) * 2.4;
+        const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.03, 24), top); tb.position.set(tx, 0.74, 0); obj.add(tb);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.72, 8), iron); leg.position.set(tx, 0.37, 0); obj.add(leg);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.03, 16), iron); foot.position.set(tx, 0.015, 0); obj.add(foot);
+        for (const sd of [-1, 1]) {   // bistro chairs facing the table
+          const ch = new THREE.Group(); ch.position.set(tx + sd * 0.62, 0, 0); ch.rotation.y = sd > 0 ? -Math.PI / 2 : Math.PI / 2; obj.add(ch);
+          const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 16), iron); seat.position.y = 0.46; ch.add(seat);
+          for (const [lx, lz] of [[-0.14, -0.14], [0.14, -0.14], [-0.14, 0.14], [0.14, 0.14]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.46, 6), iron); l.position.set(lx, 0.23, lz); ch.add(l); }
+          const back = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.012, 6, 16, Math.PI), iron); back.position.set(0, 0.62, -0.18); ch.add(back);
+          if (Math.random() < 0.65) { const h = createMannequin(this.scene); h.root.removeFromParent(); obj.add(h.root); h.seat = { x: tx + sd * 0.62, z: 0, yaw: sd > 0 ? -Math.PI / 2 : Math.PI / 2, h: 0.5, table: true }; h.talk = Math.random() * 6; people.push(h); }
+        }
+        if (Math.random() < 0.7) { const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.08, 12), top); cup.position.set(tx + 0.12, 0.8, 0.08); obj.add(cup); }
+      }
+      // parasol over the middle table
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.5, 8), iron); pole.position.set(0, 1.25, 0.9); obj.add(pole);
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(n * 1.3, 0.6, 8, 1, true), cloth); canopy.position.set(0, 2.5, 0.9); obj.add(canopy);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.12, 16), iron); base.position.set(0, 0.06, 0.9); obj.add(base);
+      obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       return { kind, obj, people };
     }
     if (kind === 'bench') {   // wooden park bench with one or two people sitting
@@ -111,8 +163,8 @@ export class Traffic {
     for (let tries = 0; tries < 6; tries++) {
       const r = pick(cand), s = rnd(0, r.len), p = along(r, s), d = Math.hypot(p.x - px, p.z - pz);
       if (d < 35 || d > this.R) continue;        // never pop in right next to the player
-      if (kind === 'group' || kind === 'bench') {
-        const a = this.make(kind), w = r.w || 5, off = Math.max(1.2, w / 2 - (kind === 'bench' ? 0.6 : 1.0)) * (Math.random() < 0.5 ? -1 : 1);
+      if (kind === 'group' || kind === 'bench' || kind === 'cafe') {
+        const a = this.make(kind), w = r.w || 5, off = Math.max(1.2, w / 2 - (kind === 'bench' ? 0.6 : kind === 'cafe' ? 1.8 : 1.0)) * (Math.random() < 0.5 ? -1 : 1);
         a.x = p.x - p.dz * off; a.z = p.z + p.dx * off; a.yaw = Math.atan2(p.dx, p.dz) + (off > 0 ? -Math.PI / 2 : Math.PI / 2); a.v = 0; a.static = true;
         if (this.isFree && !this.isFree(a.x, a.z)) { this.release(a); continue; }
         a.obj.position.set(a.x, 0, a.z); a.obj.rotation.y = a.yaw; a.obj.visible = true; this.agents.push(a); return;
@@ -150,8 +202,12 @@ export class Traffic {
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
       this.spawnT = 0.4;
-      const count = { ped: 0, car: 0, bike: 0, bus: 0, group: 0, bench: 0 }; for (const a of this.agents) count[a.kind]++;
-      for (const k of ['ped', 'group', 'bench', 'car', 'bike', 'bus']) if (count[k] < this.want[k]) { this.spawn(k, px, pz); break; }
+      const count = { ped: 0, car: 0, bike: 0, bus: 0, group: 0, bench: 0, cafe: 0 }; for (const a of this.agents) count[a.kind]++;
+      for (const k of ['ped', 'group', 'cafe', 'bench', 'car', 'bike', 'bus']) if (count[k] < this.want[k]) { this.spawn(k, px, pz); break; }
+    }
+    for (const a of this.buskers) {
+      if (Math.hypot(a.x - px, a.z - pz) > 160) continue;
+      a.people.forEach((h, k) => { h.talk += dt; if (k === 0) this.perform(a, h, dt); else { h.mixer.update(dt); h.bones.Head.rotation.set(-0.05, Math.sin(h.talk * 0.4) * 0.15, 0); } });
     }
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
@@ -161,7 +217,15 @@ export class Traffic {
         for (const h of a.people) {
           h.talk += dt; const gest = Math.max(0, Math.sin(h.talk * 0.9)) ** 3;
           if (a.kind === 'bench') this.sit(h, a.obj, dt * (far ? 4 : 1));
-          else { h.mixer.update(dt * (far ? 4 : 1)); if (h.bones.RightForeArm) { h.bones.RightForeArm.rotation.x -= gest * 0.9; h.bones.RightArm.rotation.x -= gest * 0.35; } h.bones.Head.rotation.y += Math.sin(h.talk * 0.7) * 0.25; }
+          else if (a.kind === 'cafe') this.sit(h, a.obj, dt * (far ? 4 : 1));
+          else if (a.kind === 'busker') this.perform(a, h, dt * (far ? 4 : 1));
+          else {   // standing and chatting: absolute poses (never += — the mixer doesn't rewrite bones whose idle value is unchanged)
+            h.mixer.update(dt * (far ? 4 : 1)); const B = h.bones;
+            B.RightArm.rotation.set(-0.15 - gest * 0.35, 0, -0.12 - gest * 0.15);
+            B.RightForeArm.rotation.set(-0.25 - gest * 0.85, 0, 0);
+            B.LeftArm.rotation.set(0.05, 0, 0.08); B.LeftForeArm.rotation.set(-0.15, 0, 0);
+            B.Head.rotation.set(Math.sin(h.talk * 0.5) * 0.05, Math.sin(h.talk * 0.7) * 0.3, 0);
+          }
         }
         continue;
       }
@@ -224,23 +288,42 @@ export class Traffic {
     twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, ped[1], knee(-1)); twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, ped[0], knee(1));
     twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, grip[1], elb(-1)); twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, grip[0], elb(1));
   }
-  sit(h, bench, dt) {
+  sit(h, obj, dt) {   // h.seat = { x, z, yaw, h } in obj space (seat point, facing direction, seat height)
     h.mixer.update(dt); h.A.idle.setEffectiveWeight(1); h.A.walk.setEffectiveWeight(0); h.A.run.setEffectiveWeight(0);
-    const B = h.bones; h.root.position.set(0, 0, 0); h.root.rotation.set(0, 0, 0); bench.updateMatrixWorld(true);
-    const seat = bench.localToWorld(new THREE.Vector3(h.seatX, 0.5, -0.04)); h.root.updateMatrixWorld(true);
-    const hipsW = B.Hips.getWorldPosition(new THREE.Vector3()), local = h.root.worldToLocal(seat.clone()), hl = h.root.worldToLocal(hipsW.clone());
+    const B = h.bones, S = h.seat || { x: h.seatX, z: -0.04, yaw: 0, h: 0.5 };
+    h.root.position.set(0, 0, 0); h.root.rotation.set(0, S.yaw, 0); obj.updateMatrixWorld(true); h.root.updateMatrixWorld(true);
+    const co = Math.cos(S.yaw), si = Math.sin(S.yaw);
+    const L = (x, y, z) => obj.localToWorld(new THREE.Vector3(S.x + x * co + z * si, y, S.z - x * si + z * co));   // offsets in the sitter's frame (z = forward)
+    const seat = L(0, S.h, 0), hipsW = B.Hips.getWorldPosition(new THREE.Vector3()), local = h.root.parent.worldToLocal(seat.clone()), hl = h.root.parent.worldToLocal(hipsW.clone());
     h.root.position.add(local.sub(hl)); h.root.updateMatrixWorld(true);
-    const L = (x, y, z) => bench.localToWorld(new THREE.Vector3(h.seatX + x, y, z));
-    twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, L(0.12, 0.08, 0.42), L(0.14, 0.9, 1.5));
-    twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, L(-0.12, 0.08, 0.42), L(-0.14, 0.9, 1.5));
-    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, L(0.18, 0.55, 0.22), L(0.6, 0.6, -0.3));
-    twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, L(-0.18, 0.55, 0.22), L(-0.6, 0.6, -0.3));
-    B.Head.rotation.y = Math.sin(h.talk * 0.5) * 0.4; B.Head.updateMatrixWorld(true);
+    B.Spine.rotation.set(0.05, 0, 0); B.Spine1.rotation.set(0.04, 0, 0);
+    twoBoneIK(B.LeftUpLeg, B.LeftLeg, B.LeftFoot, L(0.12, 0.08, 0.46), L(0.14, 0.9, 1.5));
+    twoBoneIK(B.RightUpLeg, B.RightLeg, B.RightFoot, L(-0.12, 0.08, 0.46), L(-0.14, 0.9, 1.5));
+    const lap = S.table ? 0.78 : S.h + 0.05, reach = S.table ? 0.42 : 0.26;
+    twoBoneIK(B.LeftArm, B.LeftForeArm, B.LeftHand, L(0.17, lap, reach), L(0.6, 0.6, -0.3));
+    twoBoneIK(B.RightArm, B.RightForeArm, B.RightHand, L(-0.17, lap + Math.max(0, Math.sin(h.talk * 0.6)) ** 6 * 0.25, reach), L(-0.6, 0.6, -0.3));
+    B.Head.rotation.set(0, Math.sin(h.talk * 0.5) * 0.4, 0); B.Head.updateMatrixWorld(true);
+  }
+  perform(a, h, dt) {   // street performers: guitarist strums, juggler throws balls, living statue holds still
+    h.mixer.update(dt); const B = h.bones, t = h.talk;
+    if (a.act === 'guitar') {
+      B.LeftArm.rotation.set(-0.9, 0, 0.5); B.LeftForeArm.rotation.set(-1.2, 0.3, 0);
+      B.RightArm.rotation.set(-0.5, 0, -0.25); B.RightForeArm.rotation.set(-1.0 - Math.sin(t * 12) * 0.25, 0, 0);
+      B.Head.rotation.set(0.25, Math.sin(t * 0.8) * 0.2, 0); B.Spine1.rotation.set(Math.sin(t * 2) * 0.03, 0, 0);
+    } else if (a.act === 'juggle') {
+      const c = Math.sin(t * 7);
+      B.LeftArm.rotation.set(-0.6 + c * 0.12, 0, 0.2); B.LeftForeArm.rotation.set(-1.1, 0, 0);
+      B.RightArm.rotation.set(-0.6 - c * 0.12, 0, -0.2); B.RightForeArm.rotation.set(-1.1, 0, 0);
+      B.Head.rotation.set(-0.35, 0, 0);
+      a.balls.forEach((b, i) => { const ph = (t * 1.15 + i / 3) % 1, x = Math.cos(ph * Math.PI) * 0.28, y = 1.45 + Math.sin(ph * Math.PI) * 0.75; b.position.set(x, y, 0.35); });
+    } else {   // living statue: frozen pose, a tiny bow when someone is near
+      B.RightArm.rotation.set(-2.6, 0, -0.2); B.RightForeArm.rotation.set(-0.2, 0, 0); B.LeftArm.rotation.set(0, 0, 0.5); B.Head.rotation.set(-0.2, 0.3, 0);
+    }
   }
   // keep the walking player out of pedestrians and parked/moving vehicles
   pushPlayer(x, z, rad) {
-    for (const a of this.agents) {
-      const r = a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : a.kind === 'group' ? 0.9 : a.kind === 'bench' ? 0.95 : 0;
+    for (const a of [...this.agents, ...this.buskers]) {
+      const r = a.kind === 'busker' ? 1.0 : a.kind === 'ped' ? 0.35 : a.kind === 'bike' ? 0.5 : a.kind === 'group' ? 0.9 : a.kind === 'bench' ? 0.95 : a.kind === 'cafe' ? 2.2 : 0;
       if (r) { const dx = x - a.x, dz = z - a.z, d = Math.hypot(dx, dz), m = r + rad; if (d < m && d > 1e-6) { x = a.x + dx / d * m; z = a.z + dz / d * m; } continue; }
       const co = Math.cos(a.yaw), si = Math.sin(a.yaw), dx = x - a.x, dz = z - a.z;
       let lx = dx * co - dz * si, lz = dx * si + dz * co; const hx = (a.kind === 'bus' ? 1.3 : 0.95) + rad, hz = (a.kind === 'bus' ? 6.1 : 2.1) + rad;

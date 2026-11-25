@@ -12,6 +12,7 @@ import { WindowLOD } from './windows.js';
 import { buildHero } from './hero.js';
 import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './actors.js';
 import { InfoCards } from './ui.js';
+import { hasStory } from './stories.js';
 import { Traffic } from './traffic.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
@@ -407,6 +408,35 @@ if (!TOUCH && qName !== 'low' && !refMode) {
 }
 function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
 const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) });
+
+/* ------------------------------------------------------------ story beacons: golden light columns above every landmark with a story film */
+const beaconU = { uTime: { value: 0 } };
+const beaconMat = new THREE.ShaderMaterial({
+  uniforms: beaconU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+  vertexShader: `varying vec2 vUv; varying float vY; void main(){ vUv = uv; vY = position.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform float uTime; varying vec2 vUv; varying float vY;
+    void main(){ float fade = (1.0 - smoothstep(0.0, 1.0, vUv.y)) * smoothstep(0.0, 0.03, vUv.y);
+      float bands = 0.65 + 0.35 * sin(vUv.y * 60.0 - uTime * 3.0);
+      float edge = pow(1.0 - abs(vUv.x - 0.5) * 2.0, 0.0);
+      gl_FragColor = vec4(vec3(1.0, 0.78, 0.35) * fade * bands * 0.55, 1.0); }`,
+});
+const beacons = [];
+for (const l of LM.landmarks) {
+  if (!hasStory(l.id) || l.id === 'st_marien') continue;   // St. Marien shares the devil's beam (same churchyard)
+  const g = new THREE.Group(); g.position.set(l.local_xz_m[0], 0, l.local_xz_m[1]);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 320, 24, 1, true).translate(0, 160, 0), beaconMat); g.add(col);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 320, 12, 1, true).translate(0, 160, 0), beaconMat); g.add(core);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.6, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffc35a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })); ring.position.y = 0.06; g.add(ring);
+  g.renderOrder = 5; scene.add(g); beacons.push({ g, ring, id: l.id });
+}
+// street performers: Markt, Klingenberg, Kohlmarkt, Koberg — placed on open paving once that block has loaded
+const buskerSpots = [[-14, 19], [18, 217], [-20, 46], [256, -555]].map(([x, z]) => ({ x, z, done: false }));
+function placeBuskers() {
+  for (const b of buskerSpots) {
+    if (b.done || !loadedTiles.has(tileKey(b.x, b.z))) continue; b.done = true;
+    for (let r = 0; r < 30; r += 3) for (let a = 0; a < 6.28; a += 0.8) { const x = b.x + Math.cos(a) * r, z = b.z + Math.sin(a) * r; let ok = true; for (const [ox, oz] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]]) if (insideBuilding(x + ox, z + oz) || !walkableC(x + ox, z + oz)) ok = false; if (ok) { traffic.addBuskers([[x, z, Math.random() * 6.28]]); r = 99; break; } }
+  }
+}
 const bike = makeBike(scene), car = makeCar(scene);
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
@@ -743,7 +773,7 @@ const mini = $('#mini'), mctx = mini.getContext('2d');
 function drawMini() {
   const W = mini.width, span = 380 * MAP.k;
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
-  for (const l of LM.landmarks) { const sx = (MAP.X(l.local_xz_m[0]) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(l.local_xz_m[1]) - MAP.Z(P.z)) / span * W + W / 2; if (sx < 0 || sy < 0 || sx > W || sy > W) continue; mctx.fillStyle = '#a8432a'; mctx.beginPath(); mctx.arc(sx, sy, 5, 0, 7); mctx.fill(); }
+  for (const l of LM.landmarks) { const sx = (MAP.X(l.local_xz_m[0]) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(l.local_xz_m[1]) - MAP.Z(P.z)) / span * W + W / 2; if (sx < 0 || sy < 0 || sx > W || sy > W) continue; mctx.fillStyle = hasStory(l.id) ? '#e1b04a' : '#a8432a'; mctx.beginPath(); mctx.arc(sx, sy, hasStory(l.id) ? 7 : 5, 0, 7); mctx.fill(); if (hasStory(l.id)) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 2; mctx.stroke(); } }
   // your bicycle (green), car (blue) and the eagle (black) so they're easy to find
   const mark = (x, z, col, label) => { const sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; const cx = Math.max(12, Math.min(W - 12, sx)), cy = Math.max(12, Math.min(W - 12, sy));
     mctx.fillStyle = col; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3; mctx.beginPath(); mctx.arc(cx, cy, 11, 0, 7); mctx.fill(); mctx.stroke(); mctx.fillStyle = '#fff'; mctx.font = 'bold 13px sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle'; mctx.fillText(label, cx, cy + 1); };
@@ -798,6 +828,8 @@ function frame() {
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
   if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }
   if ((frameN & 63) === 0) queueAround(fx, fz);
+  if ((frameN & 63) === 7) placeBuskers();
+  beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
   const now = performance.now(), ft = now - perf.last; perf.last = now; perf.frames++; perf.acc += ft; perf.worst = Math.max(perf.worst, ft);
