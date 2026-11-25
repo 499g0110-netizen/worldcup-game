@@ -65,6 +65,14 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 setAniso(renderer.capabilities.getMaxAnisotropy());
 
+// if the phone runs out of graphics memory, show a calm message with a one-tap reload (at low quality) instead of a broken page
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  const d = document.createElement('div'); d.className = 'glass'; d.style.cssText = 'position:fixed;inset:auto 16px 40% 16px;z-index:50;padding:16px;text-align:center;font:500 15px var(--f-body);color:#fff';
+  d.innerHTML = '畫面記憶體不足，已暫停。<br><button type="button" style="margin-top:10px;padding:10px 18px;border-radius:10px;border:0;background:#c9a24a;font:700 14px var(--f-body)">以低畫質重新載入</button>';
+  d.querySelector('button').onclick = () => { try { localStorage.setItem('lub-q', 'low'); } catch { /* */ } location.reload(); };
+  document.body.appendChild(d);
+}, false);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xc9d3dc, 700, 3400);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 6000);
@@ -274,6 +282,8 @@ crownMat.onBeforeCompile = (sh) => {
 crownMat.customProgramCacheKey = () => 'crown';
 const trunkGeo = new THREE.CylinderGeometry(0.16, 0.3, 5, 8).translate(0, 2.5, 0), poleGeo = new THREE.CylinderGeometry(0.05, 0.08, 4.4, 8).translate(0, 2.2, 0), headGeo = new THREE.CylinderGeometry(0.16, 0.24, 0.5, 6).translate(0, 4.6, 0);
 const poleMat = new THREE.MeshStandardMaterial({ color: 0x24292b, roughness: 0.5, metalness: 0.6 });
+for (const g of [crownGeo, trunkGeo, poleGeo, headGeo]) g.userData.shared = true;
+const tileGroups = new Map(), everLoaded = new Set(); window.__tileCount = () => tileGroups.size;
 
 const SEG_CELL = 8, segGrid = new Map(), FP_CELL = 32, fpGrid = new Map();
 const extraColliders = [];   // oriented boxes {c, yaw, hx, hz}
@@ -292,32 +302,36 @@ function mergeGeos(list) {   // minimal merge for indexed/non-indexed BufferGeom
   const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return out;
 }
 async function addTileToScene(t) {
+  // every visual of a tile goes into one group so the tile can be unloaded (phones run out of memory otherwise);
+  // collision / road-graph / minimap data are kept after the first load and not added again on a reload
+  const tg = new THREE.Group(); tg.name = 'tile ' + t.__k; scene.add(tg); tileGroups.set(t.__k, tg);
+  const firstTime = !everLoaded.has(t.__k); everLoaded.add(t.__k);
   // ground cover
   for (const gr of t.green) {
-    { let a = 1e9, b = 1e9, c2 = -1e9, d = -1e9; for (let k = 0; k < gr.o.length; k += 2) { a = Math.min(a, gr.o[k]); c2 = Math.max(c2, gr.o[k]); b = Math.min(b, gr.o[k + 1]); d = Math.max(d, gr.o[k + 1]); }
+    if (firstTime) { let a = 1e9, b = 1e9, c2 = -1e9, d = -1e9; for (let k = 0; k < gr.o.length; k += 2) { a = Math.min(a, gr.o[k]); c2 = Math.max(c2, gr.o[k]); b = Math.min(b, gr.o[k + 1]); d = Math.max(d, gr.o[k + 1]); }
       for (let gx = Math.floor(a / 32); gx <= Math.floor(c2 / 32); gx++) for (let gz = Math.floor(b / 32); gz <= Math.floor(d / 32); gz++) { const k = gx + ',' + gz; if (!greenGrid.has(k)) greenGrid.set(k, []); greenGrid.get(k).push(gr); } }
     const sh = new THREE.Shape(toV2(gr.o)); for (const h of gr.i || []) sh.holes.push(new THREE.Path(toV2(h)));
-    const m = new THREE.Mesh(flatShape(sh, 0.012), M.grass); m.receiveShadow = true; scene.add(m);
+    const m = new THREE.Mesh(flatShape(sh, 0.012), M.grass); m.receiveShadow = true; tg.add(m);
   }
   const rd = buildRoads(t);
-  for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; scene.add(m); }
-  roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b);
-  for (const r of rd.graph) for (let i = 0; i < r.p.length / 2 - 1; i++) { const sg = [r.p[2 * i], r.p[2 * i + 1], r.p[2 * i + 2], r.p[2 * i + 3], r.w / 2 + 0.6, r.k]; for (let gx = Math.floor((Math.min(sg[0], sg[2]) - sg[4]) / 16); gx <= Math.floor((Math.max(sg[0], sg[2]) + sg[4]) / 16); gx++) for (let gz = Math.floor((Math.min(sg[1], sg[3]) - sg[4]) / 16); gz <= Math.floor((Math.max(sg[1], sg[3]) + sg[4]) / 16); gz++) { const k = gx + ',' + gz; if (!roadGrid.has(k)) roadGrid.set(k, []); roadGrid.get(k).push(sg); } }
+  for (const [k, a] of Object.entries(rd.accs)) { if (!a.p.length) continue; const m = new THREE.Mesh(a.geo(), M[k]); m.receiveShadow = true; tg.add(m); }
+  if (firstTime) { roads.graph.push(...rd.graph); bridges = roads.graph.filter((r) => r.b); }
+  if (firstTime) for (const r of rd.graph) for (let i = 0; i < r.p.length / 2 - 1; i++) { const sg = [r.p[2 * i], r.p[2 * i + 1], r.p[2 * i + 2], r.p[2 * i + 3], r.w / 2 + 0.6, r.k]; for (let gx = Math.floor((Math.min(sg[0], sg[2]) - sg[4]) / 16); gx <= Math.floor((Math.max(sg[0], sg[2]) + sg[4]) / 16); gx++) for (let gz = Math.floor((Math.min(sg[1], sg[3]) - sg[4]) / 16); gz <= Math.floor((Math.max(sg[1], sg[3]) + sg[4]) / 16); gz++) { const k = gx + ',' + gz; if (!roadGrid.has(k)) roadGrid.set(k, []); roadGrid.get(k).push(sg); } }
   // buildings
   const c = await buildCity(t, { budget: TOUCH ? 5 : 8 });
   for (const [key, a] of c.accs) {
     const kind = key.split('|')[0], mat = kind === 'brick' ? M.brick : kind === 'plaster' ? M.plaster : M[kind] || M.roof_tile;
     const geo = a.geo(); triCount += geo.attributes.position.count / 3;
-    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; tg.add(mesh);
   }
-  windowLOD.add(c.windows, c.doors);
-  for (const m of buildShopfronts(c.shopfronts)) scene.add(m);
-  for (const sg of c.segs) {
+  if (firstTime) windowLOD.add(c.windows, c.doors);
+  for (const m of buildShopfronts(c.shopfronts)) tg.add(m);
+  if (firstTime) for (const sg of c.segs) {
     const i = city.segs.push(sg) - 1; if (sg[5] > 1.5) continue;  // pieces floating above ground don't block walkers
     const x0 = Math.floor(Math.min(sg[0], sg[2]) / SEG_CELL), x1 = Math.floor(Math.max(sg[0], sg[2]) / SEG_CELL), z0 = Math.floor(Math.min(sg[1], sg[3]) / SEG_CELL), z1 = Math.floor(Math.max(sg[1], sg[3]) / SEG_CELL);
     for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++) { const k = gx * 73856093 ^ gz * 19349663; if (!segGrid.has(k)) segGrid.set(k, []); segGrid.get(k).push(i); }
   }
-  for (const f of c.footprints) {
+  if (firstTime) for (const f of c.footprints) {
     const i = city.footprints.push(f) - 1; let a = 1e9, b = 1e9, cc = -1e9, d = -1e9;
     for (let k = 0; k < f.o.length; k += 2) { a = Math.min(a, f.o[k]); cc = Math.max(cc, f.o[k]); b = Math.min(b, f.o[k + 1]); d = Math.max(d, f.o[k + 1]); }
     for (let gx = Math.floor(a / FP_CELL); gx <= Math.floor(cc / FP_CELL); gx++) for (let gz = Math.floor(b / FP_CELL); gz <= Math.floor(d / FP_CELL); gz++) { const k = gx + ',' + gz; if (!fpGrid.has(k)) fpGrid.set(k, []); fpGrid.get(k).push(i); }
@@ -372,24 +386,24 @@ async function addTileToScene(t) {
       m.compose(pv.set(x, 6.3 * k, z), q, sv.set(2.7 * k, 2.3 * k, 2.7 * k)); crowns.setMatrixAt(i, m);   // dense inner mass so the leaf cards never look see-through
       col.setHSL(0.25, 0.4, 0.12); crowns.setColorAt(i, col);
     });
-    trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns, buildLeafCrowns(t.trees, { touch: TOUCH }));
+    trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; tg.add(trunk, crowns, buildLeafCrowns(t.trees, { touch: TOUCH }));
   }
   // park benches (facing the nearest path or street) and playgrounds from OSM
-  buildBenches(scene, (t.benches || []).filter(([x, z]) => !insideBuilding(x, z)), (x, z) => {
+  buildBenches(tg, (t.benches || []).filter(([x, z]) => !insideBuilding(x, z)), (x, z) => {
     let best = null, bd = 1e9; for (const [x1, z1, x2, z2] of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, tt = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)), px = x1 + dx * tt, pz = z1 + dz * tt, d = Math.hypot(x - px, z - pz); if (d < bd) { bd = d; best = [px, pz]; } }
     return best && bd > 0.3 ? Math.atan2(best[0] - x, best[1] - z) : (x * 0.37 + z) % 6.28; });
-  (t.plays || []).forEach((pl, i) => buildPlayground(scene, pl.o, i + (t.__k || '').length));
+  (t.plays || []).forEach((pl, i) => buildPlayground(tg, pl.o, i + (t.__k || '').length));
   // cars parked along the kerbs of residential streets
   { const spots = []; const hp = (n) => { const v = Math.sin(n * 78.233) * 43758.5453; return v - Math.floor(v); };
     for (const r of rd.graph) { if (!['residential', 'living_street', 'unclassified', 'tertiary'].includes(r.k) || r.b) continue;
       for (let i = 0; i < r.p.length / 2 - 1; i++) { const x1 = r.p[2 * i], z1 = r.p[2 * i + 1], x2 = r.p[2 * i + 2], z2 = r.p[2 * i + 3], L = Math.hypot(x2 - x1, z2 - z1); if (L < 8) continue; const ux = (x2 - x1) / L, uz = (z2 - z1) / L;
         for (let d = 5; d < L - 5; d += 6.2) for (const sd of [-1, 1]) { if (hp(x1 * 3 + z1 + d * 7 + sd) > (Math.hypot((x1 - 30) / 345, (z1 + 100) / 780) < 1 ? 0.2 : 0.45)) continue; const off = r.w / 2 + 0.6, x = x1 + ux * d - uz * off * sd, z = z1 + uz * d + ux * off * sd; if (insideBuilding(x, z) || insideBuilding(x - uz * 1.3 * sd, z + ux * 1.3 * sd) || inWater(x, z) || nearRoad(x, z, -0.5)) continue; /* half on the kerb, clear of the traffic and walking lanes */ spots.push([x, z, Math.atan2(ux, uz) + (hp(d + x) < 0.5 ? Math.PI : 0)]); } } }
     if (spots.length) {
-      if (!window.__parkedGeo) { const body = new THREE.BoxGeometry(1.78, 0.72, 4.3).translate(0, 0.55, 0), cab = new THREE.BoxGeometry(1.6, 0.55, 2.2).translate(0, 1.18, -0.2), wheel = []; for (const [wx, wz] of [[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.35], [0.82, -1.35]]) wheel.push(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 12).rotateZ(Math.PI / 2).translate(wx, 0.32, wz)); window.__parkedGeo = [mergeGeos([body, cab]), mergeGeos(wheel), new THREE.BoxGeometry(1.62, 0.5, 2.25).translate(0, 1.19, -0.2)]; }
+      if (!window.__parkedGeo) { const body = new THREE.BoxGeometry(1.78, 0.72, 4.3).translate(0, 0.55, 0), cab = new THREE.BoxGeometry(1.6, 0.55, 2.2).translate(0, 1.18, -0.2), wheel = []; for (const [wx, wz] of [[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.35], [0.82, -1.35]]) wheel.push(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 12).rotateZ(Math.PI / 2).translate(wx, 0.32, wz)); window.__parkedGeo = [mergeGeos([body, cab]), mergeGeos(wheel), new THREE.BoxGeometry(1.62, 0.5, 2.25).translate(0, 1.19, -0.2)]; for (const g of window.__parkedGeo) g.userData.shared = true; }
       const [gB, gW, gG] = window.__parkedGeo, cols = [0x1f1f22, 0xe8e6e0, 0x9aa0a6, 0x2b3a55, 0x7a2e2a, 0x5a6066, 0xf4f4f0, 0x3f5a43, 0x2b6a9b, 0xc9bfa8];
       const bodyM = new THREE.InstancedMesh(gB, new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.55 }), spots.length), wheelM = new THREE.InstancedMesh(gW, new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }), spots.length), glassM = new THREE.InstancedMesh(gG, new THREE.MeshStandardMaterial({ color: 0x1c2630, roughness: 0.08, metalness: 0.6 }), spots.length);
       const c = new THREE.Color(); spots.forEach(([x, z, yaw], i) => { m.compose(pv.set(x, 0, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), sv.set(1, 1, 1)); bodyM.setMatrixAt(i, m); wheelM.setMatrixAt(i, m); glassM.setMatrixAt(i, m); c.setHex(cols[Math.floor(hp(x + z) * cols.length)]); bodyM.setColorAt(i, c); });
-      bodyM.castShadow = true; scene.add(bodyM, wheelM, glassM);
+      bodyM.castShadow = true; tg.add(bodyM, wheelM, glassM);
     } }
   // OSM lamp nodes often sit on the road centreline: move each one out to the kerb of the nearest car road
   t.lamps = t.lamps.map(([x, z]) => {
@@ -402,9 +416,9 @@ async function addTileToScene(t) {
   if (t.lamps.length) {
     const pole = new THREE.InstancedMesh(poleGeo, poleMat, t.lamps.length), head = new THREE.InstancedMesh(headGeo, lampMat, t.lamps.length);
     t.lamps.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); pole.setMatrixAt(i, m); head.setMatrixAt(i, m); });
-    pole.castShadow = true; scene.add(pole, head);
+    pole.castShadow = true; tg.add(pole, head);
   }
-  drawTileOnMap(t, c, rd);
+  if (firstTime) drawTileOnMap(t, c, rd);
   wCache.clear();
 }
 
@@ -429,13 +443,29 @@ async function loadTile(k) {
     await addTileToScene(t); outskirtsRef?.hideTile(k);
   } catch (err) { loadedTiles.delete(k); console.warn('tile', k, err); }
 }
-function queueAround(x, z) { for (const k of tilesAround(x, z, P.mode === 'eagle' ? STREAM_R * 1.8 : STREAM_R)) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
+const UNLOAD_R = TOUCH ? 700 : qName === 'low' ? 1100 : 1600;
+function unloadFar(x, z) {
+  const S = TI.size;
+  for (const [k, tg] of tileGroups) {
+    const [i, j] = k.split('_').map(Number), cx = (i + 0.5) * S, cz = (j + 0.5) * S;
+    if (Math.hypot(cx - x, cz - z) < UNLOAD_R + S * 0.7) continue;
+    scene.remove(tg);
+    tg.traverse((o) => { if (o.isInstancedMesh) o.dispose(); if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
+    tileGroups.delete(k); loadedTiles.delete(k); outskirtsRef?.showTile(k);
+  }
+}
+function queueAround(x, z) {
+  unloadFar(x, z);
+  // drop queued tiles we have moved away from (after a long flight or a jump) so the nearby ones come first
+  const want = new Set(tilesAround(x, z, P.mode === 'eagle' ? (TOUCH ? STREAM_R * 0.8 : STREAM_R * 1.8) : STREAM_R));
+  for (let i = tileQueue.length - 1; i >= 0; i--) if (!want.has(tileQueue[i])) tileQueue.splice(i, 1);
+  for (const k of want) if (!loadedTiles.has(k) && !tileQueue.includes(k)) tileQueue.push(k); pumpTiles(); }
 async function pumpTiles() {
   if (streaming) return; streaming = true;
   while (tileQueue.length) {
     const k = tileQueue.shift(); await loadTile(k);
     const el = $('#stream'); if (el) el.textContent = tileQueue.length ? `載入街區中… 剩 ${tileQueue.length}` : '';
-    await new Promise((r) => setTimeout(r, 30));   // yield so walking stays smooth between tiles
+    await new Promise((r) => setTimeout(r, TOUCH && P.mode === 'eagle' ? 160 : 30));   // yield so walking/flying stays smooth between tiles
   }
   streaming = false;
 }
@@ -1020,6 +1050,39 @@ function drawMini() {
 const focusX = () => (P.mode === 'eagle' || P.mode === 'eagleMount' ? eagle.x : P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x);
 const focusZ = () => (P.mode === 'eagle' || P.mode === 'eagleMount' ? eagle.z : P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z);
 window.__lubP = P;
+// A private compass: tap the "Lübeck" title three times (or type 3 then 4) to show a small gold needle that points
+// to the secret place; tap the needle to go there. No words anywhere — it only means something to whoever knows.
+const secret = { on: false, cv: null, taps: [], keys: '' };
+{
+  const cv = document.createElement('canvas'); cv.width = cv.height = 112; cv.className = 'hud'; cv.id = 'secret';
+  cv.style.cssText = 'position:fixed;z-index:6;width:46px;height:46px;left:max(14px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 58px);display:none;cursor:pointer;pointer-events:auto;opacity:.85';
+  document.body.appendChild(cv); secret.cv = cv;
+  const toggle = () => { secret.on = !secret.on; cv.style.display = secret.on ? 'block' : 'none'; const r = $('#hudTL').getBoundingClientRect(); cv.style.top = (r.bottom + 8) + 'px'; };
+  $('#hudTL').style.pointerEvents = 'auto';
+  $('#hudTL').addEventListener('pointerdown', (e) => { e.stopPropagation(); const now = performance.now(); secret.taps = secret.taps.filter((t) => now - t < 1200); secret.taps.push(now); if (secret.taps.length >= 3) { secret.taps = []; toggle(); } });
+  addEventListener('keydown', (e) => { if (e.target.closest?.('input,select,textarea')) return; secret.keys = (secret.keys + e.key).slice(-2); if (secret.keys === '34') toggle(); });
+  cv.addEventListener('pointerdown', (e) => e.stopPropagation());
+  cv.addEventListener('click', (e) => {
+    e.stopPropagation(); if (!hint) return;
+    if (P.mode !== 'walk') { interact(); return; }   // get off first; tap again to go
+    const [gx, gz] = hint.goal, [ex, ez] = hint.stand, L = Math.hypot(ex - gx, ez - gz) || 1, sx = ex + (ex - gx) / L * 3, sz = ez + (ez - gz) / L * 3;   // a few steps in front of the entrance, facing the door
+    fade(() => { P.x = sx; P.z = sz; P.yaw = Math.atan2(gx - sx, gz - sz); camYaw = P.yaw + Math.PI; camera.userData.init = false; queueAround(sx, sz); });
+  });
+}
+function fade(fn) { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;z-index:60;background:#000;opacity:0;transition:opacity .45s;pointer-events:none'; document.body.appendChild(f); requestAnimationFrame(() => (f.style.opacity = '1')); setTimeout(() => { fn(); setTimeout(() => { f.style.opacity = '0'; setTimeout(() => f.remove(), 500); }, 700); }, 480); }
+const camFwd = new THREE.Vector3();
+function drawSecret() {
+  if (!secret.on || !hint) return;
+  const g = secret.cv.getContext('2d'), W = 112, fx = focusX(), fz = focusZ(), [gx, gz] = hint.goal, dx = gx - fx, dz = gz - fz, d = Math.hypot(dx, dz);
+  camera.getWorldDirection(camFwd); const fl = Math.hypot(camFwd.x, camFwd.z) || 1, f = [camFwd.x / fl, camFwd.z / fl], r = [-f[1], f[0]];
+  const ang = Math.atan2(dx * r[0] + dz * r[1], dx * f[0] + dz * f[1]);
+  g.clearRect(0, 0, W, W);
+  g.fillStyle = 'rgba(18,20,26,.42)'; g.beginPath(); g.arc(56, 56, 54, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(225,194,122,.85)'; g.lineWidth = 3; g.beginPath(); g.arc(56, 56, 50, 0, 7); g.stroke();
+  if (d < 26) { g.fillStyle = '#e1c27a'; g.font = '700 52px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('✦', 56, 58); return; }
+  g.save(); g.translate(56, 56); g.rotate(ang); g.fillStyle = '#e1c27a'; g.beginPath(); g.moveTo(0, -38); g.lineTo(11, 6); g.lineTo(0, 0); g.lineTo(-11, 6); g.closePath(); g.fill(); g.restore();
+  g.fillStyle = 'rgba(255,255,255,.9)'; g.font = '600 20px "IBM Plex Mono", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(d >= 1000 ? (d / 1000).toFixed(1) : String(Math.round(d / 10) * 10), 56, 80);
+}
 const perf = { frames: 0, acc: 0, worst: 0, last: performance.now() };
 
 /* ------------------------------------------------------------ loop */
@@ -1068,7 +1131,7 @@ function frame() {
   else if (P.mode === 'car') { prompt.textContent = `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else prompt.hidden = true;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
-  if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); }
+  if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); drawSecret(); }
   if ((frameN & 63) === 0) queueAround(fx, fz);
   if ((frameN & 63) === 7) placeBuskers();
   if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));

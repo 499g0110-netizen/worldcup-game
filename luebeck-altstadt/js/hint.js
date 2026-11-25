@@ -31,8 +31,8 @@ export function buildHint(scene, hint, step = 12) {
   // plane's +v (texture "up") lies along -z after rotateX(-90°); rotate so it points along the walking direction
   marks.forEach(([x, z, yaw], i) => { q.setFromAxisAngle(up, yaw + Math.PI); m.compose(v.set(x, 0.09, z), q, one); inst.setMatrixAt(i, m); });
   inst.receiveShadow = true; scene.add(inst);
-  const [gx, gz] = pts[pts.length - 1];
+  const [gx, gz] = hint.stand || pts[pts.length - 1];   // the brass '34' plate lies on the pavement right at the entrance
   const goal = new THREE.Mesh(new THREE.CircleGeometry(0.45, 32).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: goalTexture(), metalness: 0.85, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   goal.position.set(gx, 0.075, gz); scene.add(goal);
-  return { marks, pts, goal: [gx, gz] };
+  return { marks, pts, stand: [gx, gz], goal: hint.goal || [gx, gz] };
 }

@@ -14,7 +14,7 @@ function benchParts() {
   for (let i = 0; i < 3; i++) slats.push(new THREE.BoxGeometry(1.8, 0.09, 0.035).rotateX(-0.25).translate(0, 0.62 + i * 0.12, -0.27 - i * 0.03));
   for (const x of [-0.75, 0.75]) { frame.push(new THREE.BoxGeometry(0.05, 0.45, 0.05).translate(x, 0.22, 0.12), new THREE.BoxGeometry(0.05, 0.9, 0.05).rotateX(-0.2).translate(x, 0.44, -0.25), new THREE.BoxGeometry(0.05, 0.05, 0.45).translate(x, 0.43, -0.05)); }
   const merge = (list) => { const pos = [], nor = []; for (let g of list) { g = g.index ? g.toNonIndexed() : g; pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); } const o = new THREE.BufferGeometry(); o.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); o.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return o; };
-  return (benchGeos = [merge(slats), merge(frame)]);
+  benchGeos = [merge(slats), merge(frame)]; for (const g of benchGeos) g.userData.shared = true; return benchGeos;
 }
 export function buildBenches(scene, benches, yawAt) {
   if (!benches.length) return;

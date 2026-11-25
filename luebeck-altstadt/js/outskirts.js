@@ -51,5 +51,7 @@ export function buildOutskirts(scene, { tiles, tileSize, inWater, touch, skip = 
   for (const o of [W, Rf, Fl, T, Tk]) { o.receiveShadow = true; o.castShadow = false; scene.add(o); }
   const zero = new THREE.Matrix4().makeScale(0, 0, 0);
   return { houses: houses.length, trees: trees.length,
-    hideTile(key) { const l = byKey.get(key); if (!l) return; for (const [mesh, i] of l) { mesh.setMatrixAt(i, zero); mesh.instanceMatrix.needsUpdate = true; } byKey.delete(key); } };
+    hidden: new Map(),
+    hideTile(key) { const l = byKey.get(key); if (!l || this.hidden.has(key)) return; const saved = []; for (const [mesh, i] of l) { const mm = new THREE.Matrix4(); mesh.getMatrixAt(i, mm); saved.push(mm); mesh.setMatrixAt(i, zero); mesh.instanceMatrix.needsUpdate = true; } this.hidden.set(key, saved); },
+    showTile(key) { const l = byKey.get(key), saved = this.hidden.get(key); if (!l || !saved) return; l.forEach(([mesh, i], n) => { mesh.setMatrixAt(i, saved[n]); mesh.instanceMatrix.needsUpdate = true; }); this.hidden.delete(key); } };
 }
