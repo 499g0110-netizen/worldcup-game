@@ -87,7 +87,8 @@ def feature(tags, outer, inner=()):
     }
 
 buildings, parts, water, green, roads, rails, pois = [], [], [], [], [], [], []
-bridges, rings = [], []   # man_made=bridge outlines; roundabout rings (for the central islands)
+bridges, rings = [], []
+shops, benches, plays = [], [], []   # shop / café POIs (for shop fronts), park benches, playgrounds   # man_made=bridge outlines; roundabout rings (for the central islands)
 used_as_outer = set()
 for rid, (members, tags) in rels.items():
     if tags.get('type') != 'multipolygon': continue
@@ -116,6 +117,8 @@ for wid, (refs, tags) in ways.items():
         p = P();  (p and water.append({'o': flat(p), 'i': None, 'n': tags.get('name')}))
     elif closed and (tags.get('leisure') in ('park', 'garden') or tags.get('landuse') in ('grass', 'meadow', 'village_green', 'recreation_ground')):
         p = P();  (p and green.append({'o': flat(p), 'i': None}))
+    elif closed and tags.get('leisure') == 'playground':
+        p = P();  (p and plays.append({'o': flat(p), 'n': tags.get('name')}))
     elif closed and tags.get('man_made') == 'bridge':
         p = P();  (p and bridges.append({'o': flat(p), 'n': tags.get('name')}))
     if 'highway' in tags and closed and tags.get('junction') in ('roundabout', 'circular'):
@@ -130,8 +133,14 @@ for wid, (refs, tags) in ways.items():
     elif tags.get('railway') in ('rail',) :
         p = P();  (p and rails.append([c for q in p for c in q]))
 
+SHOP_KIND = {'bakery': 0, 'pastry': 0, 'clothes': 1, 'shoes': 1, 'fashion': 1, 'boutique': 1, 'books': 2, 'stationery': 2, 'newsagent': 2, 'cafe': 3, 'restaurant': 3, 'fast_food': 3, 'ice_cream': 3, 'pub': 3, 'bar': 3,
+             'florist': 4, 'greengrocer': 4, 'garden_centre': 4, 'supermarket': 5, 'department_store': 5, 'mall': 5, 'convenience': 5, 'variety_store': 5, 'kiosk': 5,
+             'chemist': 6, 'pharmacy': 6, 'cosmetics': 6, 'hairdresser': 6, 'beauty': 6, 'optician': 6, 'medical_supply': 6}
 trees, lamps = [], []
 for nid, (lat, lon, tags) in nodes.items():
+    kind = tags.get('shop') or (tags.get('amenity') if tags.get('amenity') in ('cafe', 'restaurant', 'fast_food', 'ice_cream', 'pub', 'bar', 'pharmacy') else None)
+    if kind: x, z = local(lat, lon); shops.append([x, z, SHOP_KIND.get(kind, 5)])
+    if tags.get('amenity') == 'bench': benches.append(list(local(lat, lon)))
     if tags.get('natural') == 'tree': trees.append(local(lat, lon))
     elif tags.get('highway') == 'street_lamp': lamps.append(local(lat, lon))
 for nid, (lat, lon, tags) in nodes.items():
@@ -189,7 +198,7 @@ out = {
         'crs': 'ETRS89 / UTM 32N (EPSG:25832) -> local metres, x=east, z=south',
         'origin_latlon': ORIGIN_LATLON, 'origin_utm': [round(E0, 2), round(N0, 2)],
     },
-    'buildings': buildings, 'parts': parts, 'water': water, 'green': green, 'roads': roads, 'rails': rails, 'pois': pois, 'trees': trees, 'lamps': lamps, 'bridges': bridges, 'rings': rings,
+    'buildings': buildings, 'parts': parts, 'water': water, 'green': green, 'roads': roads, 'rails': rails, 'pois': pois, 'trees': trees, 'lamps': lamps, 'bridges': bridges, 'rings': rings, 'shops': shops, 'benches': benches, 'plays': plays,
 }
 json.dump(out, open(OUT, 'w'), separators=(',', ':'), ensure_ascii=False)
 print({k: len(v) for k, v in out.items() if isinstance(v, list)}, os.path.getsize(OUT) // 1024, 'KB')

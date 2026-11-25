@@ -102,6 +102,13 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
   let nB = 0;
 
   const items = [];
+  // OSM shop / café / pharmacy points inside a building turn its ground floor into a shop of the matching kind
+  for (const sp of data.shops || []) for (const b of data.buildings) {
+    if (b.__shopKind != null || !b.o) continue; const o = b.o; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (let k = 0; k < o.length; k += 2) { x0 = Math.min(x0, o[k]); x1 = Math.max(x1, o[k]); z0 = Math.min(z0, o[k + 1]); z1 = Math.max(z1, o[k + 1]); }
+    if (sp[0] < x0 - 1 || sp[0] > x1 + 1 || sp[1] < z0 - 1 || sp[1] > z1 + 1) continue;
+    if (pip(sp[0], sp[1], o)) { b.__shopKind = sp[2]; break; }
+  }
   for (const b of data.buildings) if (!b.hasParts) items.push([b, false]);
   for (const p of data.parts) items.push([p, true]);
 
@@ -144,7 +151,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
     else if (brick) { const v = 0.82 + hash(seed * 13) * 0.25; tint = new THREE.Color(v, v * (0.94 + hash(seed * 7) * 0.08), v * (0.9 + hash(seed * 5) * 0.1)); }
     else tint = PLASTER_TINTS[Math.floor(seed * 97) % PLASTER_TINTS.length];
     const rk = shape === 'flat' ? 'flat' : roofKind(t);
-    const shop = !isPart && minH < 0.5 && (SHOP_STREETS.has(t['addr:street']) || !!t.shop || /cafe|restaurant|bank|pharmacy|pub|ice_cream/.test(t.amenity || ''));
+    const shop = !isPart && minH < 0.5 && (f.__shopKind != null || SHOP_STREETS.has(t['addr:street']) || !!t.shop || /cafe|restaurant|bank|pharmacy|pub|ice_cream/.test(t.amenity || ''));
     const tileKey = Math.floor(cx / TILE) + ',' + Math.floor(cz / TILE);
     const wallAcc = acc((brick ? 'brick|' : 'plaster|') + tileKey, true);
     const roofAcc = acc('roof_' + rk + '|' + tileKey);
@@ -187,7 +194,7 @@ export async function buildCity(data, { onProgress, budget = 6 } = {}) {
       const win = ewOut[i] === '1' && !isChurchish && (!isPart || partOk) && L > 1.6 && eave - minH > 2.4;  // landmark parts (churches, gates) get no generic windows
       const nb = Math.max(1, Math.round(L / BAY)), scale = nb / L;
       const dBay = i === doorEdge ? Math.floor(nb / 2) : -1;
-      const wk = Math.floor(hash(seed * 7.3 + i * 1.7) * 7);   // shop-type offset for this wall: shop n on it is kind (n*3 + wk) % 7 (same formula in the shader)
+      const wk = f.__shopKind ?? Math.floor(hash(seed * 7.3 + i * 1.7) * 7);   // shop-type offset for this wall: shop n on it is kind (n*3 + wk) % 7 (same formula in the shader)
       const W = [win ? (shop ? -scale : scale) : 0, win ? (brick ? 1.25 : 1) + (shop ? 10 * (wk + 1) : 0) : 0, eave, dBay];
       if (shop && win && ewOut[i] === '1' && L > 3) shopfronts.push({ x1, z1, ux: (x2 - x1) / L, uz: (z2 - z1) / L, L, nb, scale, wk, minH, eave, tint, brick, seed: hash(seed * 3.1 + i) });   // negative bay scale = shop front on the ground floor
       wallAcc.tri([x1, minH, z1], [x2, y2, z2], [x2, minH, z2], [0, minH], [L, y2], [L, minH], tint, W, [y1, y2, y2]);

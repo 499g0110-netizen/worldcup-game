@@ -6,6 +6,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { buildCity, buildRoads, pip, signedArea } from './city.js';
 import { makeMaterials, setAniso, facadeUniforms } from './materials.js';
 import { WindowLOD } from './windows.js';
@@ -27,6 +29,9 @@ import { buildOutskirts } from './outskirts.js';
 import { buildMarien } from './marien.js';
 import { buildBridges } from './bridges.js';
 import { FloatingNotes } from './notes.js';
+import { buildBenches, buildPlayground } from './parks.js';
+import { buildHint } from './hint.js';
+import { addVehicleLights, setVehicleNight, CAR_LIGHTS, BIKE_LIGHTS } from './vlights.js';
 import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
 import { createMannequin, PLAYER_LOOK } from './mannequin.js';
 import { makeEagle } from './eagle.js';
@@ -68,6 +73,7 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 60
 // The city is split into 250 m tiles (tools/tile_city.py). Only the base layer (water, landmarks) and the tiles
 // around the player are fetched before entry; the rest streams in while walking. Loaded tiles are kept.
 status('讀取地圖資料…');
+const hintData = fetch('data/hint.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
 const [base, LM, TI] = await Promise.all(['data/base.json', 'data/landmarks.json', 'data/tiles/index.json'].map((u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); })));
 const M = makeMaterials(TOUCH || qName === 'low' ? 'assets/tex_s' : 'assets/tex');
 const STREAM_R = TOUCH ? 420 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
@@ -131,17 +137,20 @@ function applyTime(i) {
   const t = TIMES[i], night = t.elev < 0, dusk = THREE.MathUtils.clamp(1 - t.elev / 15, 0, 1);
   sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - t.elev), THREE.MathUtils.degToRad(t.az));
   SU.sunPosition.value.copy(sunDir);
-  SU.uZenith.value.set(night ? 0x050a1a : 0x2f6cc9).lerp(new THREE.Color(0x3b4f8a), night ? 0 : dusk * 0.6);
-  SU.uHorizon.value.set(night ? 0x0d1426 : 0xc4dcf2).lerp(new THREE.Color(0xf2a96b), night ? 0 : dusk * 0.85);
+  SU.uZenith.value.set(night ? 0x050a1a : 0x1d5cc8).lerp(new THREE.Color(0x3b4f8a), night ? 0 : dusk * 0.6);
+  SU.uHorizon.value.set(night ? 0x0d1426 : 0xb2d2f2).lerp(new THREE.Color(0xf2a96b), night ? 0 : dusk * 0.85);
   SU.uGlow.value.set(night ? 0x000000 : 0xfff0d0).lerp(new THREE.Color(0xff9a50), dusk);
   if (envRT) envRT.dispose(); envRT = pmrem.fromScene(envScene, 0.02); scene.environment = envRT.texture; scene.environmentIntensity = night ? 0.15 : 0.9;
   if (night) { sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(50), THREE.MathUtils.degToRad(t.az + 160)); sun.color.setRGB(0.55, 0.65, 1); sun.intensity = 0.35; }
-  else { sun.color.setRGB(1, 0.96 - dusk * 0.3, 0.9 - dusk * 0.5); sun.intensity = 2.6 - dusk * 1.4; }
-  hemi.intensity = night ? 0.18 : 0.35;
+  else { sun.color.setRGB(1, 0.95 - dusk * 0.3, 0.86 - dusk * 0.5); sun.intensity = 3.1 - dusk * 1.7; }
+  hemi.intensity = night ? 0.18 : 0.3;
+  if (typeof gradePass !== 'undefined' && gradePass) { gradePass.uniforms.uDusk.value = night ? 0 : dusk; gradePass.uniforms.uNight.value = night ? 1 : 0; }
+  if (typeof bloomPass !== 'undefined' && bloomPass) { bloomPass.threshold = night ? 0.55 : dusk > 0.5 ? 0.75 : 0.92; bloomPass.strength = night ? 0.55 : dusk > 0.5 ? 0.45 : 0.32; }
   const fogC = night ? new THREE.Color(0x0b1020) : new THREE.Color().setRGB(0.68 + dusk * 0.2, 0.78 - dusk * 0.04, 0.9 - dusk * 0.25);
   scene.fog.color.copy(fogC); renderer.setClearColor(fogC);
   renderer.toneMappingExposure = t.exp;
   facadeUniforms.uNight.value = night ? 1 : 0;
+  setVehicleNight(night ? 1 : dusk > 0.6 ? 0.75 : 0);   // headlights on at dusk and at night
   windowLOD?.setNight(night ? 1 : 0);
   lampMat.emissiveIntensity = night ? 8 : dusk > 0.7 ? 3 : 0.0;
   cloudU.uSun.value.copy(sunDir); cloudU.uNight.value = night ? 0.85 : 0; cloudU.uTint.value.setRGB(1, 1 - dusk * 0.25, 1 - dusk * 0.45);
@@ -218,8 +227,9 @@ function rippleTex(fine) {
 
 /* minimap canvas, drawn incrementally as tiles arrive (2048 px for 2.4 km) */
 const MAP = (() => {
-  const S = 2400, cv = document.createElement('canvas'); cv.width = cv.height = 2048; const g = cv.getContext('2d'), k = 2048 / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
-  g.fillStyle = '#e8e4da'; g.fillRect(0, 0, 2048, 2048);
+  // covers the old town and the districts around it (±2.6 km), incl. St. Jürgen
+  const S = 5200, R = TOUCH ? 2048 : 3072, cv = document.createElement('canvas'); cv.width = cv.height = R; const g = cv.getContext('2d'), k = R / S, X = (x) => (x + S / 2) * k, Z = (z) => (z + S / 2) * k;
+  g.fillStyle = '#e8e4da'; g.fillRect(0, 0, R, R);
   const poly = (o, fill) => { g.beginPath(); for (let i = 0; i < o.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, X(o[i]), Z(o[i + 1])); g.closePath(); g.fillStyle = fill; g.fill(); };
   for (const w of WATER) poly(w.o, '#9cc1d6');
   return { cv, g, X, Z, k, poly };
@@ -364,6 +374,11 @@ async function addTileToScene(t) {
     });
     trunk.castShadow = crowns.castShadow = true; crowns.receiveShadow = true; scene.add(trunk, crowns, buildLeafCrowns(t.trees, { touch: TOUCH }));
   }
+  // park benches (facing the nearest path or street) and playgrounds from OSM
+  buildBenches(scene, (t.benches || []).filter(([x, z]) => !insideBuilding(x, z)), (x, z) => {
+    let best = null, bd = 1e9; for (const [x1, z1, x2, z2] of roadGrid.get(Math.floor(x / 16) + ',' + Math.floor(z / 16)) || []) { const dx = x2 - x1, dz = z2 - z1, L2 = dx * dx + dz * dz || 1, tt = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L2)), px = x1 + dx * tt, pz = z1 + dz * tt, d = Math.hypot(x - px, z - pz); if (d < bd) { bd = d; best = [px, pz]; } }
+    return best && bd > 0.3 ? Math.atan2(best[0] - x, best[1] - z) : (x * 0.37 + z) % 6.28; });
+  (t.plays || []).forEach((pl, i) => buildPlayground(scene, pl.o, i + (t.__k || '').length));
   // cars parked along the kerbs of residential streets
   { const spots = []; const hp = (n) => { const v = Math.sin(n * 78.233) * 43758.5453; return v - Math.floor(v); };
     for (const r of rd.graph) { if (!['residential', 'living_street', 'unclassified', 'tertiary'].includes(r.k) || r.b) continue;
@@ -484,6 +499,7 @@ const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
 buildMarien(scene);
+const hint = await hintData.then((h) => (h ? buildHint(scene, h) : null)); window.__hint = hint;
 const bridgeSet = buildBridges(scene, { bridges: base.bridges || [], rings: base.rings || [], inWater, oldTown: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.15 }); extraColliders.push(...bridgeSet.colliders);
 buildShed(scene);
 const fountain = buildFountain(scene, { x: 29.5, z: 22, yaw: Math.atan2(39 - 21, -19 - 56) + Math.PI / 2 });
@@ -545,6 +561,8 @@ function placeBuskers() {
   }
 }
 const bike = makeBike(scene), car = makeCar(scene);
+addVehicleLights(car.body, { ...CAR_LIGHTS, spot: !TOUCH, mats: [[car.headM, 0.3, 2.5], [car.tailM, 0.5, 2.2]] });
+addVehicleLights(bike.lean, { ...BIKE_LIGHTS, spot: !TOUCH, spotIntensity: 14 });
 const LMby = Object.fromEntries(LM.landmarks.map((l) => [l.id, l]));
 // spawn: on the Markt side of St. Marien, looking at the devil
 // spawn: on Holstentorplatz, west of the gate, looking at its field side (like the reference photo)
@@ -560,13 +578,55 @@ function nearestRoadPoint(x, z, kinds) { let best = null, bd = 1e9; for (const r
 }
 
 /* ------------------------------------------------------------ post */
-let composer = null, aoPass = null;
-if (Q.aa || Q.ao) {
-  composer = new EffectComposer(renderer); composer.setPixelRatio(Math.min(devicePixelRatio, Q.dpr)); composer.setSize(innerWidth, innerHeight);
+let composer = null, aoPass = null, bloomPass = null;
+// Cinematic grade, applied after tone mapping (display space): filmic contrast curve, vibrance, warm highlights /
+// cool shadows (split toning like the summer photos), local-contrast "clarity", soft vignette, fine film grain.
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 }, uDusk: { value: 0 }, uNight: { value: 0 }, uClarity: { value: 0.35 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uTime, uDusk, uNight, uClarity; varying vec2 vUv;
+    float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      // clarity: unsharp mask on luminance (crisper brick, windows, roof tiles)
+      vec2 px = 1.0 / uRes; float b = 0.0;
+      b += luma(texture2D(tDiffuse, vUv + vec2( px.x, 0.0) * 1.5).rgb); b += luma(texture2D(tDiffuse, vUv - vec2( px.x, 0.0) * 1.5).rgb);
+      b += luma(texture2D(tDiffuse, vUv + vec2(0.0,  px.y) * 1.5).rgb); b += luma(texture2D(tDiffuse, vUv - vec2(0.0,  px.y) * 1.5).rgb);
+      float l = luma(c); c += (l - b * 0.25) * uClarity;
+      // contrast S-curve around mid-grey
+      c = clamp(c, 0.0, 1.0); c = mix(c, c * c * (3.0 - 2.0 * c), 0.28);
+      // vibrance: boost low-saturation colours more than already saturated ones (blue sky, red brick, green leaves)
+      l = luma(c); float sat = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+      c = mix(vec3(l), c, 1.0 + 0.32 * (1.0 - sat) * (1.0 - uNight * 0.6));
+      // split toning: warm highlights, slightly cool shadows; stronger warmth at dusk
+      vec3 warm = vec3(1.04, 1.0, 0.93) + vec3(0.05, 0.0, -0.06) * uDusk, cool = vec3(0.96, 0.99, 1.05);
+      c *= mix(cool, warm, smoothstep(0.15, 0.75, l));
+      // vignette
+      vec2 q = vUv - 0.5; c *= 1.0 - 0.28 * smoothstep(0.35, 0.95, length(q * vec2(1.15, 1.0)));
+      // film grain (very fine)
+      float g = fract(sin(dot(vUv * uRes + uTime * 61.0, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+      c += g * 0.018;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+};
+let gradePass = null;
+{
+  const dprC = Math.min(devicePixelRatio, Q.dpr);
+  composer = new EffectComposer(renderer); composer.setPixelRatio(dprC); composer.setSize(innerWidth, innerHeight);
   composer.addPass(new RenderPass(scene, camera));
-  if (Q.ao) { aoPass = new GTAOPass(scene, camera, innerWidth, innerHeight); aoPass.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1.0, scale: 1.0 }); aoPass.blendIntensity = 0.85; composer.addPass(aoPass); }
+  const wantAO = (Q.ao || (!TOUCH && qName === 'medium')) && !params.has('noao');
+  if (wantAO) { aoPass = new GTAOPass(scene, camera, innerWidth, innerHeight); aoPass.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1.5, thickness: 1.2, scale: 1.1, samples: Q.ao ? 16 : 8 }); aoPass.blendIntensity = 0.9; composer.addPass(aoPass); }
+  // bloom only on bright things: sun glints on the river, lit windows and lamps at dusk, the sky around the sun
+  // guard: a single NaN/Inf pixel (e.g. a degenerate normal on a specular highlight) would be smeared by the bloom blur
+  // into a large black block — replace invalid values and clamp extreme highlights before bloom
+  if (qName !== 'low' && !params.has('nobloom')) composer.addPass(new ShaderPass({ uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0); gl_FragColor = vec4(min(c.rgb, vec3(40.0)), 1.0); }' }));
+  if (qName !== 'low' && !params.has('nobloom')) { bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.32, 0.6, 0.92); composer.addPass(bloomPass); }
   composer.addPass(new OutputPass());
-  if (Q.aa) composer.addPass(new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio()));
+  if (!params.has('nograde')) gradePass = new ShaderPass(GradeShader);
+  if (gradePass) { gradePass.uniforms.uRes.value.set(innerWidth * dprC, innerHeight * dprC); gradePass.uniforms.uClarity.value = TOUCH ? 0.22 : 0.35; composer.addPass(gradePass); }
+  if (Q.aa) composer.addPass(new SMAAPass(innerWidth * dprC, innerHeight * dprC));
 }
 applyTime(timeIdx);
 
@@ -578,7 +638,7 @@ addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase(); keys.add(k);
   if (!started) return;
   if (k === 'e') interact(); else if (k === 'f') callEagle(); else if (k === 't') { timeIdx = (timeIdx + 1) % TIMES.length; applyTime(timeIdx); }
-  else if (k === 'v') { firstPerson = !firstPerson; } else if (k === 'f3') { $('#perf').hidden = !$('#perf').hidden; e.preventDefault(); }
+  else if (k === 'v') { firstPerson = !firstPerson; } else if (k === 'c') summon('car'); else if (k === 'b') summon('bike'); else if (k === 'f3') { $('#perf').hidden = !$('#perf').hidden; e.preventDefault(); }
   if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
 });
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
@@ -600,6 +660,7 @@ canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' &&
 canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== look.id) return; camYaw -= (e.clientX - look.x) * 0.007; camPitch = THREE.MathUtils.clamp(camPitch + (e.clientY - look.y) * 0.005, -0.4, 1.3); look.x = e.clientX; look.y = e.clientY; });
 for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, (e) => { if (e.pointerId === look.id) look.id = null; });
 $('#bAct').addEventListener('click', () => interact());
+$('#bCar').addEventListener('click', () => summon('car')); $('#bBike').addEventListener('click', () => summon('bike'));
 $('#bTime').addEventListener('click', () => { timeIdx = (timeIdx + 1) % TIMES.length; applyTime(timeIdx); });
 $('#bView').addEventListener('click', () => { firstPerson = !firstPerson; });
 $('#bEagle').addEventListener('click', () => callEagle());
@@ -636,6 +697,25 @@ function interact() {
     const spot = safeSpot(car.x, car.z, car.yaw, [[1.6, -0.1], [-1.6, -0.1], [1.6, -2.6]]);
     if (spot) { P.mode = 'exitCar'; P.t = 0; P.to = spot; car.v = 0; } else toast('車門旁沒有安全的空間');
   }
+}
+// summon your car or bicycle: it appears on the nearest suitable street next to you (C = car, B = bicycle)
+function summon(kind) {
+  if (P.mode !== 'walk') { toast(P.mode === 'car' || P.mode === 'bike' ? '請先下車再召喚' : '請先回到地面'); return; }
+  const kinds = kind === 'car' ? ['residential', 'tertiary', 'secondary', 'primary', 'living_street', 'unclassified', 'service'] : ['pedestrian', 'footway', 'cycleway', 'living_street', 'residential', 'service', 'tertiary', 'path'];
+  let spot = null;
+  const r = nearestRoadPoint(P.x, P.z, kinds);
+  if (r && Math.hypot(r.x - P.x, r.z - P.z) < 30) {
+    // stand the vehicle at the kerb side of that street, facing along it, a few metres from you
+    const off = kind === 'car' ? Math.max(0, (r.w || 6) / 2 - 1.3) : Math.max(0, (r.w || 3) / 2 - 0.8), nx = Math.cos(r.yaw), nz = -Math.sin(r.yaw);
+    const side = ((P.x - r.x) * nx + (P.z - r.z) * nz) >= 0 ? 1 : -1;
+    spot = { x: r.x + nx * off * side, z: r.z + nz * off * side, yaw: r.yaw };
+  } else {
+    const s2 = safeSpot(P.x, P.z, P.yaw, kind === 'car' ? [[2.6, 2], [-2.6, 2], [0, 4.5], [3, -1]] : [[1.2, 1], [-1.2, 1], [0, 2], [1.2, -0.5]]);
+    if (s2) spot = { ...s2, yaw: P.yaw };
+  }
+  if (!spot) { toast('這裡太窄，沒有地方停車'); return; }
+  if (kind === 'car') { Object.assign(car, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0, steerA: 0 }); car.g.position.set(car.x, 0, car.z); car.g.rotation.set(0, car.yaw, 0); toast('🚗 車子到了，走到駕駛座旁按 E（手機點提示）上車'); }
+  else { Object.assign(bike, { x: spot.x, z: spot.z, yaw: spot.yaw, v: 0 }); bike.g.position.set(bike.x, 0, bike.z); bike.g.rotation.set(0, bike.yaw, 0); toast('🚲 腳踏車到了，走過去按 E（手機點提示）騎上'); }
 }
 function safeSpot(x, z, yaw, offsets) {
   for (const [ox, oz] of offsets) {
@@ -879,7 +959,9 @@ function updateCamera(dt) {
 const cards = new InfoCards(LM.landmarks, { getMode: () => P.mode, getSpeed: () => (P.mode === 'eagle' ? eagle.v : P.mode === 'car' ? car.v : P.mode === 'bike' ? bike.v : P.speed) });
 const mini = $('#mini'), mctx = mini.getContext('2d');
 function drawMini() {
-  const W = mini.width, span = 380 * MAP.k;
+  const P = { x: focusX(), z: focusZ(), mode: window.__lubP.mode, yaw: window.__lubP.yaw };   // centre on the bike / car / eagle while riding
+  const W = mini.width, span = (P.mode === 'eagle' ? 760 : 380) * MAP.k;
+  mctx.fillStyle = '#e8e4da'; mctx.fillRect(0, 0, W, W);   // never leave a stale frame when the source window runs off the map
   mctx.drawImage(MAP.cv, MAP.X(P.x) - span / 2, MAP.Z(P.z) - span / 2, span, span, 0, 0, W, W);
   // walking route (red dashed line), from the "old-town walk" film
   mctx.save(); mctx.strokeStyle = 'rgba(176,36,42,0.85)'; mctx.lineWidth = 3; mctx.setLineDash([7, 5]); mctx.beginPath();
@@ -888,6 +970,13 @@ function drawMini() {
   // your bicycle (green), car (blue) and the eagle (black) so they're easy to find
   const mark = (x, z, col, label) => { const sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; const cx = Math.max(12, Math.min(W - 12, sx)), cy = Math.max(12, Math.min(W - 12, sy));
     mctx.fillStyle = col; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3; mctx.beginPath(); mctx.arc(cx, cy, 11, 0, 7); mctx.fill(); mctx.stroke(); mctx.fillStyle = '#fff'; mctx.font = 'bold 13px sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle'; mctx.fillText(label, cx, cy + 1); };
+  if (hint) {   // faint gold dots: the quiet way to Kahlhorststraße 34
+    mctx.save(); mctx.fillStyle = 'rgba(214,170,70,0.55)';
+    for (let i = 0; i < hint.marks.length; i += 3) { const [x, z] = hint.marks[i], sx = (MAP.X(x) - MAP.X(P.x)) / span * W + W / 2, sy = (MAP.Z(z) - MAP.Z(P.z)) / span * W + W / 2; if (sx < -4 || sy < -4 || sx > W + 4 || sy > W + 4) continue; mctx.beginPath(); mctx.arc(sx, sy, 1.8, 0, 7); mctx.fill(); }
+    const gx = (MAP.X(hint.goal[0]) - MAP.X(P.x)) / span * W + W / 2, gy = (MAP.Z(hint.goal[1]) - MAP.Z(P.z)) / span * W + W / 2;
+    if (gx > 0 && gy > 0 && gx < W && gy < W) { mctx.fillStyle = 'rgba(214,170,70,0.9)'; mctx.font = '13px serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle'; mctx.fillText('✦', gx, gy); }
+    mctx.restore();
+  }
   if (P.mode !== 'bike') mark(bike.x, bike.z, '#2f7a4b', '單');
   if (P.mode !== 'car') mark(car.x, car.z, '#2b4a8b', '車');
   if (eagle.state === 'perched' || eagle.state === 'arrive') mark(eagle.x, eagle.z, '#111', '鷹');
@@ -895,6 +984,9 @@ function drawMini() {
   mctx.save(); mctx.translate(W / 2, W / 2); mctx.rotate(-vy + Math.PI); mctx.fillStyle = '#1d1a17'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3;
   mctx.beginPath(); mctx.moveTo(0, -14); mctx.lineTo(10, 11); mctx.lineTo(0, 5); mctx.lineTo(-10, 11); mctx.closePath(); mctx.fill(); mctx.stroke(); mctx.restore();
 }
+const focusX = () => (P.mode === 'eagle' || P.mode === 'eagleMount' ? eagle.x : P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x);
+const focusZ = () => (P.mode === 'eagle' || P.mode === 'eagleMount' ? eagle.z : P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z);
+window.__lubP = P;
 const perf = { frames: 0, acc: 0, worst: 0, last: performance.now() };
 
 /* ------------------------------------------------------------ loop */
@@ -946,6 +1038,7 @@ function frame() {
   if (!window.__storyOpen) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
   notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz);
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
+  if (gradePass) gradePass.uniforms.uTime.value = (gradePass.uniforms.uTime.value + 0.017) % 100;
   composer ? composer.render() : renderer.render(scene, camera);
   // perf
   const now = performance.now(), ft = now - perf.last; perf.last = now; perf.frames++; perf.acc += ft; perf.worst = Math.max(perf.worst, ft);
@@ -956,7 +1049,7 @@ function frame() {
   }
 }
 if (refMode) { camera.fov = hero.refCam.fov; camera.updateProjectionMatrix(); document.body.classList.add('refmode'); H.root.visible = false; bike.g.visible = false; car.g.visible = false; }
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer?.setSize(innerWidth, innerHeight); aoPass?.setSize?.(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer?.setSize(innerWidth, innerHeight); aoPass?.setSize?.(innerWidth, innerHeight); bloomPass?.setSize?.(innerWidth, innerHeight); const dd = Math.min(devicePixelRatio, Q.dpr); gradePass?.uniforms.uRes.value.set(innerWidth * dd, innerHeight * dd); });
 
 status(`周邊 ${city.footprints.length} 棟建築已就緒，其餘街區會邊走邊載入`);
 requestAnimationFrame(frame);

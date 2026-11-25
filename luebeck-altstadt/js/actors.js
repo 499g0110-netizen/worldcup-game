@@ -181,6 +181,6 @@ export function makeCar(scene, envMap) {
   }
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   scene.add(g);
-  return { g, body, wheels, steeringWheel: wheelG, headM, x: 0, z: 0, yaw: 0, v: 0, steerA: 0, pitch: 0, roll: 0, L, W, wheelbase: 2.57,
+  return { g, body, wheels, steeringWheel: wheelG, headM, tailM, x: 0, z: 0, yaw: 0, v: 0, steerA: 0, pitch: 0, roll: 0, L, W, wheelbase: 2.57,
     seat: new THREE.Vector3(0.38, 0.62, -0.32), driverDoor: new THREE.Vector3(1.4, 0, -0.1) };
 }

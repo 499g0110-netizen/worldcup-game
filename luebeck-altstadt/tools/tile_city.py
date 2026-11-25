@@ -7,12 +7,13 @@ d = json.load(open(os.path.join(D, 'city.json')))
 def key(x, z): return f'{math.floor(x / T)}_{math.floor(z / T)}'
 def cen(o): n = len(o) // 2; return sum(o[0::2]) / n, sum(o[1::2]) / n
 tiles = {}
-def put(k, kind, v): tiles.setdefault(k, {'buildings': [], 'parts': [], 'roads': [], 'green': [], 'trees': [], 'lamps': []})[kind].append(v)
+def put(k, kind, v): tiles.setdefault(k, {'buildings': [], 'parts': [], 'roads': [], 'green': [], 'trees': [], 'lamps': [], 'shops': [], 'benches': [], 'plays': []})[kind].append(v)
 for kind in ('buildings', 'parts', 'green'):
     for f in d[kind]: put(key(*cen(f['o'])), kind, f)
 for r in d['roads']: put(key(*cen(r['p'])), 'roads', r)
-for kind in ('trees', 'lamps'):
-    for p in d[kind]: put(key(*p), kind, p)
+for kind in ('trees', 'lamps', 'shops', 'benches'):
+    for p in d.get(kind, []): put(key(p[0], p[1]), kind, p)
+for f in d.get('plays', []): put(key(*cen(f['o'])), 'plays', f)
 os.makedirs(os.path.join(D, 'tiles'), exist_ok=True)
 for f in os.listdir(os.path.join(D, 'tiles')): os.remove(os.path.join(D, 'tiles', f))
 index = {}

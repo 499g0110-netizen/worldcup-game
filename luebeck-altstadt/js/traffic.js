@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { makeBike, makeCar, twoBoneIK, updateLocomotion } from './actors.js';
 import { randomLook, createMannequin } from './mannequin.js';
+import { addVehicleLights, CAR_LIGHTS, BIKE_LIGHTS, busLights } from './vlights.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const BUS_ROADS = new Set(['primary', 'secondary', 'tertiary']);
@@ -98,7 +99,7 @@ export class Traffic {
   /* ---- construction (pooled) ---- */
   make(kind) {
     const pooled = this.pool[kind].pop(); if (pooled) { pooled.obj.visible = true; return pooled; }
-    if (kind === 'bus') { const b = makeBus(this.scene); return { kind, obj: b.g, bus: b }; }
+    if (kind === 'bus') { const b = makeBus(this.scene); addVehicleLights(b.g, busLights(12)); return { kind, obj: b.g, bus: b }; }
     if (kind === 'group') {   // 2–3 people standing and talking
       const obj = new THREE.Group(); this.scene.add(obj);
       if (Math.random() < 0.45) {   // tourist group gathered around a guide holding up a little flag
@@ -159,12 +160,14 @@ export class Traffic {
     if (kind === 'car') {
       const c = makeCar(this.scene); const col = pick(PAINT);
       c.body.traverse((o) => { if (o.isMesh && o.material.clearcoat === 1 && o.material.metalness === 0.6) o.material.color.setHex(col); });
+      addVehicleLights(c.body, { ...CAR_LIGHTS, mats: [[c.headM, 0.3, 2.5], [c.tailM, 0.5, 2.2]] });
       return { kind, obj: c.g, car: c };
     }
     if (kind === 'bike') {
       const b = makeBike(this.scene); const col = pick(FRAME);
       b.lean.traverse((o) => { if (o.isMesh && o.material.clearcoat === 0.8) o.material.color.setHex(col); });
       b.steer.traverse((o) => { if (o.isMesh && o.material.clearcoat === 0.8) o.material.color.setHex(col); });
+      addVehicleLights(b.lean, BIKE_LIGHTS);
       const rider = this.cloneHuman(); return { kind, obj: b.g, bike: b, rider };
     }
     const h = this.cloneHuman(); return { kind, obj: h.root, h };
