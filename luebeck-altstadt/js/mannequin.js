@@ -173,6 +173,7 @@ export function randomLook() {
     bag: Math.random() < 0.25 ? pick([0x3b2618, 0x1f1f22, 0x6b4a32]) : null, sole: pick([0xe8e4dc, 0x1a1a1a, 0x5a4636]), eyes: pick([0x3b2a1e, 0x2f4a6b, 0x4a5a3a, 0x1e1a16]),
     height: (fem ? 0.93 : 1.0) + Math.random() * 0.1 };
 }
+export const PLAYER_LOOK_F = { fem: true, skin: 0xedc3a2, top: 0x2f6f86, bottom: 0x2b3140, hair: 0x5a3a24, shoes: 0xf2efe8, sole: 0xd8d4cc, build: 0.94, hairStyle: 3, jacket: true, scarf: 0xe8d9c0, bag: 0x7a4a32, height: 0.97, eyes: 0x4a5a3a, lips: 0xb8605a };
 export const PLAYER_LOOK = { skin: 0xe2b38f, top: 0xa8432a, bottom: 0x2b3140, hair: 0x3b2a1e, shoes: 0x3b2618, sole: 0xe8e4dc, build: 1, hairStyle: 1, jacket: true, scarf: 0xd9c7a0, bag: 0x4a3b2c, height: 1, eyes: 0x2f4a6b };
 
 // shared people material: per-surface detail in the shader — skin with soft subsurface warmth and pores, hair with

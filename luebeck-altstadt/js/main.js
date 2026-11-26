@@ -33,7 +33,7 @@ import { buildBenches, buildPlayground } from './parks.js';
 import { buildHint } from './hint.js';
 import { addVehicleLights, setVehicleNight, CAR_LIGHTS, BIKE_LIGHTS } from './vlights.js';
 import { buildLeafCrowns, GrassField, foliageU } from './foliage.js';
-import { createMannequin, PLAYER_LOOK } from './mannequin.js';
+import { createMannequin, PLAYER_LOOK, PLAYER_LOOK_F } from './mannequin.js';
 import { makeEagle } from './eagle.js';
 
 const $ = (s) => document.querySelector(s);
@@ -55,6 +55,7 @@ const Q = QUALITY[qName];
 
 /* ------------------------------------------------------------ renderer */
 const canvas = $('#world');
+for (const b of document.querySelectorAll('#intro .pick button')) b.addEventListener('click', () => { window.__gender = b.dataset.g; for (const o of document.querySelectorAll('#intro .pick button')) o.classList.toggle('on', o === b); });   // choosable while the city loads
 // closing the welcome window while the city is still loading: hide it now, enter automatically once ready
 $('#introX').addEventListener('click', () => { if (go?.disabled !== false) { window.__startWhenReady = true; $('#intro').classList.add('off'); } });
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !Q.aa, powerPreference: 'high-performance', logarithmicDepthBuffer: false }); window.__ri = () => ({ ...renderer.info.memory, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, progs: renderer.info.programs?.length, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null });
@@ -554,16 +555,32 @@ outskirtsRef = outskirts; for (const k of loadedTiles) outskirts.hideTile(k);
 /* ------------------------------------------------------------ actors */
 // The player starts as the built-in character (generated in code, no download), so walking, the bike and the car
 // work immediately. On computers the more detailed downloaded character replaces it in the background.
-let H = createMannequin(scene, PLAYER_LOOK), B = H.bones;
-if (refMode) H.root.visible = false;
-if (!TOUCH && qName !== 'low' && !refMode) {
-  setTimeout(() => loadHuman(scene, (l, t) => { $('#charload').textContent = `細緻人物 ${Math.min(99, Math.round(l / t * 100))}%`; })
-    .then((h) => {
-      if (P.mode !== 'walk') { h.root.visible = false; const wait = setInterval(() => { if (P.mode === 'walk') { clearInterval(wait); swap(h); } }, 500); } else swap(h);
-    })
-    .catch((err) => { $('#charload').textContent = ''; console.warn('detailed character not loaded, keeping the built-in one', err); }), 4000);
+// Choose your explorer in the welcome window: ♀ (on computers the detailed downloaded character) or ♂ (built-in).
+const chars = { m: null, fBuiltin: null, fDetail: null };
+let gender = 'f'; try { gender = window.__gender || localStorage.getItem('lub-g') || 'f'; } catch { gender = window.__gender || 'f'; }
+let H = null, B = null, detailLoading = false;
+function showChar(h) {
+  for (const c of [chars.m, chars.fBuiltin, chars.fDetail]) if (c && c !== h) c.root.visible = false;
+  if (H && H !== h) { h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); }
+  h.root.visible = !refMode; H = h; B = h.bones;
 }
-function swap(h) { h.root.visible = true; h.root.position.copy(H.root.position); h.root.rotation.copy(H.root.rotation); scene.remove(H.root); H = h; B = h.bones; $('#charload').textContent = ''; }
+function setGender(g) {
+  gender = g; try { localStorage.setItem('lub-g', g); } catch { /* */ }
+  for (const b of document.querySelectorAll('#intro .pick button')) b.classList.toggle('on', b.dataset.g === g);
+  if (g === 'm') { chars.m ??= createMannequin(scene, PLAYER_LOOK); showChar(chars.m); return; }
+  if (!TOUCH && qName !== 'low' && !refMode) {   // computers: the detailed character; a built-in woman stands in while it downloads
+    if (chars.fDetail) { showChar(chars.fDetail); return; }
+    chars.fBuiltin ??= createMannequin(scene, PLAYER_LOOK_F); showChar(chars.fBuiltin);
+    if (!detailLoading) {
+      detailLoading = true;
+      loadHuman(scene, (l, t) => { $('#charload').textContent = `細緻人物 ${Math.min(99, Math.round(l / t * 100))}%`; })
+        .then((h) => { chars.fDetail = h; $('#charload').textContent = ''; h.root.visible = false; const apply = () => { if (gender === 'f' && P.mode === 'walk') { showChar(h); return true; } return gender !== 'f'; }; if (!apply()) { const wait = setInterval(() => { if (apply()) clearInterval(wait); }, 500); } })
+        .catch((err) => { $('#charload').textContent = ''; console.warn('detailed character not loaded, keeping the built-in one', err); });
+    }
+  } else { chars.fBuiltin ??= createMannequin(scene, PLAYER_LOOK_F); showChar(chars.fBuiltin); }
+}
+setGender(gender);
+for (const b of document.querySelectorAll('#intro .pick button')) b.addEventListener('click', () => setGender(b.dataset.g));
 const traffic = new Traffic(scene, roads, { touch: TOUCH, isFree: (x, z) => !insideBuilding(x, z) && walkableC(x, z) && !nearRoad(x, z, 0.8, true) });
 
 const grass = TOUCH && qName === 'low' ? null : new GrassField(scene, isGrass, { touch: TOUCH });
@@ -622,7 +639,7 @@ function nearestRoadPoint(x, z, kinds) { let best = null, bd = 1e9; for (const r
 }
 
 /* ------------------------------------------------------------ post */
-let composer = null, aoPass = null, bloomPass = null;
+let composer = null, aoPass = null, bloomPass = null, guardPass = null;
 // Cinematic grade, applied after tone mapping (display space): filmic contrast curve, vibrance, warm highlights /
 // cool shadows (split toning like the summer photos), local-contrast "clarity", soft vignette, fine film grain.
 const GradeShader = {
@@ -658,12 +675,12 @@ let gradePass = null;
   const dprC = Math.min(devicePixelRatio, Q.dpr);
   composer = new EffectComposer(renderer); composer.setPixelRatio(dprC); composer.setSize(innerWidth, innerHeight);
   composer.addPass(new RenderPass(scene, camera));
-  const wantAO = (Q.ao || (!TOUCH && qName === 'medium')) && !params.has('noao');
+  const wantAO = Q.ao && !params.has('noao');   // ambient occlusion only on 'high'
   if (wantAO) { aoPass = new GTAOPass(scene, camera, innerWidth, innerHeight); aoPass.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1.5, thickness: 1.2, scale: 1.1, samples: Q.ao ? 16 : 8 }); aoPass.blendIntensity = 0.9; composer.addPass(aoPass); }
   // bloom only on bright things: sun glints on the river, lit windows and lamps at dusk, the sky around the sun
   // guard: a single NaN/Inf pixel (e.g. a degenerate normal on a specular highlight) would be smeared by the bloom blur
   // into a large black block — replace invalid values and clamp extreme highlights before bloom
-  if (qName !== 'low' && !params.has('nobloom')) composer.addPass(new ShaderPass({ uniforms: { tDiffuse: { value: null } },
+  if (qName !== 'low' && !params.has('nobloom')) composer.addPass(guardPass = new ShaderPass({ uniforms: { tDiffuse: { value: null } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0); gl_FragColor = vec4(min(c.rgb, vec3(40.0)), 1.0); }' }));
   if (qName !== 'low' && !params.has('nobloom')) { bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.32, 0.6, 0.92); composer.addPass(bloomPass); }
@@ -1100,6 +1117,33 @@ function drawSecret() {
 const perf = { frames: 0, acc: 0, worst: 0, last: performance.now() };
 
 /* ------------------------------------------------------------ loop */
+/* Render safety net: some GPUs / drivers choke on one of the post passes and show an empty picture. Catch errors and
+   detect a blank first few seconds, then switch the passes off one group at a time (AO → bloom → grade → all). */
+let degradeStep = 0, blankRun = 0, checks = 0; const px = new Uint8Array(4), clr = new THREE.Color();
+function degrade(why) {
+  degradeStep++; console.warn('post-processing fallback', degradeStep, why);
+  if (degradeStep === 1) { if (aoPass) aoPass.enabled = false; if (bloomPass) bloomPass.enabled = false; if (guardPass) guardPass.enabled = false; }
+  else if (degradeStep === 2) { if (gradePass) gradePass.enabled = false; }
+  else { composer = null; renderer.setRenderTarget(null); }
+}
+renderer.debug.onShaderError = (gl, program, vs, fs) => { if (composer) degrade('shader'); };
+function looksBlank() {
+  const gl = renderer.getContext(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight; let first = null;
+  clr.set(scene.fog.color);
+  for (const [u, v] of [[0.5, 0.45], [0.3, 0.6], [0.7, 0.6], [0.5, 0.75], [0.2, 0.4], [0.8, 0.4], [0.5, 0.25], [0.35, 0.8], [0.65, 0.8]]) {
+    gl.readPixels(Math.floor(W * u), Math.floor(H * v), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    if (px[3] < 8) continue;   // fully transparent counts as blank
+    if (!first) first = [px[0], px[1], px[2]];
+    else if (Math.abs(px[0] - first[0]) + Math.abs(px[1] - first[1]) + Math.abs(px[2] - first[2]) > 12) return false;
+  }
+  return true;
+}
+window.__degrade = () => degradeStep; window.__dbg = () => ({ frameN, blankRun, checks, composer: !!composer }); window.__post = { get grade() { return gradePass; } };
+function renderSafe() {
+  try { composer ? composer.render() : renderer.render(scene, camera); } catch (err) { console.error(err); if (composer) degrade('exception'); else throw err; return; }
+  if (!composer || frameN > 900 || (frameN & 7)) return;
+  if (++checks > 0 && looksBlank()) { if (++blankRun >= 5) { blankRun = 0; degrade('blank picture'); } } else blankRun = 0;
+}
 const clock = new THREE.Clock(); let simT = 0, frameN = 0;
 function frame() {
   requestAnimationFrame(frame);
@@ -1153,7 +1197,7 @@ function frame() {
   notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz);
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   if (gradePass) gradePass.uniforms.uTime.value = (gradePass.uniforms.uTime.value + 0.017) % 100;
-  composer ? composer.render() : renderer.render(scene, camera);
+  renderSafe();
   // perf
   const now = performance.now(), ft = now - perf.last; perf.last = now; perf.frames++; perf.acc += ft; perf.worst = Math.max(perf.worst, ft);
   if (perf.acc > 1000) {
@@ -1167,7 +1211,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 
 status(`周邊 ${city.footprints.length} 棟建築已就緒，其餘街區會邊走邊載入`);
 requestAnimationFrame(frame);
-var go = $('#go'); go.disabled = false; go.focus(); $('#status').textContent = '';
+var go = $('#go'); go.disabled = false; go.focus({ preventScroll: true }); $('#status').textContent = '';
 go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); go.textContent = '繼續'; canvas.focus(); });
 $('#introX').addEventListener('click', () => { if (!go.disabled) go.click(); });
 $('#bHelp')?.addEventListener('click', () => { document.body.classList.remove('menu-open'); $('#intro').classList.remove('off'); });

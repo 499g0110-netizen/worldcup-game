@@ -91,6 +91,7 @@ canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 #intro p.lead { font-size: 13.5px; line-height: 1.75; color: #ebe6dc; margin: 6px 0 8px; }
 #intro .tips { list-style: none; margin: 0 0 8px; padding: 0; font-size: 13px; line-height: 1.65; color: #ddd8ce; } #intro .tips li { padding: 5px 0; border-top: 1px solid rgba(255,255,255,.1); } #intro .tips b { color: #f0d9a0; font-weight: 600; }
 #intro p.keys { font: 400 11.5px/1.7 var(--f-mono); color: var(--mute); margin: 4px 0 8px; }
+#intro .pick { display: flex; gap: 10px; margin-top: 12px; } #intro .pick button { all: unset; flex: 1; box-sizing: border-box; text-align: center; padding: 10px 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: #ddd8ce; font: 600 14px var(--f-body); cursor: pointer; } #intro .pick button i { display: block; font-style: normal; font-size: 22px; line-height: 1.1; margin-bottom: 2px; } #intro .pick button.on { background: rgba(201,162,74,.28); border-color: #e1c27a; color: #fff; } #intro .pick button:focus-visible { outline: 2px solid #fff; }
 @media (min-width: 900px) and (min-height: 560px) { #intro .box { max-width: 520px; } #intro .lg { width: 230px; } }
 #go { all: unset; cursor: pointer; display: block; margin-top: 18px; text-align: center; padding: 12px; border-radius: 9px; background: var(--brick); color: #fff; font-weight: 700; letter-spacing: .06em; }
 #go[disabled] { opacity: .45; cursor: progress; } #go:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
@@ -178,6 +179,7 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
   </ul>
   <p class="keys desk-only">電腦：WASD 走路（Shift 跑）· 滑鼠轉視角 · E 上下車 · C／B 叫車／單車 · F 黑鷹 · T 時間 · V 視角</p>
   <p class="keys touch-only">手機：左下搖桿移動 · 滑動畫面轉視角 · 右下小按鈕上下車 · ☰ 選單</p>
+  <div class="pick" role="group" aria-label="選擇角色"><button type="button" data-g="f" class="on"><i>♀</i>女生</button><button type="button" data-g="m"><i>♂</i>男生</button></div>
   <button id="go" type="button" disabled>進入舊城</button>
   <div id="status">載入中…</div>
   <div class="credit">地理資料 © OpenStreetMap contributors（ODbL）· 材質 Poly Haven（CC0）· 角色與動作 Adobe Mixamo（經 three.js 範例）</div>
