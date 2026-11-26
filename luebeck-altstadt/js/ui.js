@@ -42,6 +42,8 @@ export class InfoCards {
     for (const s of storyList()) { const b2 = document.createElement('button'); b2.className = 'it'; b2.type = 'button'; b2.innerHTML = `<div class="a"></div><div class="b"></div><div class="c"></div>`; b2.querySelector('.a').textContent = s.title; b2.querySelector('.b').textContent = '▶ ' + s.zh; b2.querySelector('.c').textContent = s.kind; b2.onclick = () => { closeList(); openStory(s.id); }; items.appendChild(b2); }
     const closeList = () => { list.classList.remove('on'); setTimeout(() => (list.hidden = true), 250); };
     list.querySelector('.x').onclick = closeList;
+    list.addEventListener('click', (e) => { if (e.target === list) closeList(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !list.hidden) closeList(); });
     for (const ev of ['pointerdown', 'touchstart', 'wheel']) list.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
     document.querySelector('#bStories').addEventListener('click', () => { list.hidden = false; requestAnimationFrame(() => list.classList.add('on')); });
     const auto = document.querySelector('#autoIntro'); auto.checked = this.auto;
