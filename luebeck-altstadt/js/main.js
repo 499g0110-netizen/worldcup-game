@@ -55,6 +55,8 @@ const Q = QUALITY[qName];
 
 /* ------------------------------------------------------------ renderer */
 const canvas = $('#world');
+// closing the welcome window while the city is still loading: hide it now, enter automatically once ready
+$('#introX').addEventListener('click', () => { if (go?.disabled !== false) { window.__startWhenReady = true; $('#intro').classList.add('off'); } });
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !Q.aa, powerPreference: 'high-performance', logarithmicDepthBuffer: false }); window.__ri = () => ({ ...renderer.info.memory, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, progs: renderer.info.programs?.length, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null });
 renderer.setPixelRatio(Math.min(devicePixelRatio, Q.dpr));
 renderer.setSize(innerWidth, innerHeight);
@@ -1165,8 +1167,12 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 
 status(`周邊 ${city.footprints.length} 棟建築已就緒，其餘街區會邊走邊載入`);
 requestAnimationFrame(frame);
-const go = $('#go'); go.disabled = false; go.focus();
-go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); canvas.focus(); });
+var go = $('#go'); go.disabled = false; go.focus(); $('#status').textContent = '';
+go.addEventListener('click', () => { queueAround(P.x, P.z); started = true; $('#intro').classList.add('off'); go.textContent = '繼續'; canvas.focus(); });
+$('#introX').addEventListener('click', () => { if (!go.disabled) go.click(); });
+$('#bHelp')?.addEventListener('click', () => { document.body.classList.remove('menu-open'); $('#intro').classList.remove('off'); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#intro').classList.contains('off')) $('#introX').click(); });
+if (window.__startWhenReady) go.click();
 window.__lub = {
   eagle, callEagle,
   loadAround: async (x, z, r = 300) => { for (const k of tilesAround(x, z, r)) await loadTile(k); },

@@ -24,7 +24,7 @@ canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 .glass { background: var(--glass); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--glass-solid); } }
 #hudTL { position: fixed; z-index: 5; top: calc(env(safe-area-inset-top, 0px) + 12px); left: max(12px, env(safe-area-inset-left, 0px)); padding: 9px 13px; }
-#hudTL h1 { margin: 0; font: 500 22px/1 var(--f-title); letter-spacing: .01em; }
+#hudTL { padding: 7px 12px 8px; background: rgba(18,20,26,.5); } #hudTL #logoW { display: block; width: 188px; height: auto; pointer-events: none; -webkit-user-drag: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); } #hudTL #clock { margin-top: 2px; font: 400 11px var(--f-mono); color: var(--mute); }
 #hudTL .sub { font: 400 10.5px var(--f-mono); color: var(--mute); letter-spacing: .1em; text-transform: uppercase; margin-top: 4px; }
 #clock { font: 400 12px var(--f-mono); margin-top: 6px; }
 #mapBox { position: fixed; z-index: 5; top: calc(env(safe-area-inset-top, 0px) + 12px); right: max(12px, env(safe-area-inset-right, 0px)); padding: 6px; }
@@ -83,12 +83,15 @@ canvas#world { position: fixed; inset: 0; width: 100%; height: 100%; display: bl
 .storybtns { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; } .storybtns .storybtn { margin: 0; }
 #perf { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px); padding: 6px 10px; font: 400 11px var(--f-mono); }
 /* intro overlay */
-#intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(15,16,18,.55); padding: 16px max(16px, env(safe-area-inset-left, 0px)); transition: opacity .6s, visibility .6s; }
-#intro.off { opacity: 0; visibility: hidden; }
-#intro .box { background: #1b1d20; border: 1px solid var(--line); border-radius: 14px; padding: 24px; max-width: 520px; width: 100%; }
-#intro h2 { margin: 0; font: 500 40px/1 var(--f-title); }
-#intro p { font-size: 13.5px; line-height: 1.7; color: #d8d3ca; }
-#intro table { width: 100%; border-collapse: collapse; font-size: 13px; } #intro td { padding: 6px 0; border-top: 1px solid var(--line); vertical-align: top; } #intro td:first-child { font: 400 12px var(--f-mono); color: var(--mute); width: 42%; }
+#intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(12,14,18,.28); padding: 16px max(16px, env(safe-area-inset-left, 0px)); transition: opacity .5s, visibility .5s; }
+#intro.off { opacity: 0; visibility: hidden; pointer-events: none; }
+#intro .box { position: relative; background: rgba(22,24,29,.62); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 14px 22px 16px; max-width: 460px; width: 100%; max-height: calc(100dvh - 32px); overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+#intro .x { all: unset; position: absolute; right: 8px; top: 8px; width: 34px; height: 34px; display: grid; place-items: center; font-size: 22px; color: #fff; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,.1); } #intro .x:hover { background: rgba(255,255,255,.2); }
+#intro .lg { display: block; width: min(250px, 62%); height: auto; margin: 0 auto 4px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4)); }
+#intro p.lead { font-size: 13.5px; line-height: 1.75; color: #ebe6dc; margin: 6px 0 8px; }
+#intro .tips { list-style: none; margin: 0 0 8px; padding: 0; font-size: 13px; line-height: 1.65; color: #ddd8ce; } #intro .tips li { padding: 5px 0; border-top: 1px solid rgba(255,255,255,.1); } #intro .tips b { color: #f0d9a0; font-weight: 600; }
+#intro p.keys { font: 400 11.5px/1.7 var(--f-mono); color: var(--mute); margin: 4px 0 8px; }
+@media (min-width: 900px) and (min-height: 560px) { #intro .box { max-width: 520px; } #intro .lg { width: 230px; } }
 #go { all: unset; cursor: pointer; display: block; margin-top: 18px; text-align: center; padding: 12px; border-radius: 9px; background: var(--brick); color: #fff; font-weight: 700; letter-spacing: .06em; }
 #go[disabled] { opacity: .45; cursor: progress; } #go:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #status { font: 400 11px var(--f-mono); color: var(--mute); text-align: center; margin-top: 10px; min-height: 1.2em; }
@@ -105,7 +108,7 @@ body.touch #tools { display: none; }
 body.touch.menu-open #tools { display: flex; flex-direction: column; align-items: stretch; bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); max-width: 190px; }
 body.touch.menu-open #tools .tb, body.touch.menu-open #tools label { min-height: 40px; justify-content: flex-start; }
 body.touch #bClean { display: block; }
-body.touch #hudTL { padding: 6px 10px; opacity: .85; } body.touch #hudTL .sub, body.touch #hudTL #clock { display: none; } body.touch #hudTL h1 { font-size: 15px; }
+body.touch #hudTL { padding: 4px 8px 5px; opacity: .88; } body.touch #hudTL .sub, body.touch #hudTL #clock { display: none; } body.touch #hudTL #logoW { width: 124px; }
 body.touch #mini { width: 92px; height: 92px; } body.touch #mapBox .cap { display: none; } body.touch #mapBox { padding: 4px; opacity: .9; }
 body.touch #stick { width: 104px; height: 104px; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.25); }
 body.touch #stick i { width: 42px; height: 42px; margin: -21px 0 0 -21px; background: rgba(255,255,255,.5); }
@@ -126,11 +129,12 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
 </head>
 <body>
 <canvas id="world" tabindex="0" aria-label="3D 呂貝克舊城"></canvas>
-<div class="glass hud" id="hudTL"><h1>Lübeck</h1><div class="sub">Altstadt · OSM 重建</div><div id="clock">16:30</div><div id="stream" class="sub" aria-live="polite"></div><div id="charload" class="sub" aria-live="polite"></div></div>
+<div class="glass hud" id="hudTL"><img id="logoW" src="assets/logo-wide.webp" alt="Lübeck 德國的七塔之城" width="560" height="283" decoding="async"><div id="clock">16:30</div><div id="stream" class="sub" aria-live="polite"></div><div id="charload" class="sub" aria-live="polite"></div></div>
 <div class="glass hud" id="mapBox"><canvas id="mini" width="336" height="336"></canvas><div class="cap">N ↑ · © OpenStreetMap</div></div>
 <div class="glass hud" id="tools">
   <button class="tb" id="bAct" type="button">上／下車<kbd>E</kbd></button>
   <button class="tb" id="bStories" type="button">故事</button>
+  <button class="tb" id="bHelp" type="button">說明</button>
   <button class="tb" id="bCar" type="button">叫車<kbd>C</kbd></button>
   <button class="tb" id="bBike" type="button">叫單車<kbd>B</kbd></button>
   <button class="tb" id="bEagle" type="button">黑鷹<kbd>F</kbd></button>
@@ -162,19 +166,18 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
 </div>
 <div id="slist" hidden role="dialog" aria-label="故事列表"><div class="sbox"><div class="shead"><div><div class="ttl">Lübecker Geschichten</div><div class="ttlzh">呂貝克景點故事動畫</div></div><button class="x" type="button" aria-label="關閉">×</button></div><div class="items"></div></div></div>
 <div id="stick" class="hud"><i></i></div>
-<div id="intro"><div class="box">
-  <h2>Lübeck</h2>
-  <p>依 OpenStreetMap 真實輪廓與高度重建的呂貝克舊城。可以步行、騎腳踏車、開車，沒有時間限制。目前高品質示範區在聖瑪利亞教堂南側的小惡魔銅像。</p>
-  <table>
-    <tr class="desk-only"><td>W A S D</td><td>走路；按住 Shift 跑</td></tr>
-    <tr><td>C／B</td><td>把車子／腳踏車叫到身邊</td></tr>
-    <tr class="desk-only"><td>滑鼠拖曳／滾輪</td><td>轉鏡頭／拉近拉遠</td></tr>
-    <tr class="touch-only"><td>左下搖桿／畫面滑動</td><td>移動／轉鏡頭</td></tr>
-    <tr><td>E</td><td>騎上或離開腳踏車、上下汽車、騎上黑鷹、降落</td></tr>
-    <tr><td>F</td><td>呼叫黑鷹，騎著牠在城市上空飛行</td></tr>
-    <tr><td>I · Esc</td><td>打開／關閉景點介紹</td></tr>
-    <tr><td>T · V · F3</td><td>時間 · 第一人稱 · 效能資訊</td></tr>
-  </table>
+<div id="intro"><div class="box" role="dialog" aria-label="歡迎">
+  <button class="x" id="introX" type="button" aria-label="關閉">×</button>
+  <img class="lg" src="assets/logo-square.webp" alt="Lübeck 德國的七塔之城" width="560" height="373" decoding="async">
+  <p class="lead">呂貝克（Lübeck）是德國北部的漢薩古城，1987 年舊城列入世界遺產，因為天際線上的七座尖塔而被稱為「七塔之城」。這裡依 OpenStreetMap 的真實街道與建築重建，可以自由走逛。</p>
+  <ul class="tips">
+    <li><b>📖 故事</b>　點下方「故事」看紙雕動畫與歷史；或走到天空中<b>發亮的光束</b>底下，會跳出介紹，也能看建築外觀。</li>
+    <li><b>🚲 🚗 騎車、開車</b>　按「叫單車／叫車」把車叫到身邊，走近後上車。</li>
+    <li><b>🦅 黑鷹</b>　按「黑鷹」呼叫牠，騎上去從高空俯瞰整座城市。</li>
+    <li><b>🧭 小地圖</b>　右上角，金點是有故事的地方。</li>
+  </ul>
+  <p class="keys desk-only">電腦：WASD 走路（Shift 跑）· 滑鼠轉視角 · E 上下車 · C／B 叫車／單車 · F 黑鷹 · T 時間 · V 視角</p>
+  <p class="keys touch-only">手機：左下搖桿移動 · 滑動畫面轉視角 · 右下小按鈕上下車 · ☰ 選單</p>
   <button id="go" type="button" disabled>進入舊城</button>
   <div id="status">載入中…</div>
   <div class="credit">地理資料 © OpenStreetMap contributors（ODbL）· 材質 Poly Haven（CC0）· 角色與動作 Adobe Mixamo（經 three.js 範例）</div>
