@@ -29,6 +29,7 @@ export function buildFloatingMarket(ctx) {
   const plank = canvasTex(128, 128, (g, w, h) => { for (let i = 0; i < 8; i++) { const v = 90 + Math.random() * 40; g.fillStyle = `rgb(${v + 20},${v},${v - 28})`; g.fillRect(0, i * 16, w, 15); } g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 8; i++) g.fillRect(0, i * 16 + 15, w, 1); });
   plank.repeat.set(30, 2);
   const deckM = new THREE.MeshStandardMaterial({ map: plank, roughness: 0.75 });
+  (ctx.walkDecks = ctx.walkDecks || []).push([cx - 85, cx + 85, zb - 12.2, zb - 0.2, 1.3]);
   const deck = new THREE.Mesh(new THREE.BoxGeometry(170, 0.3, 12), deckM); deck.position.set(cx, 1.15, zb - 6.2); deck.receiveShadow = true; deck.castShadow = true; scene.add(deck);
   const pil = new THREE.CylinderGeometry(0.16, 0.16, 2.6, 6), pilI = new THREE.InstancedMesh(pil, stdMat(0x4a3826), 58), m4 = new THREE.Matrix4();
   for (let i = 0; i < 58; i++) { m4.makeTranslation(cx - 84 + i * 2.95, 0.2, zb + 0.1); pilI.setMatrixAt(i, m4); } scene.add(pilI);

@@ -11,6 +11,7 @@ import { Traffic, Walkers } from './life.js';
 import { createPost } from './post.js';
 import { Director } from './director.js';
 import { createUI } from './ui.js';
+import { Player } from './player.js';
 import { StoryPlayer, STORY_FOR } from './story.js';
 import { waterUniforms } from './world.js';
 import { mulberry32, canvasTex } from './util.js';
@@ -84,18 +85,21 @@ async function main() {
   const lookNow = new THREE.Vector3();
   const sound = makeSound();
   const story = new StoryPlayer(document.getElementById('story'));
+  const player = new Player(ctx, camera, canvas); let walking = false;
   const ui = createUI(ctx, director, atmo, camera, {
     explore: (on) => { explore = on; controls.enabled = on; if (on) { controls.target.copy(lookNow); controls.update(); } },
     tod: (k) => { todMode = k; },
     sound: (btn) => { const on = sound.toggle(); btn.classList.toggle('on', on); },
     started: () => { sound.ready(); },
+    walk: (on, ch) => { walking = on; if (on) { controls.enabled = false; explore = false; const a = (ch && ch.anchor && ch.id !== 'intro' && ch.id !== 'outro') ? ch.anchor : [-38, 40]; player.enable(a[0], a[1]); } else player.disable(); },
+    teleport: (c) => { player.spawnNear(c.anchor[0], c.anchor[1]); player._cam = null; },
     style: (i) => { post.style.uniforms.uMode.value = i; },
     story: (id) => { director.playing = false; story.open(STORY_FOR[id] || 'street'); },
   });
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); post.setSize(innerWidth, innerHeight); });
 
   // debugging / screenshot hooks
-  window.__guide = { story, STORY_FOR, THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
+  window.__guide = { player, story, STORY_FOR, THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
   if (params.has('ch')) { const i = +params.get('ch'); director.seekChapter(i); director.time = director.chapters[i].t0 + (params.has('u') ? +params.get('u') * director.chapters[i].dur : 0.01); director.playing = false; }
   if (params.has('t')) { director.setTime(+params.get('t')); director.playing = false; }
   if (params.has('ui') && params.get('ui') === '0') document.body.classList.add('ui-off');
@@ -108,7 +112,8 @@ async function main() {
   const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.1); elapsed += dt;
     const ev = director.update(dt);
-    if (window.__manual) { const m = window.__manual; camera.position.set(...m.p); lookNow.set(...m.l); camera.lookAt(lookNow); camera.fov = m.fov; }
+    if (walking) { const lk = player.update(dt, elapsed, atmo.state.win); if (lk) lookNow.copy(lk); camera.fov += (55 - camera.fov) * Math.min(1, dt * 4); ui.walkHud(player.pos); }
+    else if (window.__manual) { const m = window.__manual; camera.position.set(...m.p); lookNow.set(...m.l); camera.lookAt(lookNow); camera.fov = m.fov; }
     else if (!explore) {
       camera.position.copy(ev.pos); lookNow.copy(ev.look);
       // subtle handheld sway
@@ -119,7 +124,7 @@ async function main() {
     } else { controls.update(); camera.getWorldDirection(v3); lookNow.copy(camera.position).addScaledVector(v3, Math.max(60, camera.position.y)); }
     camera.updateProjectionMatrix();
     // time of day
-    const target = todMode === 'auto' ? ev.tod : todMode === 'cycle' ? 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 80) : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
+    const target = todMode === 'auto' ? (walking ? 0.78 : ev.tod) : todMode === 'cycle' ? 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 80) : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
     if (!params.has('tod')) atmo.set(target, !!window.__manual);
     sunFocus.copy(lookNow).y = 0; atmo.followCamera(camera.position);
     atmo.update(dt, sunFocus);
@@ -140,6 +145,7 @@ async function main() {
   setProgress('完成', 1);
   $('#loader').classList.add('done'); $('#start').disabled = false; $('#start').textContent = '開始導覽  ▶';
   window.__ready = true;
+  if (params.has('walk')) { const ch = director.chapters[+params.get('walk')] ; setTimeout(() => { ui.setWalk(true); if (ch && ch.anchor) { player.spawnNear(ch.anchor[0], ch.anchor[1]); } player.keys.KeyW = params.has('move'); player.camYaw = +(params.get('yaw') || 3.14); player.heading = player.camYaw; }, 0); }
   if (params.has('autostart')) { $('#intro').classList.add('gone'); director.playing = !params.has('freeze'); }
   frame();
 }

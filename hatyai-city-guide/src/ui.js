@@ -30,7 +30,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
   const chs = director.chapters;
   const card = $('#card'), idxEl = $('#c-idx'), zhEl = $('#c-zh'), enEl = $('#c-en'), descEl = $('#c-desc'), tagEl = $('#c-tag'), distEl = $('#dist-val'), distRing = $('#dist-ring');
   const tl = $('#tl-track'), tlFill = $('#tl-fill'), tlDots = $('#tl-dots');
-  const state = { shown: -2, dist: 0, explore: false, ui: true, tod: 'auto' };
+  const state = { shown: -2, dist: 0, explore: false, ui: true, tod: 'auto', walk: false, near: null };
 
   // timeline dots (navigable chapters)
   const nav = chs.map((c, i) => ({ c, i })).filter(o => o.c.nav !== false);
@@ -43,7 +43,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
 
   // chapter list (explore mode)
   const list = $('#places');
-  nav.forEach(({ c, i }) => { const b = document.createElement('button'); b.innerHTML = `<b>${c.zh}</b><small>${c.dist == null ? '' : fmtDist(c.dist)}</small>`; b.onclick = () => { setExplore(false); director.seekChapter(i); }; list.appendChild(b); });
+  nav.forEach(({ c, i }) => { const b = document.createElement('button'); b.innerHTML = `<b>${c.zh}</b><small>${c.dist == null ? '' : fmtDist(c.dist)}</small>`; b.onclick = () => { if (state.walk) { hooks.teleport(c); return; } setExplore(false); director.seekChapter(i); }; list.appendChild(b); });
 
   // labels
   const lblWrap = $('#labels'); const lbl = LABELS.map(l => { const e = document.createElement('div'); e.className = 'lbl'; e.innerHTML = `<i></i><b>${l.zh}</b><small>${l.en}</small>`; lblWrap.appendChild(e); return { ...l, e, v: new THREE.Vector3(l.x, l.y, l.z), vis: 0 }; });
@@ -65,7 +65,14 @@ export function createUI(ctx, director, atmo, camera, hooks) {
     mg.fillStyle = '#ff5a3c'; mg.beginPath(); mg.arc(mx(0), mz(0), 3, 0, 7); mg.fill();
   };
 
+  function setWalk(on) {
+    if (on === state.walk) return; if (on) setExplore(false); state.walk = on; document.body.classList.toggle('walk', on); $('#btn-walk').classList.toggle('on', on);
+    $('#btn-walk').textContent = on ? '🎬 回到導覽' : '🚶 角色漫遊'; director.playing = false; hooks.walk(on, chs[Math.max(0, state.shown)]);
+  }
+  $('#btn-walk').onclick = () => setWalk(!state.walk);
+  $('#w-story').onclick = () => { if (state.near) hooks.story(state.near.id); };
   function setExplore(on) {
+    if (on && state.walk) setWalk(false);
     if (on === state.explore) return; state.explore = on; document.body.classList.toggle('explore', on); $('#btn-explore').classList.toggle('on', on);
     $('#btn-explore span').textContent = on ? '回到導覽' : '自由探索'; hooks.explore(on);
   }
@@ -85,13 +92,22 @@ export function createUI(ctx, director, atmo, camera, hooks) {
   $('#start').onclick = () => { $('#intro').classList.add('gone'); director.playing = true; hooks.started && hooks.started(); };
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'g' || e.key === 'G') { setWalk(!state.walk); return; }
+    if (state.walk) { if ((e.key === 't' || e.key === 'T') && state.near) hooks.story(state.near.id); if (e.key === 'h' || e.key === 'H') $('#btn-hide').click(); return; }
     if (e.code === 'Space') { e.preventDefault(); $('#btn-play').click(); } else if (e.code === 'ArrowRight') $('#btn-next').click(); else if (e.code === 'ArrowLeft') $('#btn-prev').click();
     else if (e.key === 'e' || e.key === 'E') setExplore(!state.explore); else if (e.key === 'h' || e.key === 'H') $('#btn-hide').click(); else if (e.key === 'f' || e.key === 'F') $('#btn-fs').click();
     else if (e.key === '1') setTod('day'); else if (e.key === '2') setTod('dusk'); else if (e.key === '3') setTod('night'); else if (e.key === '0') setTod('auto'); else if (e.key === '4') setTod('cycle'); else if (e.key === 's' || e.key === 'S') $('#btn-style').click();
   });
-  addEventListener('wheel', (e) => { if (state.explore || !$('#intro').classList.contains('gone')) return; director.setTime(director.time + e.deltaY * 0.025); }, { passive: true });
+  addEventListener('wheel', (e) => { if (state.walk || state.explore || !$('#intro').classList.contains('gone')) return; director.setTime(director.time + e.deltaY * 0.025); }, { passive: true });
 
   const v = new THREE.Vector3(), proj = new THREE.Vector3();
+  function walkHud(p) {
+    let best = null, bd = 1e9; for (const c of chs) { if (!c.anchor || c.nav === false) continue; const d = Math.hypot(p.x - c.anchor[0], p.z - c.anchor[1]); if (d < bd) { bd = d; best = c; } }
+    state.near = bd < 90 ? best : null;
+    $('#w-name').textContent = bd < 220 ? best.zh + (bd < 90 ? '' : ' 附近') : '合艾街頭';
+    $('#w-dist').textContent = '距李花園 ' + fmtDist(Math.hypot(p.x, p.z));
+    $('#w-story').classList.toggle('show', !!state.near);
+  }
   function update(dt, ev) {
     const ci = ev.ci; const c = chs[ci];
     if (state.shown !== ci) {
@@ -115,5 +131,5 @@ export function createUI(ctx, director, atmo, camera, hooks) {
     }
     drawMini();
   }
-  return { update, setExplore, setTod, state };
+  return { update, setExplore, setTod, setWalk, walkHud, state };
 }

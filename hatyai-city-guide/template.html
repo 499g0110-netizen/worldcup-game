@@ -92,6 +92,16 @@ footer a{color:inherit}
 #story .st-ctl{position:absolute;top:16px;right:16px;display:flex;gap:6px}
 #story .st-ctl button{height:34px;padding:0 12px;background:rgba(12,14,28,.6);border:1px solid var(--line);font-size:12px}
 #story .st-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}#story .st-bar i{display:block;height:100%;width:0;background:var(--gold)}
+#walk-hud{position:absolute;left:50%;top:calc(5.2vh + 16px);transform:translateX(-50%);display:none;flex-direction:column;align-items:center;gap:8px;text-align:center}
+body.walk #walk-hud{display:flex}body.walk #card,body.walk #tl,body.walk #labels,body.walk #dist{display:none}body.walk #places{display:flex;max-height:calc(100vh - 5.2vh*2 - 230px)}
+#w-loc{padding:8px 18px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:2px}
+#w-loc small{font-size:10px;letter-spacing:.3em;color:var(--dim);margin-right:10px}#w-loc b{font-family:var(--serif);font-size:18px;letter-spacing:.06em}#w-dist{margin-left:10px;font-size:12px;color:var(--gold)}
+#w-story{display:none;padding:8px 16px;border:1px solid rgba(230,194,116,.7);background:rgba(230,194,116,.2);font-size:12px;letter-spacing:.14em}
+#w-story.show{display:block}
+#w-help{max-width:min(520px,60vw);font-size:11px;color:var(--dim);letter-spacing:.06em;text-shadow:0 1px 6px #000}
+#joy{position:absolute;left:28px;bottom:calc(5.2vh + 28px);width:120px;height:120px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(12,14,28,.35);display:none;touch-action:none}
+#joy i{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:rgba(230,194,116,.55);box-shadow:0 0 14px rgba(230,194,116,.5)}
+@media (pointer:coarse){body.walk #joy{display:block}body.walk #w-help{display:none}}
 @media (max-width:760px){#minimap{display:none}#card{bottom:calc(5.2vh + 130px);padding:16px 18px}#c-desc{font-size:12px}#controls{bottom:calc(5.2vh + 74px);justify-content:flex-start;left:16px}.dot span{display:none}#dist{top:calc(5.2vh + 14px)}}
 </style>
 </head>
@@ -121,10 +131,12 @@ footer a{color:inherit}
     <span class="sep"></span>
     <button id="btn-prev" title="上一站 (←)">◀</button><button id="btn-play" title="播放/暫停 (空白鍵)">❚❚</button><button id="btn-next" title="下一站 (→)">▶</button>
     <span class="sep"></span>
-    <button id="btn-style" title="畫風 (S)">畫風：寫實</button><button id="btn-explore" title="自由探索 (E)"><span>自由探索</span></button><button id="btn-sound" title="環境音 (開/關)">♪</button><button id="btn-fs" title="全螢幕 (F)">⛶</button><button id="btn-hide" title="隱藏介面 (H)">◐</button>
+    <button id="btn-style" title="畫風 (S)">畫風：寫實</button><button id="btn-walk" title="操作角色漫遊 (G)">🚶 角色漫遊</button><button id="btn-explore" title="自由探索 (E)"><span>自由探索</span></button><button id="btn-sound" title="環境音 (開/關)">♪</button><button id="btn-fs" title="全螢幕 (F)">⛶</button><button id="btn-hide" title="隱藏介面 (H)">◐</button>
   </div>
   <div id="tl"><div id="tl-track"><div id="tl-fill"></div><div id="tl-dots"></div></div></div>
   <div id="labels"></div>
+  <div id="walk-hud"><div id="w-loc"><small>你在</small><b id="w-name">—</b><span id="w-dist"></span></div><button id="w-story">▶ 觀看這裡的故事 (T)</button><div id="w-help">WASD / 方向鍵 移動 · Shift 奔跑 · 拖曳旋轉視角 · 滾輪縮放 · 左側清單瞬間移動</div></div>
+  <div id="joy"><i></i></div>
   <footer>地圖資料 © OpenStreetMap contributors (ODbL)。建築高度與立面為依照片與街景估計的藝術重建，非精確測繪。</footer>
 </div>
 <div id="story"><canvas></canvas><div class="st-title"></div><div class="st-sub"></div><div class="st-ctl"><button class="st-play">❚❚ / ▶</button><button class="st-style">風格：剪紙</button><button class="st-close">✕ 關閉</button></div><div class="st-bar"><i></i></div></div>

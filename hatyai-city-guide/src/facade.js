@@ -5,6 +5,7 @@ import * as THREE from 'three';
 //  styles: 0 shophouse | 1 glass office | 2 Lee Gardens | 3 Centara | 4 mall/podium
 //          5 apartment | 6 plain | 9 roof | 10 curtain-glass
 // ------------------------------------------------------------------
+export const FOOTPRINTS = [];
 export const facadeUniforms = { uNight: { value: 0.8 }, uTime: { value: 0 } };
 
 export function makeFacadeMaterial() {
@@ -193,6 +194,7 @@ export class Batch {
   }
   // extruded polygon. pts = [[x,z]...] (open ring)
   prism(pts, y0, h, o = {}) {
+    if (y0 < 2 && h >= 2.4 && o.collide !== false) FOOTPRINTS.push(pts);
     const c = o.color || new THREE.Color(0.7, 0.7, 0.7), seed = o.seed ?? 0.5, style = o.style ?? 0;
     const rc = o.roofColor || new THREE.Color(0.35, 0.35, 0.36);
     const N = pts.length; let A = 0;
