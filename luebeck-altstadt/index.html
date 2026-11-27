@@ -133,6 +133,24 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
   #card { top: calc(env(safe-area-inset-top, 0px) + 150px); padding: 12px 14px 10px; } #card .tx { font-size: 12.5px; margin: 6px 0; } #card .src { display: none; }
   #bInfo { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); }
 }
+
+#shopmenu { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(10,12,18,.78); padding: 10px; opacity: 0; transition: opacity .25s; }
+#shopmenu:not(.on) { pointer-events: none; } #shopmenu.on { opacity: 1; }
+#shopmenu .sbox { width: min(760px, 100%); max-height: 92vh; overflow: auto; background: #1c1f26; border: 1px solid var(--line); border-radius: 14px; padding: 16px; color: var(--ink); }
+#shopmenu .shead { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; } #shopmenu .ttl { font: 400 26px/1.1 "UnifrakturMaguntia", Georgia, serif; color: #e1c27a; } #shopmenu .ttlzh { font: 500 13px var(--f-body); color: var(--mute); margin-top: 4px; }
+#shopmenu .x, #shopbuy .x { all: unset; cursor: pointer; width: 34px; height: 34px; display: grid; place-items: center; font-size: 22px; border-radius: 8px; color: var(--ink); } #shopmenu .x:hover, #shopbuy .x:hover { background: rgba(255,255,255,.12); }
+#shopmenu .items { display: grid; gap: 10px; } #shopmenu .shop { background: #23262d; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+#shopmenu .shop h4 { margin: 0; font: 600 17px/1.2 var(--f-body); } #shopmenu .shop .sub { font: 400 12px var(--f-mono); color: var(--mute); margin: 3px 0 6px; } #shopmenu .shop p { margin: 0 0 10px; font: 400 13px/1.5 var(--f-body); color: var(--ink); }
+#shopmenu .shop .btns { display: flex; flex-wrap: wrap; gap: 8px; } #shopmenu .shop button, #shopbuy button.reset, #shopbuy .row button { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 9px; background: #3a3f4a; font: 600 13px var(--f-body); color: #fff; } #shopmenu .shop button.go { background: #b8402e; } #shopmenu .shop button:hover, #shopbuy .row button:hover { filter: brightness(1.2); }
+#shopmenu .note { margin-top: 10px; font: 400 11px/1.5 var(--f-body); color: var(--mute); }
+#shopbuy .x { position: absolute; top: 8px; right: 8px; }
+#shopbuy { position: fixed; z-index: 30; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 80px); width: min(380px, calc(100vw - 24px)); padding: 14px 16px; opacity: 0; transform: translateX(10px); transition: opacity .2s, transform .2s; color: var(--ink); max-height: 80vh; overflow: auto; }
+#shopbuy.on { opacity: 1; transform: none; } #shopbuy h3 { margin: 0 34px 8px 0; font: 600 18px var(--f-body); }
+#shopbuy .row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font: 400 13px var(--f-body); } #shopbuy .row b { font: 600 13px var(--f-mono); color: #e1c27a; }
+#shopbuy .bag { margin-top: 8px; font: 400 12px/1.5 var(--f-body); color: var(--mute); } #shopbuy .wal { margin: 4px 0 8px; font: 500 12px var(--f-mono); color: var(--ink); } #shopbuy button.reset { background: #2a2d35; font-size: 12px; padding: 6px 10px; }
+#walletBox { position: fixed; z-index: 7; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); padding: 6px 12px; font: 600 13px var(--f-mono); color: #fff; }
+body.touch #walletBox { bottom: calc(env(safe-area-inset-bottom, 0px) + 120px); right: 12px; opacity: .8; }
+body.inshop #mapBox { display: none; }
 </style>
 </head>
 <body>
@@ -142,6 +160,8 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
 <div class="glass hud" id="tools">
   <button class="tb" id="bAct" type="button">上／下車<kbd>E</kbd></button>
   <button class="tb" id="bStories" type="button">故事</button>
+  <button class="tb" id="bShops" type="button">店家</button>
+  <button class="tb" id="bLeave" type="button" hidden>離開店家</button>
   <button class="tb" id="bHelp" type="button">說明</button>
   <button class="tb" id="bCar" type="button">叫車<kbd>C</kbd></button>
   <button class="tb" id="bBike" type="button">叫單車<kbd>B</kbd></button>
@@ -173,6 +193,9 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
   </div>
 </div>
 <div id="slist" hidden role="dialog" aria-label="故事列表"><div class="sbox"><div class="shead"><div><div class="ttl">Lübecker Geschichten</div><div class="ttlzh">呂貝克景點故事動畫</div></div><button class="x" type="button" aria-label="關閉">×</button></div><div class="items"></div></div></div>
+<div id="shopmenu" hidden role="dialog" aria-label="店家"><div class="sbox"><div class="shead"><div><div class="ttl">Läden &amp; Cafés</div><div class="ttlzh">可以進去逛、購買的店家</div></div><button class="x" type="button" aria-label="關閉">×</button></div><div class="items"></div><div class="note">店內的商品與價格是遊戲裡的虛擬展示，錢包也是虛擬的，不會真的扣款或出貨。</div></div></div>
+<div id="shopbuy" class="glass" hidden role="dialog" aria-label="購買"><button class="x" type="button" aria-label="關閉">×</button><h3></h3><div class="items"></div><div class="bag"></div><div class="wal"></div><button class="reset" type="button">重設錢包</button></div>
+<div id="walletBox" class="glass hud" hidden>🛍 <span id="wallet"></span></div>
 <div id="stick" class="hud"><i></i></div>
 <div id="intro"><div class="box" role="dialog" aria-label="歡迎">
   <button class="x" id="introX" type="button" aria-label="關閉">×</button>

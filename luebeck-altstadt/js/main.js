@@ -14,6 +14,8 @@ import { WindowLOD } from './windows.js';
 import { buildHero } from './hero.js';
 import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './actors.js';
 import { InfoCards } from './ui.js';
+import { openStory } from './stories.js';
+import { Shops, SHOPS } from './shops.js';
 import { hasStory } from './stories.js';
 import { ROUTE } from './stories2.js';
 import { Traffic } from './traffic.js';
@@ -604,6 +606,7 @@ const beaconMat = new THREE.ShaderMaterial({
       float edge = pow(1.0 - abs(vUv.x - 0.5) * 2.0, 0.0);
       gl_FragColor = vec4(vec3(1.0, 0.7, 0.25) * fade * bands * 0.22 * uK, 1.0); }`,
 });
+LM.landmarks.push({ id: 'fangfrisch', name_zh: 'Fangfrisch 魚堡與自釀啤酒', name_de: 'Fangfrisch', address: 'An der Untertrave 51, 23552 Lübeck', osm: 'node/5666954494', lat: 53.8721909, lon: 10.6836382, fetched_at: '2026-11-24T14:39Z', local_xz_m: [-104.6, -630.9], footprint: null, unverified: [] });
 const beacons = [];
 for (const l of LM.landmarks) {
   if (!hasStory(l.id) || l.id === 'st_marien') continue;   // St. Marien shares the devil's beam (same churchyard)
@@ -636,6 +639,69 @@ function nearestRoadPoint(x, z, kinds) { let best = null, bd = 1e9; for (const r
   Object.assign(bike, { x: b.x + 1.2, z: b.z, yaw: b.yaw }); bike.g.position.set(bike.x, 0, bike.z); bike.g.rotation.y = bike.yaw;
   const c = nearestRoadPoint(P.x + 40, P.z + 10, ['residential', 'tertiary', 'secondary', 'living_street', 'unclassified']);
   Object.assign(car, { x: c.x, z: c.z, yaw: c.yaw }); car.g.position.set(car.x, 0, car.z); car.g.rotation.y = car.yaw;
+}
+
+/* ------------------------------------------------------------ shops you can walk into (Niederegger, Fangfrisch, CITTI-PARK) */
+let inShop = null, doorShop = null, shopRet = null, sunI0 = 3;
+const shops = new Shops(scene, { toast: (t) => toast(t) });
+function enterShop(id, ret) {
+  if (inShop) return;
+  if (P.mode !== 'walk') { toast('請先下車，再進入店家'); return; }
+  const sh = SHOPS.find((x) => x.id === id); if (!sh) return;
+  shopRet = ret || { x: P.x, z: P.z, yaw: P.yaw + Math.PI };
+  fade(() => {
+    const sp = shops.enter(id); inShop = id; sunI0 = sun.intensity; sun.intensity = 0;
+    P.x = sp.x; P.z = sp.z; P.yaw = sp.yaw; P.speed = 0; P.y = 0; P.vy = 0; camYaw = P.yaw + Math.PI; camPitch = 0.12; camera.userData.init = false; camera.userData.lookInit = false;
+    document.body.classList.add('inshop'); $('#bLeave').hidden = false; cards.close(false); document.querySelector('#shopmenu')?.classList.remove('on');
+    toast(`${sh.zh}　走近櫃台，按 E（手機點提示）購買`);
+  });
+}
+function leaveShop() {
+  if (!inShop) return;
+  fade(() => {
+    shops.leave(); inShop = null; sun.intensity = sunI0;
+    const r = shopRet || { x: start.x, z: start.z, yaw: Math.PI / 2 };
+    P.x = r.x; P.z = r.z; P.yaw = r.yaw; P.speed = 0; camYaw = P.yaw + Math.PI; camera.userData.init = false; camera.userData.lookInit = false; queueAround(P.x, P.z);
+    document.body.classList.remove('inshop'); $('#bLeave').hidden = true; $('#walletBox').hidden = true;
+  });
+}
+function outsideDoor(sh) {   // a pavement point in front of the shop's door
+  if (!sh.door) return { x: start.x, z: start.z, yaw: Math.atan2(HOLSTEN.x - start.x, HOLSTEN.z - start.z) };
+  const r = nearestRoadPoint(sh.door[0], sh.door[1], ['pedestrian', 'footway', 'living_street', 'residential', 'service', 'tertiary', 'unclassified']);
+  if (!r) return { x: sh.door[0], z: sh.door[1], yaw: 0 };
+  const dx = sh.door[0] - r.x, dz = sh.door[1] - r.z, L = Math.hypot(dx, dz) || 1;
+  void L; return { x: r.x, z: r.z, yaw: Math.atan2(dx, dz) };
+}
+// a gilded projecting sign over each shop door (readable from along the street, glows a little at dusk)
+for (const [sh, text, bg, fg] of [[SHOPS[0], 'Café Niederegger · seit 1806', '#f3ead0', '#7a1f2b'], [SHOPS[1], 'FANGFRISCH · Fisch & Bier', '#23424f', '#f4f1e6']]) {
+  const r = nearestRoadPoint(sh.door[0], sh.door[1], ['pedestrian', 'footway', 'living_street', 'residential', 'service', 'tertiary', 'unclassified']); if (!r) continue;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160; const g = c.getContext('2d');
+  g.fillStyle = '#d9ac3c'; g.fillRect(0, 0, 512, 160); g.fillStyle = bg; g.fillRect(8, 8, 496, 144); g.fillStyle = fg; g.font = '700 38px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 256, 82);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, fog: false }), sg = new THREE.Group();
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.75), mat); sg.add(sign);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.0), new THREE.MeshStandardMaterial({ color: 0x25282a, metalness: 0.6, roughness: 0.5 })); bar.position.set(0, 0.5, 0); sg.add(bar);
+  sg.position.set(sh.door[0] + (r.x - sh.door[0]) * 0.55, 3.3, sh.door[1] + (r.z - sh.door[1]) * 0.55); sg.rotation.y = r.yaw; scene.add(sg);
+}
+window.__enterShop = (id) => enterShop(id); window.__shops = shops;
+{
+  const menu = $('#shopmenu'), list = menu.querySelector('.items');
+  for (const sh of SHOPS) {
+    const d = document.createElement('div'); d.className = 'shop';
+    d.innerHTML = '<h4></h4><div class="sub"></div><p></p><div class="btns"></div>';
+    d.querySelector('h4').textContent = `${sh.icon} ${sh.zh}`; d.querySelector('.sub').textContent = `${sh.sub} · ${sh.addr}`; d.querySelector('p').textContent = sh.blurb;
+    const btns = d.querySelector('.btns'), add = (txt, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = txt; if (cls) b.className = cls; b.onclick = fn; btns.appendChild(b); };
+    add('🚪 進入店內', 'go', () => { closeMenu(); enterShop(sh.id, outsideDoor(sh)); });
+    if (sh.door) add('📍 去店門口', '', () => { closeMenu(); if (inShop || P.mode !== 'walk') { toast(inShop ? '請先離開店家' : '請先下車'); return; } const o = outsideDoor(sh); fade(() => { P.x = o.x; P.z = o.z; P.yaw = o.yaw; camYaw = P.yaw + Math.PI; camera.userData.init = false; queueAround(o.x, o.z); }); });
+    add('▶ 介紹影片', '', () => { closeMenu(); openStory(sh.story); });
+    list.appendChild(d);
+  }
+  const closeMenu = () => { menu.classList.remove('on'); setTimeout(() => { if (!menu.classList.contains('on')) menu.hidden = true; }, 250); };
+  menu.querySelector('.x').onclick = closeMenu; menu.addEventListener('click', (e) => { if (e.target === menu) closeMenu(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) closeMenu(); });
+  for (const ev of ['pointerdown', 'touchstart', 'wheel']) menu.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  $('#bShops').addEventListener('click', () => { menu.hidden = false; requestAnimationFrame(() => menu.classList.add('on')); });
+  $('#bLeave').addEventListener('click', () => leaveShop());
 }
 
 /* ------------------------------------------------------------ post */
@@ -776,6 +842,8 @@ const REACH = TOUCH ? 4.0 : 2.6;   // easier to reach with a thumb stick
 prompt.addEventListener('click', (e) => { e.stopPropagation(); if (prompt.dataset.act === 'eagle') { callEagle(); return; } interact(); });
 for (const ev of ['pointerdown', 'touchstart']) prompt.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
 function interact() {
+  if (inShop) { if (shops.nearStand) shops.openBuy(shops.nearStand); else if (shops.nearExit) leaveShop(); return; }
+  if (P.mode === 'walk' && doorShop && !(eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9)) { enterShop(doorShop.id); return; }
   if (P.mode === 'eagle') { landEagle(); return; }
   if (P.mode === 'walk' && eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9) { P.mode = 'eagleMount'; P.t = 0; P.from = { x: P.x, z: P.z }; return; }
   if (P.mode === 'walk') {
@@ -794,6 +862,7 @@ function interact() {
 }
 // summon your car or bicycle: it appears on the nearest suitable street next to you (C = car, B = bicycle)
 function summon(kind) {
+  if (inShop) { toast('先離開店家再召喚'); return; }
   if (P.mode !== 'walk') { toast(P.mode === 'car' || P.mode === 'bike' ? '請先下車再召喚' : '請先回到地面'); return; }
   const kinds = kind === 'car' ? ['residential', 'tertiary', 'secondary', 'primary', 'living_street', 'unclassified', 'service'] : ['pedestrian', 'footway', 'cycleway', 'living_street', 'residential', 'service', 'tertiary', 'path'];
   let spot = null;
@@ -829,8 +898,10 @@ function walkStep(dt) {
   P.speed += (target - P.speed) * (1 - Math.exp(-dt * (target > P.speed ? 4 : 7)));   // ease in/out = start & stop
   if (mag > 0.05) { let d = Math.atan2(dx, dz) - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * (1 - Math.exp(-dt * 9)); }
   let nx = P.x + Math.sin(P.yaw) * P.speed * dt, nz = P.z + Math.cos(P.yaw) * P.speed * dt;
+  if (inShop) { [nx, nz] = shops.collide(nx, nz, 0.28); P.x = nx; P.z = nz; }
+  else {
   [nx, nz] = pushOut(nx, nz, 0.3); [nx, nz] = traffic.pushPlayer(nx, nz, 0.3);
-  if (walkableC(nx, nz)) { P.x = nx; P.z = nz; } else P.speed *= 0.5;
+  if (walkableC(nx, nz)) { P.x = nx; P.z = nz; } else P.speed *= 0.5; }
   if (keys.has(' ') && P.y <= 0) P.vy = 3.6;
   P.vy -= 9.81 * dt; P.y = Math.max(0, P.y + P.vy * dt); if (P.y === 0) P.vy = Math.max(0, P.vy);
   H.root.position.set(P.x, P.y, P.z); H.root.rotation.set(0, P.yaw, 0);
@@ -949,6 +1020,7 @@ function transitionStep(dt) {
 /* ------------------------------------------------------------ black eagle: call (F), ride, land (E) */
 const eagle = makeEagle(scene);
 function callEagle() {
+  if (inShop) { toast('先離開店家'); return; }
   if (P.mode !== 'walk' || eagle.state !== 'hidden') { if (eagle.state !== 'hidden' && P.mode === 'walk') toast('黑鷹已經在路上了'); return; }
   const a = P.yaw + 0.6, sx = P.x + Math.sin(a) * 220, sz = P.z + Math.cos(a) * 220;
   Object.assign(eagle, { state: 'arrive', t: 0, from: { x: sx, y: 90, z: sz }, x: sx, y: 90, z: sz, pitch: 0, bank: 0, v: 0 });
@@ -1031,13 +1103,14 @@ function poseOnEagle(dt) {
 
 /* ------------------------------------------------------------ camera */
 const camPos = new THREE.Vector3(), headV = new THREE.Vector3(), camLook = new THREE.Vector3();
-function camOccluded(x, y, z) { return y < 0.25 || insideBuilding(x, z, y); }
+function camOccluded(x, y, z) { if (inShop) return shops.camBlocked(x, y, z); return y < 0.25 || insideBuilding(x, z, y); }
 function updateCamera(dt) {
   let fx = P.x, fz = P.z, fy = 1.55, dist = camDist, yawFollow = P.yaw, follow = P.speed > 0.5;
   if (P.mode === 'bike' || P.mode === 'dismountBike') { fx = bike.x; fz = bike.z; fy = 1.6; dist = Math.max(camDist, 4.2); yawFollow = bike.yaw; follow = Math.abs(bike.v) > 0.5; }
   if (P.mode === 'eagle' || P.mode === 'eagleMount') { fx = eagle.x; fz = eagle.z; fy = eagle.y + 2.2; dist = Math.max(camDist, 13); yawFollow = eagle.yaw; follow = true; }
   if (P.mode === 'car' || P.mode === 'exitCar') { fx = car.x; fz = car.z; fy = 1.5; dist = Math.max(camDist, 7.0); yawFollow = car.yaw; follow = Math.abs(car.v) > 0.5; }
   if (follow && !drag && look.id === null) { let d = (yawFollow + Math.PI) - camYaw; d = Math.atan2(Math.sin(d), Math.cos(d)); camYaw += d * (1 - Math.exp(-dt * (P.mode === 'walk' ? 1.2 : 2.5))); }
+  if (inShop) dist = Math.min(dist, 3.4);
   headV.set(fx, fy, fz);
   if (firstPerson && P.mode === 'walk' && B) { B.Head.getWorldPosition(camPos); camera.position.copy(camPos).add(new THREE.Vector3(Math.sin(P.yaw) * 0.12, 0.05, Math.cos(P.yaw) * 0.12)); camera.lookAt(camPos.x - Math.sin(camYaw) * 5, camPos.y - Math.tan(camPitch) * 5, camPos.z - Math.cos(camYaw) * 5); H.model.visible = false; return; }
   H.model.visible = true;
@@ -1163,17 +1236,25 @@ function frame() {
   else updateCamera(dt);
   const fx = P.mode === 'eagle' ? eagle.x : P.mode === 'car' ? car.x : P.mode === 'bike' ? bike.x : P.x, fz = P.mode === 'eagle' ? eagle.z : P.mode === 'car' ? car.z : P.mode === 'bike' ? bike.z : P.z;
   { const sb = window.__freeCam?.shadowBox || (P.mode === 'eagle' ? Q.shadowBox * 3 : Q.shadowBox), sc = sun.shadow.camera; if (sc.right !== sb) { sc.left = -sb; sc.right = sb; sc.top = sb; sc.bottom = -sb; sc.updateProjectionMatrix(); } }
-  windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
-  P.vx = fx; P.vz = fz; if (!refMode) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
+  if (!inShop) windowLOD.update(refMode ? hero.statueWorld.x : fx, refMode ? hero.statueWorld.z : fz);
+  P.vx = fx; P.vz = fz; if (!refMode && !inShop) traffic.update(dt, P, frameN, [[car.x, car.z], [bike.x, bike.z]]);
   { const f = window.__freeCam, cx = f?.shadowBox ? f.look[0] : camera.position.x, cz = f?.shadowBox ? f.look[2] : camera.position.z, D = f?.shadowBox ? 1500 : 300;
     sun.position.set(cx + sunDir.x * D, sunDir.y * D, cz + sunDir.z * D); sun.target.position.set(cx, 0, cz); sun.shadow.camera.far = D * 2.5; }
   sky.position.copy(camera.position); clouds.position.copy(camera.position); cloudU.uTime.value = simT;
   if (window.__water?.material.uniforms?.time) window.__water.material.uniforms.time.value = simT * 0.5;
   beaconU.uK.value = Math.max(0.3, Math.min(1, 1 - (camera.position.y - 60) / 300));
   { const hy = Math.max(0, camera.position.y - 30); scene.fog.near = 700 + hy * 4; scene.fog.far = 3400 + hy * 14; }
-  windU.uTime.value = simT; foliageU.uTime.value = simT; if (grass && P.mode !== 'eagle') grass.update(fx, fz); if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
+  windU.uTime.value = simT; foliageU.uTime.value = simT; if (grass && P.mode !== 'eagle' && !inShop) grass.update(fx, fz); if (M.water.normalMap) M.water.normalMap.offset.set(simT * 0.01, simT * 0.013);
   // prompts (desktop: text bar with keys; phones: small translucent icon button + tiny speed readout)
-  if (P.mode === 'walk') {
+  doorShop = null;
+  if (inShop) {
+    const sx = shops.nearStand, ex = shops.nearExit, key = TOUCH ? '點這裡' : 'E';
+    prompt.classList.toggle('tap', TOUCH); prompt.dataset.act = 'shop'; if (TOUCH) setAct('');
+    prompt.textContent = sx ? `${key}　購買：${sx.name}` : ex ? `${key}　離開店家` : ''; prompt.hidden = !(sx || ex);
+  } else if (P.mode === 'walk' && (() => { for (const sh of SHOPS) if (sh.door && Math.hypot(P.x - sh.door[0], P.z - sh.door[1]) < 9) { doorShop = sh; return true; } return false; })() && !(eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9)) {
+    prompt.classList.toggle('tap', TOUCH); prompt.dataset.act = 'shop'; if (TOUCH) setAct(''); prompt.textContent = `${TOUCH ? '點這裡' : 'E'}　進入 ${doorShop.zh}`; prompt.hidden = false;
+  } else if (P.mode === 'walk') {
+    prompt.classList.remove('tap');
     const door = new THREE.Vector3().copy(car.driverDoor).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
     const nb = Math.hypot(P.x - bike.x, P.z - bike.z) < REACH, nc = Math.hypot(P.x - door.x, P.z - door.z) < REACH, ne = eagle.state === 'perched' && Math.hypot(P.x - eagle.x, P.z - eagle.z) < 9;
     if (TOUCH) { prompt.hidden = true; setAct(ne ? 'eagle' : nb ? 'bike' : nc ? 'car' : ''); setSpeed(null); }
@@ -1189,12 +1270,13 @@ function frame() {
   else if (P.mode === 'car') { prompt.textContent = `${(Math.abs(car.v) * 3.6).toFixed(0)} km/h ${car.v < -0.1 ? 'R' : 'D'}　·　W 油門　S 煞車／倒車　A/D 轉向　E 下車`; prompt.hidden = false; }
   else prompt.hidden = true;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('#toast').classList.remove('on'); }
-  if ((frameN++ & 3) === 0 && !refMode) { drawMini(); cards.update(fx, fz); drawSecret(); }
-  if ((frameN & 63) === 0) queueAround(fx, fz);
-  if ((frameN & 63) === 7) placeBuskers();
-  if ((frameN & 63) === 9) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
-  if (!window.__storyOpen) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
-  notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz);
+  if ((frameN++ & 3) === 0 && !refMode && !inShop) { drawMini(); cards.update(fx, fz); drawSecret(); }
+  if ((frameN & 63) === 0 && !inShop) queueAround(fx, fz);
+  if ((frameN & 63) === 7 && !inShop) placeBuskers();
+  if ((frameN & 63) === 9 && !inShop) birds.spawnPigeons(fx, fz, (x, z) => !insideBuilding(x, z) && walkableC(x, z));
+  if (inShop) shops.update(dt, P);
+  if (!window.__storyOpen && !inShop) { birds.update(dt, fx, fz); boats.update(dt, fx, fz); }
+  if (!inShop) { notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz); }
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   if (gradePass) gradePass.uniforms.uTime.value = (gradePass.uniforms.uTime.value + 0.017) % 100;
   renderSafe();

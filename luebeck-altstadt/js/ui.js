@@ -1,5 +1,6 @@
 import { openStory, storyList, storiesAt, STORIES } from './stories.js';
 import './stories2.js';
+import './shopstories.js';
 // Landmark intro cards: enter/exit hysteresis, one card at a time, manual close sticks for the current visit,
 // global "auto intro" switch, reopen via the ℹ button or the I key, never pops up while riding/driving.
 const TEXT = {
@@ -26,6 +27,7 @@ const TEXT = {
   kanal: '運河特拉沃（Kanal-Trave），易北河—呂貝克運河流經舊城東側的一段。運河 1900 年通航，前身是 1398 年完成的施特克尼茨運河。',
   st_jakobi: '聖雅各教堂，水手與漁民的教堂，位於 Koberg 廣場旁；「七塔之城」的七座尖塔之一。',
   st_aegidien: '聖吉爾斯教堂（St. Aegidien），五座主要教堂中最小的一座，位於舊城東側的手工業者街區；「七塔之城」的七座尖塔之一。',
+  fangfrisch: 'Fangfrisch，位於 An der Untertrave 51、特拉沃河畔，賣現炸魚排堡（Fischbrötchen）和自家釀造的啤酒；旁邊還有一間外帶魚堡小屋。',
   puppenbruecke: '人偶橋（Puppenbrücke），霍爾斯滕門外的橋，橋上有一組石雕像，因此得名。',
 };
 export class InfoCards {
@@ -75,6 +77,7 @@ export class InfoCards {
     let box = this.el.querySelector('.storybtns'); if (!box) { box = document.createElement('div'); box.className = 'storybtns'; sb.after(box); }
     box.textContent = '';
     for (const id of storiesAt(l.id)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'storybtn'; b.textContent = '▶ ' + STORIES[id].zh; b.onclick = (e) => { e.stopPropagation(); openStory(id); }; box.appendChild(b); }
+    if (['niederegger', 'fangfrisch'].includes(l.id) && window.__enterShop) { const b = document.createElement('button'); b.type = 'button'; b.className = 'storybtn'; b.textContent = '🚪 進入店內逛逛、購買'; b.onclick = (e) => { e.stopPropagation(); window.__enterShop(l.id); }; box.appendChild(b); }
     this.el.querySelector('.src').innerHTML = `位置：<a href="https://www.openstreetmap.org/${l.osm}" target="_blank" rel="noopener">OpenStreetMap ${l.osm}</a>（ODbL，取得 ${l.fetched_at.slice(0, 10)}）` + (l.unverified.length ? `<br>待核對：${l.unverified.join('；')}` : '');
     this.el.hidden = false; requestAnimationFrame(() => this.el.classList.add('on'));
   }
