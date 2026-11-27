@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DATA, ribbon, ribGeo, groundY } from './world.js';
 import { clamp, mulberry32, signTex, canvasTex, pca, glowTex } from './util.js';
-import { GlowSet, People } from './props.js';
+import { GlowSet } from './props.js';
+import { Humans } from './life.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -43,7 +44,7 @@ export function buildLandmarks(ctx) {
   const { scene, batches, rnd0 } = ctx; const rnd = mulberry32(4242);
   ctx.signMats = []; ctx.nightMats = []; ctx.blink = new GlowSet('blink', 40); ctx.glowSets.push(ctx.blink);
   ctx.update = ctx.update || [];
-  const people = new People(ctx, 4200); ctx.people = people;
+  const people = new Humans(ctx, 4600); ctx.people = people;
   const add = (geo, mat, x, y, z, ry = 0, cast = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = cast; m.receiveShadow = true; scene.add(m); return m; };
   const stdMat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8 }, o));
   const signMat = (tex, glow = 1.0) => { const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.5, roughness: 0.6 }); m.userData.k = glow; ctx.signMats.push(m); return m; };

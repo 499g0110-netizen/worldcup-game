@@ -35,6 +35,41 @@ const CLAMP = {
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c.rgb)) || any(isinf(c.rgb))) c.rgb = vec3(0.); c.rgb = min(c.rgb, vec3(40.0)); gl_FragColor = vec4(c.rgb, 1.0); }`,
 };
+const STYLE = {
+  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+  uniform sampler2D tDiffuse; uniform float uMode; uniform vec2 uRes; uniform float uTime; varying vec2 vUv;
+  float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+  float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+  float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+  vec3 tx(vec2 o){ return texture2D(tDiffuse, vUv + o).rgb; }
+  void main(){
+    vec3 c0 = tx(vec2(0.));
+    if (uMode < 0.5) { gl_FragColor = vec4(c0,1.); return; }
+    vec2 px = 1.6/uRes;
+    // pigment bleed: wobbly sampling offsets driven by low-freq noise
+    vec2 wob = (vec2(vn(vUv*uRes/40.), vn(vUv*uRes/40.+7.)) - 0.5) * px * 3.0;
+    vec3 b = tx(wob)*0.36 + (tx(wob+vec2(px.x,0.))+tx(wob-vec2(px.x,0.))+tx(wob+vec2(0.,px.y))+tx(wob-vec2(0.,px.y)))*0.16;
+    float gx = lum(tx(vec2(px.x,0.))) - lum(tx(vec2(-px.x,0.))), gy = lum(tx(vec2(0.,px.y))) - lum(tx(vec2(0.,-px.y)));
+    float edge = clamp(length(vec2(gx,gy))*3.2, 0., 1.);
+    float paper = vn(vUv*uRes/3.0)*0.5 + vn(vUv*uRes/14.)*0.35 + vn(vUv*uRes/90.)*0.15;
+    vec3 col;
+    if (uMode < 1.5) {                           // watercolour
+      vec3 q = floor(b*7.0+0.5)/7.0; col = mix(b, q, 0.35);
+      col = mix(col, vec3(lum(col)), -0.12);
+      col *= 1.0 - edge*0.45;                    // pigment pooling at edges
+      col = mix(col, vec3(0.97,0.95,0.9), 0.07 + 0.08*(1.0-lum(col)));  // paper showing through
+      col *= 0.9 + 0.16*paper;
+    } else {                                     // paper-cut
+      vec3 q = floor(b*4.0+0.5)/4.0; col = mix(b, q, 0.75);
+      col = mix(vec3(lum(col)), col, 1.25);
+      col *= 1.0 - smoothstep(0.12, 0.3, edge)*0.75;  // cut lines
+      col *= 0.88 + 0.2*paper;
+    }
+    gl_FragColor = vec4(col, 1.0);
+  }`,
+};
 export function createPost(renderer, scene, camera) {
   const size = renderer.getSize(new THREE.Vector2()); const pr = renderer.getPixelRatio();
   const rt = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, { type: THREE.HalfFloatType, samples: 4 });
@@ -45,7 +80,8 @@ export function createPost(renderer, scene, camera) {
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   const grade = new ShaderPass(GRADE); composer.addPass(grade);
-  const setSize = (w, h) => { composer.setSize(w, h); bloom.setSize(w, h); grade.uniforms.uRes.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); };
+  const style = new ShaderPass(STYLE); composer.addPass(style);
+  const setSize = (w, h) => { composer.setSize(w, h); bloom.setSize(w, h); grade.uniforms.uRes.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); style.uniforms.uRes.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); };
   setSize(size.x, size.y);
-  return { composer, bloom, grade, setSize };
+  return { composer, bloom, grade, style, setSize };
 }

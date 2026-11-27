@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DATA, ribbon, ribGeo, groundY } from './world.js';
 import { clamp, mulberry32, signTex, canvasTex, pca, glowTex, smooth } from './util.js';
 import { GlowSet } from './props.js';
+import { Humans } from './life.js';
+import { waterPatch } from './world.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -20,7 +22,7 @@ export function buildFloatingMarket(ctx) {
 
   // water (south of the boardwalk) – extends the OSM Khlong Hae stream through the market
   const wnm = ctx.waterNormal.clone(); wnm.needsUpdate = true; wnm.repeat.set(22, 3);
-  const wmat = ctx.waterMat.clone(); wmat.normalMap = wnm; wmat.normalScale = new THREE.Vector2(0.22, 0.22); wmat.roughness = 0.1;
+  const wmat = ctx.waterMat.clone(); wmat.onBeforeCompile = waterPatch; wmat.customProgramCacheKey = () => 'water2'; wmat.normalMap = wnm; wmat.normalScale = new THREE.Vector2(0.22, 0.22); wmat.roughness = 0.1;
   const wat = new THREE.Mesh(new THREE.PlaneGeometry(900, 70), wmat); wat.rotation.x = -Math.PI / 2; wat.position.set(cx + 40, 0.06, zb + 35); wat.receiveShadow = true; scene.add(wat);
 
   // boardwalk deck (wood planks)
@@ -82,8 +84,57 @@ export function buildFloatingMarket(ctx) {
   for (let i = 0; i < 90; i++) ctx.extraTrees.push([cx - 160 + rnd() * 380, zb - 44 - rnd() * 40, 1.6 + rnd() * 1.6]);
   for (let i = 0; i < 70; i++) ctx.extraTrees.push([cx - 200 + rnd() * 480, zb + 78 + rnd() * 80, 1.8 + rnd() * 1.8]);
   for (let i = 0; i < 26; i++) ctx.extraTrees.push([cx - 100 + i * 8 + rnd() * 3, zb - 44 + rnd() * 3, 1.8 + rnd()]);
+  buildRowboats(ctx, cx, zb);
   glow.build(scene);
   ctx.update.push((dt, t, S) => { glow.mat.uniforms.uInt.value = 0.1 + 1.0 * S.win + 0.5 * (1 - Math.abs(S.win - 0.5) * 2) * 0; wnm.offset.x += dt * 0.004; wnm.offset.y += dt * 0.002; });
+}
+
+// ---- rowing boats with oarsmen (Thai ngob hats), wakes rippling outward ----
+function buildRowboats(ctx, cx, zb) {
+  const { scene } = ctx; const rnd = mulberry32(4711); const N = 12;
+  const hull = new THREE.BoxGeometry(1.0, 0.45, 6.2); hull.translate(0, 0.2, 0);
+  const bn = hull.attributes.position; for (let i = 0; i < bn.count; i++) { const z = bn.getZ(i); if (Math.abs(z) > 2.9) { bn.setX(i, bn.getX(i) * 0.2); bn.setY(i, bn.getY(i) + 0.25); } }
+  hull.computeVertexNormals();
+  const hulls = new THREE.InstancedMesh(hull, new THREE.MeshStandardMaterial({ roughness: 0.55 }), N);
+  const oarG = new THREE.BoxGeometry(0.06, 0.06, 2.8); oarG.translate(0, 0, -1.1); const oars = new THREE.InstancedMesh(oarG, new THREE.MeshStandardMaterial({ color: 0x5a3c22, roughness: 0.8 }), N);
+  const hatG = new THREE.ConeGeometry(0.36, 0.2, 14); const hats = new THREE.InstancedMesh(hatG, new THREE.MeshStandardMaterial({ color: 0xd8bb7a, roughness: 0.9 }), N);
+  const rowers = new Humans(ctx, N);
+  const ringG = new THREE.RingGeometry(0.9, 1.0, 40); ringG.rotateX(-Math.PI / 2);
+  const RN = 160; const rings = new THREE.InstancedMesh(ringG, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), RN);
+  const ringState = Array.from({ length: RN }, () => ({ x: 0, z: 0, age: 99 })); let rhead = 0;
+  const cols = ['#c8281e', '#1f8a4c', '#1d5fb8', '#e8a31d', '#6b3a1e', '#e0508a'], col = new THREE.Color();
+  const boats = [];
+  for (let i = 0; i < N; i++) {
+    const b = { x: cx - 220 + rnd() * 460, z: zb + 9 + rnd() * 22, v: (0.8 + rnd() * 0.7) * (rnd() < 0.5 ? 1 : -1), rate: 2.0 + rnd() * 0.6, ph: rnd() * 6.28, emit: rnd() };
+    b.ri = rowers.add(0, 0, 0, 1, new THREE.Color().setHSL(rnd(), 0.4, 0.3), 1.0, b.rate, 1);
+    col.set(cols[i % cols.length]); hulls.setColorAt(i, col); boats.push(b);
+  }
+  rowers.finalize();
+  for (const m of [hulls, oars, hats, rings]) { m.frustumCulled = false; scene.add(m); }
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), ax = new THREE.Vector3(1, 0, 0);
+  ctx.update.push((dt, t, S) => {
+    rowers.update(t);
+    boats.forEach((b, i) => {
+      const stroke = Math.max(0, Math.sin(t * b.rate + b.ph));          // surge on each stroke
+      b.x += b.v * dt * (0.6 + 0.8 * stroke); if (b.x > cx + 260) b.x = cx - 220; if (b.x < cx - 220) b.x = cx + 260;
+      const yaw = b.v > 0 ? Math.PI / 2 : -Math.PI / 2, bob = Math.sin(t * 1.7 + i) * 0.04, roll = Math.sin(t * 1.3 + i * 2) * 0.03;
+      Q.setFromAxisAngle(up, yaw).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll));
+      M.compose(V.set(b.x, 0.02 + bob, b.z), Q, S1); hulls.setMatrixAt(i, M);
+      const dir = Math.sign(b.v), sx = b.x - dir * 1.6;                 // rower sits at the stern
+      M.compose(V.set(sx, -0.42 + bob, b.z), new THREE.Quaternion().setFromAxisAngle(up, yaw), S1); rowers.mesh.setMatrixAt(b.ri, M);
+      M.compose(V.set(sx, 1.33 + bob, b.z), new THREE.Quaternion(), S1); hats.setMatrixAt(i, M);
+      const a = Math.sin(t * b.rate + b.ph) * 0.55;
+      Q.setFromAxisAngle(up, yaw + Math.PI / 2 * 0).multiply(new THREE.Quaternion().setFromAxisAngle(ax, 0.55 + a * 0.35)).multiply(new THREE.Quaternion().setFromAxisAngle(up, a));
+      M.compose(V.set(sx + dir * 0.4, 0.95 + bob, b.z + 0.45), Q, S1); oars.setMatrixAt(i, M);
+      b.emit -= dt; if (b.emit <= 0) { b.emit = 0.7; const r = ringState[rhead]; rhead = (rhead + 1) % RN; r.x = b.x - dir * 3.2; r.z = b.z; r.age = 0; }
+    });
+    ringState.forEach((r, k) => {
+      r.age += dt; const life = 5.5, a = Math.min(1, r.age / life), s = 0.8 + a * 7.5;
+      M.compose(V.set(r.x, 0.09, r.z), new THREE.Quaternion(), new THREE.Vector3(s, 1, s * 0.8)); rings.setMatrixAt(k, M);
+      const f = r.age > life ? 0 : (1 - a) * (1 - a) * (0.18 + 0.25 * (1 - S.win)); col.setRGB(f, f, f * 1.05); rings.setColorAt(k, col);
+    });
+    for (const m of [hulls, oars, hats, rings, rowers.mesh]) m.instanceMatrix.needsUpdate = true; rings.instanceColor.needsUpdate = true;
+  });
 }
 
 // =====================================================================

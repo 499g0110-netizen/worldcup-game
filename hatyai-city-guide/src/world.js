@@ -4,6 +4,23 @@ import { clamp, lerp, smooth, fbm, vnoise, mulberry32, SegHash, Occ, pointInPoly
 import { Batch, BatchSet } from './facade.js';
 
 export const DATA = city;
+export const waterUniforms = { uTime: { value: 0 }, uLight: { value: 1 } };
+export function waterPatch(sh) {
+  sh.uniforms.uTime = waterUniforms.uTime; sh.uniforms.uLight = waterUniforms.uLight;
+  sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uTime; uniform float uLight;\nvoid main() {')
+    .replace('#include <normal_fragment_maps>', `
+#ifdef USE_NORMALMAP_TANGENTSPACE
+  vec3 n1 = texture2D(normalMap, vNormalMapUv + vec2(uTime*0.013, uTime*0.007)).xyz*2.-1.;
+  vec3 n2 = texture2D(normalMap, vNormalMapUv*2.3 + vec2(-uTime*0.011, uTime*0.017)).xyz*2.-1.;
+  vec3 n3 = texture2D(normalMap, vNormalMapUv*0.45 + vec2(uTime*0.004, -uTime*0.006)).xyz*2.-1.;
+  vec3 mapN = normalize(vec3((n1.xy + n2.xy*0.6 + n3.xy*0.8) * normalScale, 1.0));
+  normal = normalize(tbn * mapN);
+#endif`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  { float fres = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0., 1.), 4.0);
+    vec3 bed = vec3(0.06,0.085,0.065) * (0.65 + 0.7*clamp(normal.x*2.0+0.5,0.,1.));   // refracted river bed, distorted by ripples
+    totalEmissiveRadiance += bed * (1.0 - fres) * 0.5 * uLight; }`);
+}
 export const BOUNDS = { x0: -13000, x1: 9000, z0: -8500, z1: 11000 };
 
 // ---------------------------------------------------------------
@@ -258,6 +275,7 @@ void main() {`).replace('#include <color_fragment>', `#include <color_fragment>
     normalTex.colorSpace = THREE.NoColorSpace;
     const mat = new THREE.MeshStandardMaterial({ color: 0x1b2f3a, roughness: 0.2, metalness: 0.45, normalMap: normalTex, normalScale: new THREE.Vector2(0.3, 0.3), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     normalTex.repeat.set(1, 1);
+    mat.onBeforeCompile = waterPatch; mat.customProgramCacheKey = () => 'water';
     ctx.waterNormal = normalTex;
     const o = { pos: [], uv: [], idx: [] };
     for (const w of city.water) {

@@ -79,6 +79,19 @@ body.explore #places{display:flex}body.explore #card{opacity:0!important}body.ex
 .lbl{display:none}
 footer{position:absolute;left:clamp(16px,3vw,44px);bottom:calc(5.2vh + 3px);font-size:9.5px;letter-spacing:.06em;color:rgba(244,239,230,.4);max-width:70vw}
 footer a{color:inherit}
+#c-story{margin-top:14px;display:block;padding:9px 14px;border:1px solid rgba(230,194,116,.6);background:rgba(230,194,116,.12);font-size:12px;letter-spacing:.18em;border-radius:2px}
+#c-story:hover{background:rgba(230,194,116,.28)}
+#story{position:fixed;inset:0;z-index:40;background:#0b0710;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .8s,visibility .8s}
+#story.on{opacity:1;visibility:visible}
+#story canvas{width:min(100vw,177.78vh);height:min(56.25vw,100vh);display:block}
+#story .st-title{position:absolute;top:calc(50% - min(28.1vw,50vh) + 34px);left:calc(50% - min(50vw,88.9vh) + 44px);font-family:var(--serif);text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#story .st-title b{display:block;font-size:clamp(20px,3vw,36px);letter-spacing:.12em}
+#story .st-title small{font-size:13px;letter-spacing:.2em;color:#f1deb0}
+#story .st-sub{position:absolute;bottom:calc(50% - min(28.1vw,50vh) + 46px);left:50%;transform:translateX(-50%);max-width:80vw;text-align:center;font-family:var(--serif);font-size:clamp(14px,1.8vw,21px);letter-spacing:.08em;padding:8px 18px;background:rgba(10,6,16,.45);border-radius:2px;opacity:0;transition:opacity 1s}
+#story .st-sub.in{opacity:1}
+#story .st-ctl{position:absolute;top:16px;right:16px;display:flex;gap:6px}
+#story .st-ctl button{height:34px;padding:0 12px;background:rgba(12,14,28,.6);border:1px solid var(--line);font-size:12px}
+#story .st-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}#story .st-bar i{display:block;height:100%;width:0;background:var(--gold)}
 @media (max-width:760px){#minimap{display:none}#card{bottom:calc(5.2vh + 130px);padding:16px 18px}#c-desc{font-size:12px}#controls{bottom:calc(5.2vh + 74px);justify-content:flex-start;left:16px}.dot span{display:none}#dist{top:calc(5.2vh + 14px)}}
 </style>
 </head>
@@ -102,18 +115,19 @@ footer a{color:inherit}
   <div id="dist"><div><small>距離中心</small><div id="dist-val">0 m</div></div><div id="dist-ring"></div></div>
   <canvas id="minimap" width="440" height="432"></canvas>
   <div id="places"></div>
-  <div id="card"><div id="c-idx"></div><div id="c-zh"></div><div id="c-en"></div><div id="c-desc"></div><div id="c-tag"></div></div>
+  <div id="card"><div id="c-idx"></div><div id="c-zh"></div><div id="c-en"></div><div id="c-desc"></div><div id="c-tag"></div><button id="c-story">▶ 觀看故事動畫</button></div>
   <div id="controls">
-    <button id="tod-auto" class="on" title="依章節自動 (0)">自動光線</button><button id="tod-day" title="白天 (1)">白天</button><button id="tod-dusk" title="黃昏 (2)">黃昏</button><button id="tod-night" title="夜晚 (3)">夜晚</button>
+    <button id="tod-auto" class="on" title="依章節自動 (0)">自動光線</button><button id="tod-day" title="白天 (1)">白天</button><button id="tod-dusk" title="黃昏 (2)">黃昏</button><button id="tod-night" title="夜晚 (3)">夜晚</button><button id="tod-cycle" title="時間自動流轉 (4)">時光流轉</button>
     <span class="sep"></span>
     <button id="btn-prev" title="上一站 (←)">◀</button><button id="btn-play" title="播放/暫停 (空白鍵)">❚❚</button><button id="btn-next" title="下一站 (→)">▶</button>
     <span class="sep"></span>
-    <button id="btn-explore" title="自由探索 (E)"><span>自由探索</span></button><button id="btn-sound" title="環境音 (開/關)">♪</button><button id="btn-fs" title="全螢幕 (F)">⛶</button><button id="btn-hide" title="隱藏介面 (H)">◐</button>
+    <button id="btn-style" title="畫風 (S)">畫風：寫實</button><button id="btn-explore" title="自由探索 (E)"><span>自由探索</span></button><button id="btn-sound" title="環境音 (開/關)">♪</button><button id="btn-fs" title="全螢幕 (F)">⛶</button><button id="btn-hide" title="隱藏介面 (H)">◐</button>
   </div>
   <div id="tl"><div id="tl-track"><div id="tl-fill"></div><div id="tl-dots"></div></div></div>
   <div id="labels"></div>
   <footer>地圖資料 © OpenStreetMap contributors (ODbL)。建築高度與立面為依照片與街景估計的藝術重建，非精確測繪。</footer>
 </div>
+<div id="story"><canvas></canvas><div class="st-title"></div><div class="st-sub"></div><div class="st-ctl"><button class="st-play">❚❚ / ▶</button><button class="st-style">風格：剪紙</button><button class="st-close">✕ 關閉</button></div><div class="st-bar"><i></i></div></div>
 <script>/*BUNDLE*/</script>
 </body>
 </html>

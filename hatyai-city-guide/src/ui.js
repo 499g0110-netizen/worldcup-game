@@ -69,13 +69,16 @@ export function createUI(ctx, director, atmo, camera, hooks) {
     if (on === state.explore) return; state.explore = on; document.body.classList.toggle('explore', on); $('#btn-explore').classList.toggle('on', on);
     $('#btn-explore span').textContent = on ? '回到導覽' : '自由探索'; hooks.explore(on);
   }
-  const todBtns = { auto: $('#tod-auto'), day: $('#tod-day'), dusk: $('#tod-dusk'), night: $('#tod-night') };
+  const todBtns = { auto: $('#tod-auto'), day: $('#tod-day'), dusk: $('#tod-dusk'), night: $('#tod-night'), cycle: $('#tod-cycle') };
   function setTod(k) { state.tod = k; for (const [n, b] of Object.entries(todBtns)) b.classList.toggle('on', n === k); hooks.tod(k); }
   for (const k of Object.keys(todBtns)) todBtns[k].onclick = () => setTod(k);
   $('#btn-play').onclick = () => { if (director.time >= director.total - 0.5) director.setTime(0); director.playing = !director.playing; setExplore(false); };
   $('#btn-prev').onclick = () => { setExplore(false); const cur = Math.max(1, director.holdIdx >= 0 ? director.holdIdx : state.shown); director.seekChapter(Math.max(0, cur - 1)); };
   $('#btn-next').onclick = () => { setExplore(false); const cur = director.holdIdx >= 0 ? director.holdIdx : Math.max(0, state.shown); director.seekChapter(Math.min(chs.length - 2, cur + 1)); };
   $('#btn-explore').onclick = () => setExplore(!state.explore);
+  const STYLES = ['寫實', '水彩', '剪紙']; let styleI = 0;
+  $('#btn-style').onclick = () => { styleI = (styleI + 1) % 3; $('#btn-style').textContent = '畫風：' + STYLES[styleI]; $('#btn-style').classList.toggle('on', styleI > 0); hooks.style(styleI); };
+  $('#c-story').onclick = () => hooks.story(chs[Math.max(0, state.shown)].id);
   $('#btn-fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); };
   $('#btn-hide').onclick = () => { state.ui = !state.ui; document.body.classList.toggle('ui-off', !state.ui); };
   $('#btn-sound').onclick = () => hooks.sound($('#btn-sound'));
@@ -84,7 +87,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
     if (e.target.tagName === 'INPUT') return;
     if (e.code === 'Space') { e.preventDefault(); $('#btn-play').click(); } else if (e.code === 'ArrowRight') $('#btn-next').click(); else if (e.code === 'ArrowLeft') $('#btn-prev').click();
     else if (e.key === 'e' || e.key === 'E') setExplore(!state.explore); else if (e.key === 'h' || e.key === 'H') $('#btn-hide').click(); else if (e.key === 'f' || e.key === 'F') $('#btn-fs').click();
-    else if (e.key === '1') setTod('day'); else if (e.key === '2') setTod('dusk'); else if (e.key === '3') setTod('night'); else if (e.key === '0') setTod('auto');
+    else if (e.key === '1') setTod('day'); else if (e.key === '2') setTod('dusk'); else if (e.key === '3') setTod('night'); else if (e.key === '0') setTod('auto'); else if (e.key === '4') setTod('cycle'); else if (e.key === 's' || e.key === 'S') $('#btn-style').click();
   });
   addEventListener('wheel', (e) => { if (state.explore || !$('#intro').classList.contains('gone')) return; director.setTime(director.time + e.deltaY * 0.025); }, { passive: true });
 

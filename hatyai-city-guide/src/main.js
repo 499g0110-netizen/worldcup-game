@@ -6,10 +6,13 @@ import { Atmosphere } from './sky.js';
 import { reserve, buildLandmarks } from './landmarks.js';
 import { buildFloatingMarket, buildPark, buildAirport } from './places.js';
 import { buildExtras } from './extras.js';
-import { buildTrees, treeLayout, buildStreetFurniture, Traffic, GlowSet, glowUniforms } from './props.js';
+import { buildTrees, treeLayout, buildStreetFurniture, GlowSet, glowUniforms } from './props.js';
+import { Traffic, Walkers } from './life.js';
 import { createPost } from './post.js';
 import { Director } from './director.js';
 import { createUI } from './ui.js';
+import { StoryPlayer, STORY_FOR } from './story.js';
+import { waterUniforms } from './world.js';
 import { mulberry32, canvasTex } from './util.js';
 import { ribGeo } from './world.js';
 
@@ -63,7 +66,7 @@ async function main() {
   const trees = treeLayout(ctx).concat(ctx.extraTrees || []);
   buildTrees(ctx, trees);
   buildStreetFurniture(ctx);
-  const traffic = new Traffic(ctx, 300);
+  const traffic = new Traffic(ctx, 460); const walkers = new Walkers(ctx, null, 480);
   // far-field city lights (suburban glow seen from above)
   {
     const gs = new GlowSet('city', 40); const rnd = mulberry32(2024); const warm = new THREE.Color(1, 0.7, 0.36), white = new THREE.Color(0.85, 0.92, 1), amber = new THREE.Color(1, 0.55, 0.2);
@@ -80,19 +83,24 @@ async function main() {
   let explore = false, todMode = 'auto', todLerp = null;
   const lookNow = new THREE.Vector3();
   const sound = makeSound();
+  const story = new StoryPlayer(document.getElementById('story'));
   const ui = createUI(ctx, director, atmo, camera, {
     explore: (on) => { explore = on; controls.enabled = on; if (on) { controls.target.copy(lookNow); controls.update(); } },
     tod: (k) => { todMode = k; },
     sound: (btn) => { const on = sound.toggle(); btn.classList.toggle('on', on); },
     started: () => { sound.ready(); },
+    style: (i) => { post.style.uniforms.uMode.value = i; },
+    story: (id) => { director.playing = false; story.open(STORY_FOR[id] || 'street'); },
   });
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); post.setSize(innerWidth, innerHeight); });
 
   // debugging / screenshot hooks
-  window.__guide = { THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
+  window.__guide = { story, STORY_FOR, THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
   if (params.has('ch')) { const i = +params.get('ch'); director.seekChapter(i); director.time = director.chapters[i].t0 + (params.has('u') ? +params.get('u') * director.chapters[i].dur : 0.01); director.playing = false; }
   if (params.has('t')) { director.setTime(+params.get('t')); director.playing = false; }
   if (params.has('ui') && params.get('ui') === '0') document.body.classList.add('ui-off');
+  if (params.has('style')) post.style.uniforms.uMode.value = +params.get('style');
+  if (params.has('story')) { story.open(params.get('story')); story.t = +(params.get('st') || 8); story.playing = false; story.style = params.get('sstyle') || 'paper'; }
 
   // ---------------- main loop ----------------
   const clock = new THREE.Clock(); let elapsed = 0, shake = new THREE.Vector3(); const v3 = new THREE.Vector3();
@@ -111,17 +119,17 @@ async function main() {
     } else { controls.update(); camera.getWorldDirection(v3); lookNow.copy(camera.position).addScaledVector(v3, Math.max(60, camera.position.y)); }
     camera.updateProjectionMatrix();
     // time of day
-    const target = todMode === 'auto' ? ev.tod : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
+    const target = todMode === 'auto' ? ev.tod : todMode === 'cycle' ? 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 80) : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
     if (!params.has('tod')) atmo.set(target, !!window.__manual);
     sunFocus.copy(lookNow).y = 0; atmo.followCamera(camera.position);
     atmo.update(dt, sunFocus);
-    const S = atmo.state; facadeUniforms.uNight.value = S.win; facadeUniforms.uTime.value = elapsed;
+    const S = atmo.state; facadeUniforms.uNight.value = S.win; waterUniforms.uTime.value = elapsed; waterUniforms.uLight.value = 1 - 0.75 * S.win; facadeUniforms.uTime.value = elapsed;
     glowUniforms.uScale.value = renderer.getDrawingBufferSize(dbs).y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
     for (const g of ctx.glowSets) { if (!g.mat) continue; if (g.kind === 'lamp') g.mat.uniforms.uInt.value = 0.05 + 1.0 * S.lamp; else if (g.kind === 'traffic') g.mat.uniforms.uInt.value = 0.25 + 0.9 * S.win; else if (g.kind === 'city') g.mat.uniforms.uInt.value = S.win * 0.9; }
     if (ctx.lampPools) ctx.lampPools.opacity = S.lamp * 0.95;
     ctx.roadMats.major.roughness = 0.62 - 0.1 * S.win; // wetter look at night
     for (const f of ctx.update) f(dt, elapsed, S);
-    traffic.update(dt);
+    traffic.update(dt, elapsed); walkers.update(dt, elapsed);
     post.bloom.strength = S.bloom * 0.8; post.bloom.radius = 0.7; post.bloom.threshold = 0.9;
     post.grade.uniforms.uTime.value = elapsed; post.grade.uniforms.uNight.value = S.win;
     ui.update(dt, ev);
