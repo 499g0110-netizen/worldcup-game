@@ -147,34 +147,17 @@ export function buildPark(ctx) {
   const clk = DATA.pois.find(p => p.n === 'หอนาฬิกา' || p.n === 'Hat Yai Clock Tower' && p.p[0] > 1000);
   const hillC = [4330, -3900];
   ctx.extraTrees = ctx.extraTrees || [];
-  for (let i = 0; i < 2600; i++) { const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 1250; ctx.extraTrees.push([hillC[0] + Math.cos(a) * r, hillC[1] + Math.sin(a) * r * 0.8, 1.6 + rnd() * 1.8]); }
+  for (let i = 0; i < 2600; i++) { const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 1250, tx = hillC[0] + Math.cos(a) * r, tz = hillC[1] + Math.sin(a) * r * 0.8; if (Math.hypot(tx - 4300, tz + 3860) < 120) continue; ctx.extraTrees.push([tx, tz, 1.6 + rnd() * 1.8]); }
   // winding road up the hill with lamps
   const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, a = t * 5.2 - 0.6, r = 700 - t * 560; pts.push([hillC[0] + Math.cos(a) * r, hillC[1] + Math.sin(a) * r * 0.85]); }
   const o = { pos: [], uv: [], idx: [] }; ribbon(pts, 7, (x, z) => groundY(x, z) + 0.15, 24, o);
   const mat = ctx.roadMats.minor; const mesh = new THREE.Mesh(ribGeo(o), mat); mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh);
   const glow = new GlowSet('lamp', 90); ctx.glowSets.push(glow); const warm = C('#ffb25a');
   pts.forEach((p, i) => { if (i % 2 === 0) glow.add(p[0] + 4, groundY(p[0], p[1]) + 7, p[1], 7, warm); });
-  // summit: Phra Phutthamongkhon Maharat (พระพุทธมงคลมหาราช) – large Buddha statue (stylised) + cable-car station (OSM)
-  const bx = 4328, bz = -3868, by = groundY(bx, bz);
-  const gold = new THREE.MeshStandardMaterial({ color: 0xe0b44a, metalness: 0.85, roughness: 0.3, emissive: 0x8a5a10, emissiveIntensity: 0.15 }); ctx.nightMats.push({ mat: gold, base: 0.12, k: 1.1 });
-  const white = stdMat(0xf0ece0, { roughness: 0.6 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(24, 30, by + 3, 32), stdMat(0x6d675a, { roughness: 1 })); base.position.set(bx, (by + 3) / 2 - 1, bz); base.receiveShadow = true; scene.add(base);
-  let yy = by + 2;
-  for (const [r, h] of [[17, 3], [14, 3], [11.5, 3]]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 1.2, h, 28), white); t.position.set(bx, yy + h / 2, bz); t.castShadow = true; scene.add(t); yy += h; }
-  const lotus = new THREE.Mesh(new THREE.CylinderGeometry(10, 8, 2.4, 24), gold); lotus.position.set(bx, yy + 1.2, bz); scene.add(lotus); yy += 2.4;
-  const legs = new THREE.Mesh(new THREE.SphereGeometry(10, 24, 14), gold); legs.scale.set(1.35, 0.42, 0.95); legs.position.set(bx, yy + 3.8, bz); legs.castShadow = true; scene.add(legs);
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(6.4, 24, 16), gold); torso.scale.set(1.0, 1.55, 0.82); torso.position.set(bx, yy + 13, bz); torso.castShadow = true; scene.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(3.3, 20, 14), gold); head.position.set(bx, yy + 25.4, bz); head.castShadow = true; scene.add(head);
-  const ush = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3.6, 14), gold); ush.position.set(bx, yy + 29.6, bz); scene.add(ush);
-  for (const s of [-1, 1]) { const arm = new THREE.Mesh(new THREE.CapsuleGeometry(1.7, 7.5, 6, 12), gold); arm.position.set(bx + s * 7.1, yy + 12, bz + 1.2); arm.rotation.z = s * 0.28; arm.castShadow = true; scene.add(arm); }
-  const hands = new THREE.Mesh(new THREE.SphereGeometry(2.2, 14, 10), gold); hands.scale.set(1.5, 0.7, 1); hands.position.set(bx, yy + 6.2, bz + 5.2); scene.add(hands);
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.28, 8, 40), new THREE.MeshBasicMaterial({ color: 0xfff1b8 })); halo.position.set(bx, yy + 26, bz - 3.2); scene.add(halo);
-  for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; glow.add(bx + Math.cos(a) * 22, by + 1.2, bz + Math.sin(a) * 22, 16, C('#ffe2a0')); }
-  glow.add(bx, yy + 14, bz + 10, 70, C('#ffd88a')); glow.add(bx, yy + 26, bz + 6, 26, C('#fff0c0'));
-  // cable-car station (OSM polygon)
-  const st = DATA.blds.find(b => b.n.includes('พระพุทธมงคลมหาราช') && b.c === 'aerialway');
-  if (st) { const P = ring(st.p); let cx = 0, cz = 0; P.forEach(q => { cx += q[0] / P.length; cz += q[1] / P.length; }); ctx.batches.at(cx, cz).prism(P, groundY(cx, cz) - 1, 9, { style: 6, color: C('#d9d3c2'), seed: 0.3, roofColor: C('#b8452a') }); glow.add(cx, groundY(cx, cz) + 8, cz, 18, C('#ffb25a')); }
-  ctx.park = { x: bx, y: by, z: bz, top: yy + 30 };
+  // summit: Phra Phutthamongkhon Maharat (พระพุทธมงคลมหาราช) – standing golden Buddha, as in the reference photo
+  const bx = 4328, bz = -3868, by = groundY(bx, bz) + 0.5;
+  buildBuddhaComplex(ctx, bx, by, bz, glow);
+  ctx.park = { x: bx, y: by, z: bz, top: by + 40 };
   glow.build(scene);
   ctx.update.push((dt, t, S) => { glow.mat.uniforms.uInt.value = 0.1 + 1.0 * S.win; });
 }
@@ -288,4 +271,115 @@ export function buildAirport(ctx) {
     pos.setXYZ(0, a.x, a.y, a.z); pos.setXYZ(1, b.x, b.y, b.z); pos.setXYZ(2, c.x, c.y, c.z); pos.setXYZ(3, d.x, d.y, d.z); pos.needsUpdate = true;
     J.nav.mat.uniforms.uInt.value = (0.4 + 0.9 * Math.pow(Math.sin(t * 4.2) * 0.5 + 0.5, 6)) * (0.5 + S.win) * 1.4;
   });
+}
+
+
+// =====================================================================
+//  Buddha hill complex (from reference photos): standing gold Buddha on a grey tiered
+//  plinth, white balustrade with lotus finials, gold bell chedis, Thai salas with red
+//  tiered roofs and white gables, flag poles; plus an ornate many-spired ordination hall.
+// =====================================================================
+function flagTex(kind) {
+  return canvasTex(96, 64, (g, w, h) => { if (kind === 'th') { const s = ['#a51931', '#f4f5f8', '#2d2a4a', '#2d2a4a', '#f4f5f8', '#a51931']; s.forEach((c, i) => { g.fillStyle = c; g.fillRect(0, i * h / 6, w, h / 6 + 1); }); } else { g.fillStyle = '#f2c414'; g.fillRect(0, 0, w, h); } }, { clamp: true });
+}
+function thaiGableTex() {
+  return canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#7a1e10'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e0b040'; g.lineWidth = 3;
+    for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(w / 2, 20 + i * 10); g.bezierCurveTo(w / 2 - 60 - i * 8, 80 + i * 12, w / 2 - 30, 180, 10 + i * 6, h - 10); g.stroke(); g.beginPath(); g.moveTo(w / 2, 20 + i * 10); g.bezierCurveTo(w / 2 + 60 + i * 8, 80 + i * 12, w / 2 + 30, 180, w - 10 - i * 6, h - 10); g.stroke(); }
+    g.fillStyle = '#f0c850'; g.beginPath(); g.arc(w / 2, 140, 26, 0, 7); g.fill(); });
+}
+function wallPatternTex() {
+  return canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#b8874a'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(255,220,140,.55)'; g.lineWidth = 2;
+    for (let y = 0; y < h; y += 16) for (let x = 0; x < w; x += 16) { g.beginPath(); g.moveTo(x + 8, y); g.lineTo(x + 16, y + 8); g.lineTo(x + 8, y + 16); g.lineTo(x, y + 8); g.closePath(); g.stroke(); } });
+}
+function buildBuddhaComplex(ctx, bx, by, bz, glow) {
+  const { scene } = ctx; const rnd = mulberry32(99);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe8b63c, metalness: 0.95, roughness: 0.22, emissive: 0x7a4a08, emissiveIntensity: 0.12 }); ctx.nightMats.push({ mat: gold, base: 0.1, k: 1.0 });
+  const white = stdMat(0xf4f2ec, { roughness: 0.55 }), grey = stdMat(0x8e8f8c, { roughness: 0.8 }), red = stdMat(0xa8321e, { roughness: 0.55 }), grass = stdMat(0x3f7a2e, { roughness: 1 });
+  const add = (geo, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; scene.add(o); return o; };
+  // terrace on the hilltop
+  add(new THREE.BoxGeometry(170, 6, 120), grass, bx - 30, by - 3, bz + 10);
+  // ---- standing Buddha (faces south-west toward the city) ----
+  const face = Math.atan2(-bx, -bz);                // turn toward Lee Gardens / the city
+  const B = new THREE.Group(); B.position.set(bx, by, bz); B.rotation.y = face; scene.add(B);
+  const put = (geo, m, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); o.castShadow = true; B.add(o); return o; };
+  put(new THREE.BoxGeometry(22, 4.5, 22), grey, 0, 2.25, 0); put(new THREE.BoxGeometry(17, 3.5, 17), grey, 0, 6.25, 0); put(new THREE.BoxGeometry(12, 1.2, 12), white, 0, 8.6, 0);
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; put(new THREE.BoxGeometry(3, 2.5, 0.2), stdMat(0x2a2a2a), Math.sin(a) * 8.6, 6, Math.cos(a) * 8.6); }
+  put(new THREE.CylinderGeometry(5.2, 4.2, 1.6, 32), gold, 0, 10, 0); put(new THREE.CylinderGeometry(4.2, 5.4, 1.4, 32), gold, 0, 11.4, 0);
+  const robe = new THREE.LatheGeometry([[0.01, 0], [1.25, 0], [1.75, 0.6], [1.85, 3], [1.7, 6.5], [1.6, 9.5], [1.75, 12.5], [2.0, 15], [2.25, 16.4], [1.55, 17.3], [0.6, 17.7], [0.01, 17.8]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+  const rb = put(robe, gold, 0, 12.1, 0); rb.scale.set(1, 1, 0.72);
+  put(new THREE.CylinderGeometry(0.55, 0.65, 0.9, 16), gold, 0, 30.2, 0);
+  const head = put(new THREE.SphereGeometry(1.25, 28, 22), gold, 0, 31.6, 0.05); head.scale.set(0.95, 1.12, 1);
+  put(new THREE.SphereGeometry(0.75, 18, 14), gold, 0, 32.75, -0.05); put(new THREE.ConeGeometry(0.32, 1.6, 14), gold, 0, 34.0, -0.05);
+  for (const s of [-1, 1]) put(new THREE.CapsuleGeometry(0.16, 0.7, 4, 8), gold, s * 1.2, 31.3, 0.1);
+  // left arm hanging, right arm raised in blessing (abhaya)
+  put(new THREE.CapsuleGeometry(0.45, 6.2, 6, 12), gold, -2.3, 24.3, 0.1, 0, 0.08);
+  put(new THREE.CapsuleGeometry(0.45, 3.0, 6, 12), gold, 2.1, 26.4, 0.4, 0, -0.35);
+  put(new THREE.CapsuleGeometry(0.42, 2.6, 6, 12), gold, 2.25, 27.6, 1.45, -1.25, 0);
+  const hand = put(new THREE.BoxGeometry(0.9, 1.4, 0.35), gold, 2.3, 28.8, 2.3, 0, 0);
+  // robe drape line over the left shoulder
+  put(new THREE.TorusGeometry(2.0, 0.12, 6, 30, Math.PI), gold, 0, 27.2, 0, 0.6, 0);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; glow.add(bx + Math.cos(a) * 13, by + 9, bz + Math.sin(a) * 13, 12, C('#ffe3a0')); }
+  glow.add(bx, by + 24, bz, 60, C('#ffd27a'));
+  // ---- white balustrade ring with lotus finials + gold bell chedis ----
+  const postG = new THREE.BoxGeometry(0.45, 1.3, 0.45), finG = new THREE.SphereGeometry(0.28, 10, 8), railG = new THREE.BoxGeometry(1, 0.18, 0.2);
+  const posts = new THREE.InstancedMesh(postG, white, 200), fins = new THREE.InstancedMesh(finG, white, 200), rails = new THREE.InstancedMesh(railG, white, 400);
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0); let pi = 0, ri = 0;
+  const fence = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(L / 3)), ang = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n; if (pi < 200) { M.makeTranslation(x, by + 0.65, z); posts.setMatrixAt(pi, M); M.makeTranslation(x, by + 1.5, z); fins.setMatrixAt(pi, M); pi++; } }
+    for (const h of [0.45, 1.05]) if (ri < 400) { Q.setFromAxisAngle(up, ang + Math.PI / 2); M.compose(new THREE.Vector3((x0 + x1) / 2, by + h, (z0 + z1) / 2), Q, new THREE.Vector3(L, 1, 1)); rails.setMatrixAt(ri++, M); } };
+  const R = 30; for (let i = 0; i < 16; i++) { const a0 = i / 16 * Math.PI * 2, a1 = (i + 1) / 16 * Math.PI * 2; if (i === 12) continue; fence(bx + Math.cos(a0) * R, bz + Math.sin(a0) * R, bx + Math.cos(a1) * R, bz + Math.sin(a1) * R); }
+  posts.count = pi; fins.count = pi; rails.count = ri; for (const m of [posts, fins, rails]) { m.castShadow = true; scene.add(m); }
+  const chedi = (x, z, s) => { const g = new THREE.Group(); g.position.set(x, by, z); scene.add(g);
+    const parts = [[new THREE.BoxGeometry(2.2 * s, 1.2 * s, 2.2 * s), white, 0.6], [new THREE.CylinderGeometry(1.0 * s, 1.15 * s, 0.6 * s, 20), gold, 1.5], [new THREE.SphereGeometry(1.15 * s, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.62), gold, 1.9], [new THREE.CylinderGeometry(0.35 * s, 0.6 * s, 0.6 * s, 14), gold, 3.0], [new THREE.ConeGeometry(0.32 * s, 2.6 * s, 14), gold, 4.6]];
+    for (const [geo, m, y] of parts) { const o = new THREE.Mesh(geo, m); o.position.y = y * s; o.castShadow = true; g.add(o); } };
+  chedi(bx - 13, bz + 9, 1.4); chedi(bx + 13, bz + 9, 1.4); chedi(bx - 13, bz - 9, 1.2); chedi(bx + 13, bz - 9, 1.2);
+  // ---- Thai salas: white body, red tiered roof, white gables, chofa finials ----
+  const batch = ctx.batches.at(bx, bz);
+  const sala = (x, z, rot, w, d) => {
+    batch.box(x, z, w, d, rot, by, 1.0, { style: 6, color: C('#9a9a96'), seed: 0.2, collide: false });
+    for (let i = 0; i < 6; i++) { const t = (i / 5 - 0.5); const cx = x + Math.cos(rot) * t * (w - 1.2), cz = z + Math.sin(rot) * t * (w - 1.2);
+      for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.5, 4.2, 0.5), white, cx - Math.sin(rot) * s * (d / 2 - 0.6), by + 3.1, cz + Math.cos(rot) * s * (d / 2 - 0.6)); }
+    batch.box(x, z, w * 0.7, d * 0.55, rot, by + 1, 3.6, { style: 6, color: C('#f2efe6'), seed: 0.4, collide: false });
+    batch.gable(x, z, w, d, rot, by + 5.2, 3.0, C('#b03a22'), 0.3, 1.6);
+    batch.gable(x, z, w * 0.78, d * 0.72, rot, by + 6.9, 2.6, C('#c0442a'), 0.3, 1.0);
+    for (const s of [-1, 1]) { const ex = x + Math.cos(rot) * s * (w / 2 + 1.4), ez = z + Math.sin(rot) * s * (w / 2 + 1.4);
+      const cf = add(new THREE.ConeGeometry(0.22, 2.0, 8), white, ex, by + 9.4, ez); cf.rotation.z = s * 0.5; }
+    glow.add(x, by + 4.2, z, 10, C('#ffd9a0'));
+  };
+  sala(bx + 44, bz + 14, 0.25, 22, 13); sala(bx + 70, bz + 26, 0.25, 16, 10); sala(bx - 42, bz + 18, -0.2, 14, 10);
+  // flag poles: Thai national + yellow flags
+  const thF = new THREE.MeshStandardMaterial({ map: flagTex('th'), side: THREE.DoubleSide, roughness: 0.8 }), yeF = new THREE.MeshStandardMaterial({ map: flagTex('y'), side: THREE.DoubleSide, roughness: 0.8 });
+  const flags = [];
+  for (let i = 0; i < 8; i++) { const x = bx + 30 + i * 7, z = bz + 34 + i * 1.6; add(new THREE.CylinderGeometry(0.07, 0.09, 9, 6), white, x, by + 4.5, z);
+    const fg = new THREE.PlaneGeometry(2.2, 1.4, 8, 1); fg.translate(1.1, 0, 0); const f = add(fg, i % 2 ? yeF : thF, x, by + 8.2, z); flags.push(f); }
+  ctx.update.push((dt, t) => { flags.forEach((f, i) => { const pa = f.geometry.attributes.position; for (let k = 0; k < pa.count; k++) { const x = pa.getX(k); pa.setZ(k, Math.sin(t * 4 + x * 2.2 + i) * 0.12 * x); } pa.needsUpdate = true; }); });
+  // topiary + hedges
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, r = 34 + rnd() * 14; add(new THREE.SphereGeometry(0.9 + rnd() * 0.6, 10, 8), stdMat(0x2f6a2a, { roughness: 1 }), bx + Math.cos(a) * r, by + 1, bz + Math.sin(a) * r); }
+
+  // ---- ornate ordination hall with three spired mondops (reference photo 2; location to be confirmed) ----
+  const ox = bx - 70, oz = bz - 22, oy = by, rot = 0.15, H = new THREE.Group(); H.position.set(ox, oy, oz); H.rotation.y = -rot; scene.add(H);
+  const wallM = new THREE.MeshStandardMaterial({ map: wallPatternTex(), roughness: 0.5, metalness: 0.35 }); wallM.map.repeat.set(10, 2);
+  const roofM = stdMat(0xa8442e, { roughness: 0.6 }), roofDark = stdMat(0x6a2a1c, { roughness: 0.55, metalness: 0.2 }), gableM = new THREE.MeshStandardMaterial({ map: thaiGableTex(), roughness: 0.4, metalness: 0.5 });
+  const hp = (geo, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; H.add(o); return o; };
+  hp(new THREE.BoxGeometry(44, 1.5, 24), white, 0, 0.75, 0); hp(new THREE.BoxGeometry(40, 8, 18), wallM, 0, 5.5, 0);
+  for (let i = 0; i < 9; i++) { hp(new THREE.BoxGeometry(2.2, 3.4, 0.2), stdMat(0x101820), -16 + i * 4, 5.2, 9.05); hp(new THREE.BoxGeometry(2.8, 1.2, 0.3), gold, -16 + i * 4, 7.6, 9.1); }
+  // main roof (long gable) – two tiers
+  const roofPrism = (w, d, h, y, m) => { const sh = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(0, h)]); const g = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false }); g.translate(0, 0, -w / 2); g.rotateY(Math.PI / 2); return hp(g, m, 0, y, 0); };
+  roofPrism(44, 21, 6.5, 9.5, roofM); roofPrism(36, 15, 6.0, 12.5, roofDark);
+  // three cross-gabled bays with tall tiered spires
+  for (const sx of [-14, 0, 14]) {
+    const sg = new THREE.Shape([new THREE.Vector2(-5, 0), new THREE.Vector2(5, 0), new THREE.Vector2(0, 8)]);
+    const gg = new THREE.ExtrudeGeometry(sg, { depth: 26, bevelEnabled: false }); gg.translate(0, 0, -13); hp(gg, roofM, sx, 9.5, 0);
+    const fr = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-4.6, 0), new THREE.Vector2(4.6, 0), new THREE.Vector2(0, 7.4)])), gableM); fr.position.set(sx, 9.7, 13.05); H.add(fr);
+    for (const s of [-1, 1]) { const hook = hp(new THREE.TorusGeometry(0.9, 0.12, 6, 12, Math.PI * 0.9), roofDark, sx + s * 5.6, 10.4, 13.1); hook.rotation.z = s > 0 ? 0 : Math.PI * 0.1; }
+    // tiered mondop spire
+    let y = 15, w = 7;
+    for (let k = 0; k < 7; k++) { hp(new THREE.BoxGeometry(w, 1.1, w), k % 2 ? roofDark : roofM, sx, y, 0); for (let j = 0; j < 4; j++) { const a = j * Math.PI / 2; hp(new THREE.ConeGeometry(0.18, 1.4, 6), roofDark, sx + Math.sin(a) * w / 2, y + 0.9, Math.cos(a) * w / 2); } y += 1.1; w *= 0.8; }
+    hp(new THREE.CylinderGeometry(0.9, 1.4, 3, 8), roofDark, sx, y + 1.5, 0); hp(new THREE.ConeGeometry(0.6, 9, 8), roofDark, sx, y + 7.5, 0); hp(new THREE.SphereGeometry(0.25, 8, 6), gold, sx, y + 12.2, 0);
+  }
+  // white tiered chedis in front + globe lamps
+  for (let i = 0; i < 7; i++) { const x = -18 + i * 6, z = 17; let y = 0.4, r = 1.4; for (let k = 0; k < 7; k++) { hp(new THREE.CylinderGeometry(r * 0.85, r, 0.8, 10), i % 3 === 1 ? gold : white, x, y + 0.4, z); y += 0.8; r *= 0.78; } hp(new THREE.ConeGeometry(0.25, 2.4, 8), i % 3 === 1 ? gold : white, x, y + 1.2, z);
+    if (i % 2 === 0) { hp(new THREE.CylinderGeometry(0.06, 0.08, 3.6, 6), white, x + 3, 1.8, z + 1); const gl = hp(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.8 }), x + 3, 3.7, z + 1); const w = new THREE.Vector3(); gl.getWorldPosition(w); glow.add(w.x, w.y, w.z, 6, C('#fff2d6')); } }
+  const hw = new THREE.Vector3(); H.updateMatrixWorld(); H.localToWorld(hw.set(0, 8, 12)); glow.add(hw.x, hw.y, hw.z, 40, C('#ffcf80'));
+  ctx.ornateHall = { x: ox, z: oz };
 }

@@ -103,22 +103,67 @@ export function buildExtras(ctx) {
   }
 
   // ------------------------------------------------------------------
-  //  Greenway Night Market (OSM polygon)
+  //  Greenway Street Life + Food Station (OSM polygon; layout from reference photos)
   // ------------------------------------------------------------------
   {
     const gw = DATA.blds.find(b => b.n.includes('กรีนเวย์')); const P = gw ? ring(gw.p) : [[1624, 954], [1636, 1015], [1718, 1025], [1730, 1004]];
     const bb = bbox(P), pc = pca(P), rot = Math.atan2(pc.uz, pc.ux), ux = Math.cos(rot), uz = Math.sin(rot), vx = -uz, vz = ux;
-    ctx.batches.at(bb.cx, bb.cz).prism(P, 0, 0.35, { style: 6, color: C('#4a4a4d'), seed: 0.3, roofColor: C('#3d3d40') });
-    const items = []; const L = Math.max(bb.w, bb.d) * 0.85, W = Math.min(bb.w, bb.d) * 0.8;
-    for (let a = -L / 2; a <= L / 2; a += 4.3) for (const v of [-W * 0.38, -W * 0.15, W * 0.15, W * 0.38]) { const x = pc.cx + ux * a + vx * v, z = pc.cz + uz * a + vz * v; if (Math.abs(rnd() - 0.5) < 0.46) items.push({ x, z, rot: rot + Math.PI / 2 + (v < 0 ? 0 : Math.PI) }); }
+    ctx.batches.at(bb.cx, bb.cz).prism(P, 0, 0.3, { style: 6, color: C('#5a5a5c'), seed: 0.3, roofColor: C('#4a4a4c'), collide: false });
+    const G = new THREE.Group(); G.position.set(pc.cx, 0, pc.cz); G.rotation.y = -rot; scene.add(G);   // local x = long axis, z = across
+    const toW = (x, z) => [pc.cx + ux * x + vx * z, pc.cz + uz * x + vz * z];
+    const std = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o));
+    const gp = (geo, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; G.add(o); return o; };
+    const L = 64, W = 30, x0 = -18;   // tent hall along x, centred a little west
+    // white barrel-vault tensile tent (translucent fabric glows at night)
+    const fab = new THREE.MeshStandardMaterial({ color: 0xf4f2ee, roughness: 0.75, side: THREE.DoubleSide, emissive: 0xffe2b0, emissiveIntensity: 0.0 }); ctx.nightMats.push({ mat: fab, base: 0.0, k: 0.55 });
+    const vault = new THREE.CylinderGeometry(W / 2, W / 2, L, 40, 1, true, -Math.PI / 2, Math.PI); vault.rotateZ(Math.PI / 2); const vt = gp(vault, fab, x0, 5.2, 0); vt.scale.set(1, 0.62, 1);
+    for (let i = 0; i <= 8; i++) { const ax = x0 - L / 2 + i * L / 8; const arch = new THREE.TorusGeometry(W / 2, 0.16, 6, 40, Math.PI); const t = gp(arch, std(0xdadcde, { metalness: 0.7, roughness: 0.3 }), ax, 5.2, 0, Math.PI / 2); t.scale.set(1, 0.62, 1); }
+    for (let i = 0; i <= 8; i++) for (const s of [-1, 1]) gp(new THREE.CylinderGeometry(0.16, 0.2, 5.2, 8), std(0xdadcde, { metalness: 0.7 }), x0 - L / 2 + i * L / 8, 2.6, s * (W / 2 - 0.2));
+    // front arch fascia with the sign
+    const sTex = canvasTex(1024, 300, (g, w, h) => { g.fillStyle = '#f4f2ee'; g.fillRect(0, 0, w, h); g.fillStyle = '#5a6a72'; g.font = '22px "Noto Sans Thai",system-ui'; g.textAlign = 'center'; g.fillText('กรีนเวย์ สตรีทไลฟ์', w / 2, 52);
+      g.font = 'bold 92px system-ui,sans-serif'; g.fillStyle = '#1e6a5a'; g.fillText('Greenway', w / 2, 140);
+      const word = 'Street Life', cols = ['#d33a5a', '#e8742a', '#2a7ad0', '#7a3aa8', '#e8a31d', '#1f8a4c'], f = 'bold italic 104px system-ui,sans-serif'; g.font = f; let x = w / 2 - g.measureText(word).width / 2; g.textAlign = 'left';
+      [...word].forEach((ch, i) => { g.fillStyle = ch === ' ' ? '#000' : (i === 0 || i === 7 ? cols[i % 6] : '#2a2a30'); g.fillText(ch, x, 255); x += g.measureText(ch).width; }); }, { clamp: true });
+    const sMat = new THREE.MeshStandardMaterial({ map: sTex, emissiveMap: sTex, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.7 }); ctx.signMats.push(sMat); sMat.userData.k = 0.55;
+    const front = new THREE.Shape(); front.moveTo(-W / 2 - 0.5, 4.2); front.lineTo(W / 2 + 0.5, 4.2); front.absarc(0, 4.2, W / 2 + 0.5, 0, Math.PI, false);
+    const hole = new THREE.Path(); hole.moveTo(-W / 2 + 0.6, 4.2); hole.lineTo(W / 2 - 0.6, 4.2); hole.absarc(0, 4.2, W / 2 - 0.6, 0, Math.PI, false);
+    const fasc = new THREE.Mesh(new THREE.PlaneGeometry(W, 6.4), sMat); fasc.position.set(x0 + L / 2 + 0.2, 7.9, 0); fasc.rotation.y = Math.PI / 2; G.add(fasc);
+    gp(new THREE.BoxGeometry(0.3, 1.4, W + 1), fab, x0 + L / 2 + 0.1, 4.4, 0);
+    // stalls inside the tent: clothes, toys, souvenirs, snacks
+    const items = []; for (let x = x0 - L / 2 + 3; x < x0 + L / 2 - 2; x += 3.6) for (const z of [-11, -6.5, 6.5, 11]) { const [wx, wz] = toW(x, z); items.push({ x: wx, z: wz, rot: rot + Math.PI / 2 + (z > 0 ? Math.PI : 0) }); }
     nightGroups.push(makeStalls(ctx, items, glow, rnd, 'gw'));
-    for (const v of [-W * 0.27, 0, W * 0.27]) strings(pc.cx + ux * -L / 2 + vx * v, pc.cz + uz * -L / 2 + vz * v, pc.cx + ux * L / 2 + vx * v, pc.cz + uz * L / 2 + vz * v, 5.2, 2.2);
-    const tex = signTex([{ text: 'GREENWAY NIGHT MARKET', font: 'bold 62px system-ui,sans-serif' }, { text: 'ตลาดกรีนเวย์ ไนท์มาร์เก็ต', font: '44px "Noto Sans Thai",system-ui,sans-serif' }], { w: 1024, h: 190, bg: '#06251a', fg: '#9bffb4', border: '#33ff88' });
-    const ex = pc.cx - ux * (L / 2 + 6), ez = pc.cz - uz * (L / 2 + 6);
-    const sg = signPlane(tex, 18, 3.3, ex, 8.5, ez, Math.atan2(ux, uz)); const sg2 = signPlane(tex, 18, 3.3, ex, 8.5, ez, Math.atan2(ux, uz) + Math.PI);
-    for (const s of [-1, 1]) { const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 8, 8), new THREE.MeshStandardMaterial({ color: 0x2a2a2a })); pl.position.set(ex + vx * 9.5 * s, 4, ez + vz * 9.5 * s); scene.add(pl); }
-    for (let i = 0; i < 260; i++) ctx.people.add(pc.cx + ux * (rnd() - 0.5) * L + vx * (rnd() - 0.5) * W, 0.4, pc.cz + uz * (rnd() - 0.5) * L + vz * (rnd() - 0.5) * W, 1);
-    for (let i = 0; i < 14; i++) glow.add(pc.cx + ux * (rnd() - 0.5) * L, 9, pc.cz + uz * (rnd() - 0.5) * L, 26, C('#7dffa8'));
+    for (const z of [-8.8, 0, 8.8]) strings(...toW(x0 - L / 2, z), ...toW(x0 + L / 2, z), 6.3, 2.0);
+    for (let i = 0; i < 26; i++) { const [wx, wz] = toW(x0 - L / 2 + i * 2.5, 0); glow.add(wx, 7.6, wz, 9, C('#fff1d8')); }
+    // ---- Greenway Food Station: steel frame, wooden slat screen, lanterns, neon sign ----
+    const fx = x0 + L / 2 + 26, fz = 2;
+    const wood = std(0x9a6a3a, { roughness: 0.7 }), steel = std(0x2a2c30, { metalness: 0.7, roughness: 0.35 }), glassM = new THREE.MeshPhysicalMaterial({ color: 0xd8e6ea, transparent: true, opacity: 0.2, roughness: 0.05, depthWrite: false });
+    gp(new THREE.BoxGeometry(22, 0.4, 18), std(0x8a8a86), fx, 0.2, fz); gp(new THREE.BoxGeometry(22, 0.4, 18), steel, fx, 4.6, fz); gp(new THREE.BoxGeometry(23, 0.5, 19), steel, fx, 9.2, fz);
+    for (let i = 0; i < 5; i++) for (const s of [-1, 1]) gp(new THREE.BoxGeometry(0.35, 9.2, 0.35), steel, fx - 10 + i * 5, 4.6, fz + s * 8.8);
+    for (let i = 0; i < 46; i++) gp(new THREE.BoxGeometry(0.12, 4.0, 0.25), wood, fx - 10.8, 6.8, fz - 8.6 + i * 0.38);   // slat screen (street side)
+    gp(new THREE.PlaneGeometry(17, 3.8), glassM, fx - 10.9, 2.3, fz, Math.PI / 2);
+    const neon = canvasTex(768, 200, (g, w, h) => { g.fillStyle = '#0a0d10'; g.fillRect(0, 0, w, h); g.textAlign = 'center'; g.shadowBlur = 18;
+      g.shadowColor = '#3affb0'; g.fillStyle = '#7dffc8'; g.font = 'bold 84px system-ui,sans-serif'; g.fillText('Greenway', w / 2, 90);
+      const f = 'bold 64px system-ui,sans-serif'; g.font = f; const t = 'FOOD STATION', cols = ['#ff4a6a', '#ffb02a', '#3ad0ff', '#c46aff']; let x = w / 2 - g.measureText(t).width / 2; g.textAlign = 'left';
+      [...t].forEach((ch, i) => { g.shadowColor = g.fillStyle = cols[i % 4]; g.fillText(ch, x, 175); x += g.measureText(ch).width; }); }, { clamp: true });
+    const nm = new THREE.MeshStandardMaterial({ map: neon, emissiveMap: neon, emissive: 0xffffff, emissiveIntensity: 1.0 }); ctx.signMats.push(nm); nm.userData.k = 1.4;
+    const np = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.1), nm); np.position.set(fx - 11.05, 7.2, fz); np.rotation.y = -Math.PI / 2; G.add(np);
+    for (let i = 0; i < 10; i++) { const [wx, wz] = toW(fx - 9 + (i % 5) * 4.5, fz - 6 + Math.floor(i / 5) * 12); glow.add(wx, 7.8, wz, 4, C('#ffb04a')); glow.add(wx, 3.6, wz, 3.5, C('#ffcf7a')); }
+    const red = std(0xd0302a, { emissive: 0xff5020, emissiveIntensity: 0.4 }); ctx.nightMats.push({ mat: red, base: 0.2, k: 1.4 });
+    for (let i = 0; i < 8; i++) gp(new THREE.SphereGeometry(0.42, 12, 10), red, fx - 10 + i * 2.8, 4.0, fz + 8.9);
+    for (let i = 0; i < 18; i++) { const [wx, wz] = toW(fx - 8 + (i % 6) * 3, fz - 6 + Math.floor(i / 6) * 5); ctx.people.add(wx, 4.85, wz, 1); }
+    // lawn with an original mascot statue, motorbike row, lighting truss tower, palms
+    gp(new THREE.BoxGeometry(14, 0.12, 12), std(0x4a8a3a, { roughness: 1 }), fx - 2, 0.3, fz - 18);
+    { const mx = fx - 2, mz = fz - 18, pink = std(0xf0a8c8, { roughness: 0.45 }), skin = std(0xf2d0b0, { roughness: 0.5 }), dark = std(0x2a1a1a);
+      gp(new THREE.CylinderGeometry(1.2, 1.5, 0.6, 20), std(0xdadada), mx, 0.6, mz); gp(new THREE.CapsuleGeometry(0.75, 0.8, 6, 14), pink, mx, 1.9, mz);
+      gp(new THREE.SphereGeometry(1.15, 22, 16), skin, mx, 3.55, mz); gp(new THREE.SphereGeometry(1.22, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), dark, mx, 3.7, mz - 0.05);
+      for (const s of [-1, 1]) { gp(new THREE.SphereGeometry(0.16, 10, 8), dark, mx + s * 0.38, 3.55, mz + 1.02); gp(new THREE.SphereGeometry(0.4, 12, 10), dark, mx + s * 0.95, 4.5, mz); }
+      gp(new THREE.TorusGeometry(0.22, 0.05, 6, 12, Math.PI), std(0xc0405a), mx, 3.2, mz + 1.08); }
+    const bikeG = new THREE.BoxGeometry(0.45, 0.9, 1.8), bikes = new THREE.InstancedMesh(bikeG, std(0x30343a, { metalness: 0.6, roughness: 0.4 }), 14); const mm4 = new THREE.Matrix4(); const bc = new THREE.Color();
+    for (let i = 0; i < 14; i++) { mm4.makeTranslation(fx - 16 + i * 1.0, 0.75, fz - 26); bikes.setMatrixAt(i, mm4); bc.setHSL(rnd(), 0.4, 0.25 + rnd() * 0.3); bikes.setColorAt(i, bc); } G.add(bikes);
+    for (let k = 0; k < 4; k++) { const y = 2 + k * 4; for (const [a, b] of [[-0.6, -0.6], [0.6, -0.6], [0.6, 0.6], [-0.6, 0.6]]) gp(new THREE.CylinderGeometry(0.06, 0.06, 4, 5), steel, x0 + L / 2 + 6 + a, y, W / 2 + 4 + b); }
+    { const [wx, wz] = toW(x0 + L / 2 + 6, W / 2 + 4); glow.add(wx, 16.5, wz, 22, C('#ffffff')); }
+    ctx.extraTrees = ctx.extraTrees || []; for (let i = 0; i < 10; i++) { const [wx, wz] = toW(x0 - L / 2 + i * 9, -W / 2 - 6); ctx.extraTrees.push([wx, wz, 1.4 + rnd() * 0.6]); }
+    for (let i = 0; i < 320; i++) { const [wx, wz] = toW(x0 - L / 2 + rnd() * (L + 30), (rnd() - 0.5) * (W - 4)); ctx.people.add(wx, 0.4, wz, 1); }
     ctx.greenway = { x: bb.cx, z: bb.cz };
   }
 
