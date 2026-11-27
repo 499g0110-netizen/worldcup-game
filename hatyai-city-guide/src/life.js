@@ -22,6 +22,18 @@ function humanGeometry() {
   const head = new THREE.SphereGeometry(0.12, 10, 8); head.translate(0, 1.66, 0); add(head, 0, skin, 2);
   const hr = new THREE.SphereGeometry(0.128, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55); hr.translate(0, 1.68, -0.01); add(hr, 0, hair, 0);
   add(box(0.06, 0.1, 0.06, 0, 1.52, 0), 0, skin, 2);                // neck
+  // face: eyes (whites + pupils), brows, nose, mouth, ears
+  const dark = new THREE.Color('#1a1210'), eyeW = new THREE.Color('#f2eee8'), lip = new THREE.Color('#9a4a3e');
+  for (const s of [-1, 1]) {
+    const ew = new THREE.SphereGeometry(0.019, 8, 6); ew.scale(1.3, 0.8, 0.6); ew.translate(s * 0.042, 1.675, 0.102); add(ew, 0, eyeW, 0);
+    const pu = new THREE.SphereGeometry(0.011, 6, 5); pu.translate(s * 0.042, 1.675, 0.113); add(pu, 0, dark, 0);
+    add(box(0.04, 0.008, 0.012, s * 0.043, 1.703, 0.104), 0, dark, 0);
+    const ear = new THREE.SphereGeometry(0.025, 6, 5); ear.scale(0.5, 1, 0.8); ear.translate(s * 0.119, 1.66, 0); add(ear, 0, skin, 2);
+  }
+  const nose = new THREE.ConeGeometry(0.017, 0.04, 6); nose.rotateX(Math.PI / 2); nose.translate(0, 1.648, 0.118); add(nose, 0, skin, 2);
+  add(box(0.045, 0.01, 0.012, 0, 1.612, 0.106), 0, lip, 0);
+  add(box(0.15, 0.07, 0.26, -0.11, 0.035, 0.04), 1, dark, 0); add(box(0.15, 0.07, 0.26, 0.11, 0.035, 0.04), 2, dark, 0);
+
   add(box(0.15, 0.92, 0.17, -0.11, 0.48, 0), 1, jeans, 0);          // legs
   add(box(0.15, 0.92, 0.17, 0.11, 0.48, 0), 2, jeans, 0);
   add(box(0.09, 0.58, 0.1, -0.27, 1.2, 0), 3, white, 3);            // arms (sleeve top, skin lower via mask 3)
@@ -134,12 +146,32 @@ export class Traffic {
     const nb = (g) => { g = g.index ? g.toNonIndexed() : g; g.deleteAttribute('uv'); return g; };
     const paint = (g, c) => { const a = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < a.length; i += 3) { a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
     const B = (w, h, d, x, y, z, c) => paint(nb(new THREE.BoxGeometry(w, h, d).translate(x, y, z)), new THREE.Color(c));
-    // geometries (vertex colours: white body tinted by instance colour, fixed dark glass/wheels)
-    const carG = mergeGeometries([B(1.8, 0.7, 4.3, 0, 0.62, 0, '#ffffff'), B(1.55, 0.55, 2.2, 0, 1.2, -0.2, '#222831'), B(1.82, 0.12, 4.0, 0, 0.3, 0, '#151515')]);
-    const tukG = mergeGeometries([B(1.35, 0.55, 2.4, 0, 0.55, 0, '#ffffff'), B(1.4, 0.1, 2.0, 0, 1.75, -0.1, '#ffffff'), B(0.08, 0.9, 0.08, -0.62, 1.25, 0.8, '#444'), B(0.08, 0.9, 0.08, 0.62, 1.25, 0.8, '#444'), B(0.08, 0.9, 0.08, -0.62, 1.25, -0.9, '#444'), B(0.08, 0.9, 0.08, 0.62, 1.25, -0.9, '#444'), B(1.2, 0.5, 0.5, 0, 0.95, -0.55, '#d9c8a0'), B(0.5, 0.4, 0.5, 0, 0.5, 1.45, '#222')]);
-    const rider = paint(nb(new THREE.CapsuleGeometry(0.2, 0.55, 3, 6).translate(0, 1.2, -0.05)), new THREE.Color('#ffffff')); const helm = paint(nb(new THREE.SphereGeometry(0.17, 8, 6).translate(0, 1.74, 0)), new THREE.Color('#ffffff'));
-    const bikeG = mergeGeometries([B(0.4, 0.5, 1.8, 0, 0.5, 0, '#303338'), B(0.35, 0.3, 0.6, 0, 0.85, 0.5, '#303338'), rider, helm]);
-    const mats = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.5 });
+    // ---- vehicle models (vertex colours: white = paint, tinted per instance; dark glass, tyres, lamps fixed) ----
+    const ext = (pts, depth, col, bevel = 0.07, yOff = 0) => { const sh = new THREE.Shape(pts.map(p => new THREE.Vector2(p[0], p[1] + yOff)));
+      const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 6 });
+      g.translate(0, 0, -depth / 2); g.rotateY(-Math.PI / 2); return paint(nb(g), new THREE.Color(col)); };
+    const cyl = (r, w, x, y, z, col, seg = 14) => { const g = new THREE.CylinderGeometry(r, r, w, seg); g.rotateZ(Math.PI / 2); g.translate(x, y, z); return paint(nb(g), new THREE.Color(col)); };
+    const sedanBody = [[-2.2, 0.32], [2.2, 0.32], [2.28, 0.72], [1.95, 0.86], [0.95, 0.95], [0.38, 1.4], [-1.0, 1.43], [-1.78, 1.0], [-2.22, 0.94]];
+    const sedanGlass = [[0.86, 0.97], [0.36, 1.36], [-0.98, 1.39], [-1.66, 1.0]];
+    const wheels = (wx, wz, r = 0.33) => [cyl(r, 0.24, -wx, r, wz, '#141414'), cyl(r, 0.24, wx, r, wz, '#141414'), cyl(r, 0.24, -wx, r, -wz, '#141414'), cyl(r, 0.24, wx, r, -wz, '#141414'),
+      cyl(r * 0.55, 0.26, -wx, r, wz, '#9a9ea4'), cyl(r * 0.55, 0.26, wx, r, wz, '#9a9ea4'), cyl(r * 0.55, 0.26, -wx, r, -wz, '#9a9ea4'), cyl(r * 0.55, 0.26, wx, r, -wz, '#9a9ea4')];
+    const carG = mergeGeometries([ext(sedanBody, 1.6, '#ffffff'), ext(sedanGlass, 1.72, '#1c2530', 0.02), ...wheels(0.84, 1.35),
+      B(0.35, 0.12, 0.05, -0.55, 0.72, 2.27, '#fff6dc'), B(0.35, 0.12, 0.05, 0.55, 0.72, 2.27, '#fff6dc'), B(0.32, 0.12, 0.05, -0.6, 0.78, -2.24, '#9a1010'), B(0.32, 0.12, 0.05, 0.6, 0.78, -2.24, '#9a1010'),
+      B(0.5, 0.12, 0.05, 0, 0.55, 2.3, '#222'), B(0.06, 0.06, 0.2, -0.95, 1.0, 0.75, '#222'), B(0.06, 0.06, 0.2, 0.95, 1.0, 0.75, '#222')]);
+    // taxi uses the same mesh; its roof sign comes from the glow set
+    const tukBody = [[-1.2, 0.3], [0.7, 0.3], [1.25, 0.45], [1.3, 1.05], [1.05, 1.15], [0.75, 0.75], [-1.2, 0.75]];
+    const tukG = mergeGeometries([ext(tukBody, 1.3, '#ffffff', 0.05), B(1.5, 0.08, 2.6, 0, 1.95, -0.05, '#ffffff'), B(1.52, 0.18, 2.62, 0, 1.86, -0.05, '#f2c314'),
+      B(0.06, 1.15, 0.06, -0.68, 1.35, 1.0, '#3a3a3a'), B(0.06, 1.15, 0.06, 0.68, 1.35, 1.0, '#3a3a3a'), B(0.06, 1.15, 0.06, -0.68, 1.35, -1.15, '#3a3a3a'), B(0.06, 1.15, 0.06, 0.68, 1.35, -1.15, '#3a3a3a'),
+      B(1.25, 0.45, 0.55, 0, 0.98, -0.75, '#c9b48a'), B(1.25, 0.6, 0.12, 0, 1.25, -1.05, '#c9b48a'), B(0.4, 0.06, 0.06, 0, 1.25, 1.05, '#222'),
+      cyl(0.28, 0.2, 0, 0.28, 1.05, '#141414'), cyl(0.28, 0.2, -0.62, 0.28, -0.85, '#141414'), cyl(0.28, 0.2, 0.62, 0.28, -0.85, '#141414'), B(0.25, 0.15, 0.05, 0, 0.95, 1.31, '#fff6dc')]);
+    const scooter = [[-0.75, 0.35], [0.35, 0.35], [0.62, 0.55], [0.72, 1.05], [0.58, 1.1], [0.38, 0.62], [-0.2, 0.62], [-0.35, 0.82], [-0.8, 0.82]];
+    const rider = paint(nb(new THREE.CapsuleGeometry(0.2, 0.5, 3, 8).translate(0, 1.25, -0.12)), new THREE.Color('#ffffff'));
+    const helm = paint(nb(new THREE.SphereGeometry(0.17, 10, 8).translate(0, 1.78, -0.08)), new THREE.Color('#ffffff'));
+    const visor = paint(nb(new THREE.SphereGeometry(0.15, 10, 6, -0.9, 1.8, 1.2, 0.8).translate(0, 1.76, -0.06)), new THREE.Color('#1a1a1a'));
+    const bikeG = mergeGeometries([ext(scooter, 0.32, '#3a3d44', 0.04), cyl(0.29, 0.1, 0, 0.29, 0.62, '#141414'), cyl(0.29, 0.1, 0, 0.29, -0.62, '#141414'),
+      B(0.62, 0.04, 0.04, 0, 1.12, 0.6, '#222'), B(0.3, 0.12, 0.55, 0, 0.88, -0.35, '#1b1b1b'), rider, helm, visor,
+      B(0.1, 0.45, 0.12, -0.14, 0.75, 0.12, '#2b3550'), B(0.1, 0.45, 0.12, 0.14, 0.75, 0.12, '#2b3550'), B(0.08, 0.35, 0.08, -0.2, 1.25, 0.25, '#ffffff'), B(0.08, 0.35, 0.08, 0.2, 1.25, 0.25, '#ffffff')]);
+    const mats = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.45, envMapIntensity: 1.2 });
     const counts = {}; this.cars.forEach(c => { c.grp = (c.k === 'sedan' || c.k === 'taxi' || c.k === 'grabcar') ? 'car' : c.k === 'tuk' ? 'tuk' : 'bike'; counts[c.grp] = (counts[c.grp] || 0) + 1; c.slot = counts[c.grp] - 1; });
     this.g = { car: new THREE.InstancedMesh(carG, mats(), counts.car || 1), tuk: new THREE.InstancedMesh(tukG, mats(), counts.tuk || 1), bike: new THREE.InstancedMesh(bikeG, mats(), counts.bike || 1) };
     const pal = ['#f2f2f2', '#c9ccd1', '#2b2d31', '#8a1c1c', '#1d3c6e', '#a58a5c', '#3e6b46', '#e8e8e8'], tukPal = ['#e8402a', '#2a62c8', '#f0b020', '#e8742a', '#d0388a', '#25a05a'], bikePal = ['#d0d4d8', '#c0302a', '#2a50a0', '#e8c030', '#404550', '#f0f0f0'];

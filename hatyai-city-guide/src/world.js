@@ -170,7 +170,11 @@ void main() {`).replace('#include <color_fragment>', `#include <color_fragment>
  vec3 grass = mix(vec3(0.075,0.14,0.045), vec3(0.15,0.21,0.06), n1) * (0.85+0.3*n2);
  vec3 paddy = mix(vec3(0.17,0.2,0.07), vec3(0.09,0.15,0.05), step(0.5, gn(wp*0.004)));
  grass = mix(grass, paddy, smoothstep(0.55,0.75,n1)*0.55);
- vec3 conc = mix(vec3(0.27,0.265,0.255), vec3(0.34,0.33,0.31), n3) * (0.88+0.24*n4);
+ vec3 conc = mix(vec3(0.13,0.128,0.122), vec3(0.19,0.18,0.165), n3) * (0.82+0.3*n4);
+ vec2 tl = fract(wp/1.2); float joint = 1.0 - 0.18*(1.0-smoothstep(0.0,0.04,min(min(tl.x,1.0-tl.x),min(tl.y,1.0-tl.y))));
+ conc *= joint;
+ conc = mix(conc, vec3(0.09,0.085,0.075), smoothstep(0.62,0.8,gn(wp*0.05))*0.6);            // oil/dirt stains
+ conc = mix(conc, vec3(0.16,0.2,0.1), smoothstep(0.7,0.85,gn(wp*0.02+3.))*0.5);           // weeds in cracks
  float urb = texture2D(uMask, wp/16000.+0.5).r;
  vec3 col = mix(grass, conc, smoothstep(0.1, 0.5, urb));
  col = mix(col, vec3(0.03,0.075,0.03)*(0.8+0.5*n3), smoothstep(8.,70.,h));
@@ -310,7 +314,7 @@ export async function fillCity(ctx, progress) {
   const col = () => PALETTE[Math.floor(rnd() * PALETTE.length)];
   let count = 0;
 
-  const placeBuilding = (cx, cz, w, d, rot, d0, uVal, frontage) => {
+  const placeBuilding = (cx, cz, w, d, rot, d0, uVal, frontage, fnx = 0, fnz = 0) => {
     if (occ.hit(cx, cz, w, d, rot, 0.6)) return false;
     // floors by zone
     let fl; const r = rnd();
@@ -330,6 +334,7 @@ export async function fillCity(ctx, progress) {
       batch.gable(cx, cz, w, d, rot, h - 0.4, 2.4, ROOFS[Math.floor(rnd() * ROOFS.length)].clone().multiplyScalar(0.9 + rnd() * 0.3), rnd());
     } else {
       batch.box(cx, cz, w, d, rot, 0, h, { style, color: c, seed: rnd(), roofColor: ROOFS[Math.floor(rnd() * ROOFS.length)] });
+      if (frontage && (style === 0 || style === 5) && d0 < 2600) (ctx.shopfronts || (ctx.shopfronts = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, rot, fl, d0, h });
       if (fl >= 3 && rnd() < 0.55) tanks.push([cx + (rnd() - 0.5) * w * 0.4, h, cz + (rnd() - 0.5) * d * 0.4, 0.8 + rnd() * 0.5]);
     }
     occ.mark(cx, cz, w, d, rot, 0.4); count++;
@@ -353,7 +358,7 @@ export async function fillCity(ctx, progress) {
           if (uv > 0.1 || r.cls !== 'minor') {
             if (rnd() < (uv > 0.2 ? dens : dens * 0.35 * Math.max(0.2, uv * 4))) {
               const off = hw + 1.6 + dLot / 2;
-              placeBuilding(px + nx * off * side + ux * wLot / 2, pz + nz * off * side + uz * wLot / 2, wLot - 0.4, dLot, rot, d0, uv, true);
+              placeBuilding(px + nx * off * side + ux * wLot / 2, pz + nz * off * side + uz * wLot / 2, wLot - 0.4, dLot, rot, d0, uv, true, -nx * side, -nz * side);
             }
           }
           s += wLot;

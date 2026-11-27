@@ -155,6 +155,18 @@ vec3 fWallCol;
     } else {                              // ---- plain concrete
       win = fbox(cell, vec2(0.4,0.4), vec2(0.6,0.6), aa)*step(0.8, rnd);
     }
+    // material variety: glazed wall tiles, painted render, steel window grilles, balcony rails
+    float tileMode = step(0.55, fh21(vec2(seed, 9.1))) * step(st, 5.5);
+    if (tileMode > 0.5) { vec2 tp = fract(vec2(u*3.3, v*6.0)); float mort = 1.0 - smoothstep(0.0, 0.07, min(min(tp.x,1.0-tp.x), min(tp.y,1.0-tp.y)));
+      wallc *= 1.0 - 0.16*mort; wallc *= 0.96 + 0.08*fh21(floor(vec2(u*3.3, v*6.0)) + seed); }
+    if (st < 0.5 && fi > 0.5 && fh21(vec2(seed, 4.4)) > 0.35) {
+      float gl = max(step(0.88, fract((cell.x + cell.y*0.6)*7.0)), step(0.88, fract((cell.x - cell.y*0.6)*7.0)));
+      float frameB = 1.0 - fbox(cell, vec2(0.19,0.27), vec2(0.81,0.77), aa);
+      float grille = gl * win * (1.0 - frameB);
+      wallc = mix(wallc, vec3(0.16,0.17,0.18), grille); win *= 1.0 - grille*0.9;
+    }
+    if (st > 4.5 && st < 5.5) { float rail = step(0.8, fract(cell.x*18.0)) * fbox(cell, vec2(0.52,0.05), vec2(0.98,0.48), aa); wallc = mix(wallc, vec3(0.2,0.22,0.24), rail*0.8);
+      float railTop = fbox(cell, vec2(0.52,0.46), vec2(0.98,0.5), aa); wallc = mix(wallc, vec3(0.85,0.85,0.82), railTop); }
     // grime + weathering
     float gr = fvn(vec2(u*0.25, v*0.12))*0.5 + fvn(vec2(u*1.7, v*0.4))*0.25;
     wallc *= 0.78 + 0.45*gr;
@@ -171,7 +183,7 @@ vec3 fWallCol;
     float tv = step(0.93, rnd2) * (0.75 + 0.25*sin(uTime*7.0 + rnd*40.0));
     vec3 lc = mix(litCol, vec3(0.55,0.7,1.0), tv*0.6);
     fEmit += lc * litWin * night * inside * (0.85 + 1.6*heartMask);
-    fRough = mix(0.88, 0.07, win);
+    fRough = mix(mix(0.88, 0.42, tileMode), 0.07, win);
     fMetal = win*0.55;
     if (st < 0.5 && fi < 0.5) { fRough = 0.8; fMetal = 0.0; }
   }

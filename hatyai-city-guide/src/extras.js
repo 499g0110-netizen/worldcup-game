@@ -21,13 +21,37 @@ function makeStalls(ctx, items, glow, rnd, label) {
     m.compose(new THREE.Vector3(s.x, 2.45, s.z), qt, new THREE.Vector3(1, 1, 1)); canopy.setMatrixAt(i, m); c.set(TARPS[Math.floor(rnd() * TARPS.length)]); canopy.setColorAt(i, c);
     const cs = Math.cos(s.rot), sn = Math.sin(s.rot);
     m.compose(new THREE.Vector3(s.x + sn * 0.7 * 0 + (-sn) * 0.6, 0.48, s.z + cs * 0.6), q, new THREE.Vector3(1, 1, 1)); counter.setMatrixAt(i, m);
-    m.compose(new THREE.Vector3(s.x + (-sn) * 0.6, 1.05, s.z + cs * 0.6), q, new THREE.Vector3(1, 1, 1)); goods.setMatrixAt(i, m); c.setHSL(rnd(), 0.6, 0.45); goods.setColorAt(i, c);
+    
     for (const k of [-1, 1]) { m.compose(new THREE.Vector3(s.x + cs * 1.55 * k, 1.2, s.z + sn * 1.55 * k), q, new THREE.Vector3(1, 1, 1)); posts.setMatrixAt(i * 2 + (k > 0 ? 1 : 0), m); }
     glow.add(s.x, 2.2, s.z, 5.5, rnd() < 0.75 ? C('#ffb15a') : C('#fff0cf'));
     if (rnd() < 0.5) glow.add(s.x + cs * 1.4, 2.3, s.z + sn * 1.4, 3, C(TARPS[Math.floor(rnd() * 3)]));
     for (let k = 0; k < 2 + Math.floor(rnd() * 3); k++) ctx.people.add(s.x - Math.sin(s.rot) * (1.5 + rnd() * 2.5) + (rnd() - 0.5) * 2, 0.15, s.z + Math.cos(s.rot) * (1.5 + rnd() * 2.5) + (rnd() - 0.5) * 2, 1);
   });
-  for (const mm of [canopy, counter, goods, posts]) { mm.frustumCulled = false; mm.instanceMatrix.needsUpdate = true; if (mm.instanceColor) mm.instanceColor.needsUpdate = true; mm.castShadow = true; grp.add(mm); }
+  // ---- per-stall merchandise: fruit, grills, noodle carts, drinks, clothes, sweets, skewers ----
+  const TYPES = ['fruit', 'grill', 'noodle', 'drinks', 'clothes', 'sweets', 'skewers', 'grill', 'fruit'];
+  const bins = { ball: [], grill: [], coal: [], glass: [], pot: [], bottle: [], cloth: [], tray: [] };
+  items.forEach((s) => {
+    const t = TYPES[Math.floor(rnd() * TYPES.length)], cs = Math.cos(s.rot), sn = Math.sin(s.rot);
+    const at = (a, b, y) => [s.x + cs * a - sn * (0.6 + b), y, s.z + sn * a + cs * (0.6 + b)];
+    if (t === 'fruit') { for (let k = 0; k < 16; k++) bins.ball.push([...at(-1.1 + (k % 8) * 0.3, (Math.floor(k / 8) - 0.5) * 0.25, 1.12 + (k % 3) * 0.04), ['#f28a1c', '#f2d21c', '#d8281e', '#6aa82a', '#7a2a8a', '#f2c040'][Math.floor(rnd() * 6)]]); }
+    else if (t === 'grill' || t === 'skewers') { bins.grill.push(at(0, 0, 1.1)); bins.coal.push(at(0, 0, 1.17)); glow.add(...at(0, 0, 1.3), 3.2, C('#ff6a1a')); for (let k = 0; k < 10; k++) bins.tray.push([...at(-0.9 + k * 0.2, 0, 1.24), '#8a3a1a']); }
+    else if (t === 'noodle') { bins.glass.push(at(-0.6, 0, 1.45)); bins.pot.push(at(0.7, 0, 1.25)); glow.add(...at(0.7, 0, 1.6), 2.5, C('#fff0d0')); }
+    else if (t === 'drinks') { for (let k = 0; k < 12; k++) bins.bottle.push([...at(-1.0 + k * 0.18, (k % 2) * 0.15, 1.2), ['#e83a2a', '#2a8ae8', '#f2a21c', '#2ab05a', '#e8e8e8', '#d0388a'][k % 6]]); }
+    else if (t === 'clothes') { for (let k = 0; k < 7; k++) bins.cloth.push([...at(-1.2 + k * 0.4, -0.3, 1.6), TARPS[Math.floor(rnd() * TARPS.length)], s.rot]); }
+    else { for (let k = 0; k < 12; k++) bins.tray.push([...at(-1.0 + (k % 6) * 0.38, (Math.floor(k / 6) - 0.5) * 0.3, 1.1), ['#f2b8c8', '#a8e0b0', '#f2e08a', '#c8a0e8', '#ffffff'][k % 5]]); }
+  });
+  const mk = (geo, mat, list, colored = false, rotY = false) => { if (!list.length) return; const im = new THREE.InstancedMesh(geo, mat, list.length); const mm4 = new THREE.Matrix4(), cc = new THREE.Color();
+    list.forEach((p, i) => { mm4.compose(new THREE.Vector3(p[0], p[1], p[2]), new THREE.Quaternion().setFromAxisAngle(up, rotY ? p[4] : 0), new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, mm4); if (colored) { cc.set(p[3]); im.setColorAt(i, cc); } });
+    im.frustumCulled = false; grp.add(im); };
+  mk(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshStandardMaterial({ roughness: 0.45 }), bins.ball, true);
+  mk(new THREE.BoxGeometry(1.5, 0.18, 0.6), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.7, roughness: 0.4 }), bins.grill);
+  { const cm = new THREE.MeshStandardMaterial({ color: 0x331008, emissive: 0xff4a10, emissiveIntensity: 1.4 }); ctx.nightMats.push({ mat: cm, base: 1.0, k: 1.0 }); mk(new THREE.BoxGeometry(1.35, 0.04, 0.5), cm, bins.coal); }
+  mk(new THREE.BoxGeometry(1.0, 0.7, 0.6), new THREE.MeshPhysicalMaterial({ color: 0xdfeff2, transparent: true, opacity: 0.28, roughness: 0.05 }), bins.glass);
+  mk(new THREE.CylinderGeometry(0.32, 0.3, 0.45, 14), new THREE.MeshStandardMaterial({ color: 0xbfc3c8, metalness: 0.85, roughness: 0.25 }), bins.pot);
+  mk(new THREE.CylinderGeometry(0.05, 0.05, 0.32, 8), new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.1 }), bins.bottle, true);
+  mk(new THREE.BoxGeometry(0.34, 0.75, 0.04), new THREE.MeshStandardMaterial({ roughness: 0.9 }), bins.cloth, true, true);
+  mk(new THREE.BoxGeometry(0.3, 0.06, 0.24), new THREE.MeshStandardMaterial({ roughness: 0.6 }), bins.tray, true);
+  for (const mm of [canopy, counter, posts]) { mm.frustumCulled = false; mm.instanceMatrix.needsUpdate = true; if (mm.instanceColor) mm.instanceColor.needsUpdate = true; mm.castShadow = true; grp.add(mm); }
   ctx.scene.add(grp); return grp;
 }
 

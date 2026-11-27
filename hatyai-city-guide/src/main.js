@@ -6,6 +6,7 @@ import { Atmosphere } from './sky.js';
 import { reserve, buildLandmarks } from './landmarks.js';
 import { buildFloatingMarket, buildPark, buildAirport } from './places.js';
 import { buildExtras } from './extras.js';
+import { buildShopfronts } from './streetlife.js';
 import { buildTrees, treeLayout, buildStreetFurniture, GlowSet, glowUniforms } from './props.js';
 import { Traffic, Walkers } from './life.js';
 import { createPost } from './post.js';
@@ -46,6 +47,7 @@ async function main() {
   setProgress('水上市場、公園、機場…', 0.5); await nextFrame();
   buildFloatingMarket(ctx); buildPark(ctx); buildAirport(ctx); buildExtras(ctx);
   await fillCity(ctx, setProgress);
+  buildShopfronts(ctx);
 
   setProgress('合併建築幾何…', 0.8); await nextFrame();
   const facade = makeFacadeMaterial();
