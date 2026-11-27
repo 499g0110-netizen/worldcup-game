@@ -43,7 +43,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
 
   // chapter list (explore mode)
   const list = $('#places');
-  nav.forEach(({ c, i }) => { const b = document.createElement('button'); b.innerHTML = `<b>${c.zh}</b><small>${c.dist == null ? '' : fmtDist(c.dist)}</small>`; b.onclick = () => { if (state.walk) { hooks.teleport(c); return; } setExplore(false); director.seekChapter(i); }; list.appendChild(b); });
+  nav.forEach(({ c, i }) => { const b = document.createElement('button'); b.innerHTML = `<b>${c.zh}</b><small>${c.dist == null ? '' : fmtDist(c.dist)}</small>`; b.onclick = () => { closeMenu(); if (state.walk) { hooks.teleport(c); return; } setExplore(false); director.seekChapter(i); }; list.appendChild(b); });
 
   // labels
   const lblWrap = $('#labels'); const lbl = LABELS.map(l => { const e = document.createElement('div'); e.className = 'lbl'; e.innerHTML = `<i></i><b>${l.zh}</b><small>${l.en}</small>`; lblWrap.appendChild(e); return { ...l, e, v: new THREE.Vector3(l.x, l.y, l.z), vis: 0 }; });
@@ -67,9 +67,14 @@ export function createUI(ctx, director, atmo, camera, hooks) {
 
   function setWalk(on) {
     if (on === state.walk) return; if (on) setExplore(false); state.walk = on; document.body.classList.toggle('walk', on); $('#btn-walk').classList.toggle('on', on);
-    $('#btn-walk').textContent = on ? '🎬 回到導覽' : '🚶 角色漫遊'; director.playing = false; hooks.walk(on, chs[Math.max(0, state.shown)]);
+    $('#btn-walk').textContent = on ? '🎬 回到導覽' : '🚶 角色漫遊'; $('#walk-mini').textContent = on ? '🎬' : '🚶'; $('#w-help').classList.remove('fade'); clearTimeout(state.helpT); state.helpT = setTimeout(() => $('#w-help').classList.add('fade'), 6000); director.playing = false; hooks.walk(on, chs[Math.max(0, state.shown)]);
   }
-  $('#btn-walk').onclick = () => setWalk(!state.walk);
+  $('#btn-walk').onclick = () => { setWalk(!state.walk); closeMenu(); };
+  $('#walk-mini').onclick = () => setWalk(!state.walk);
+  const closeMenu = () => document.body.classList.remove('menu-open');
+  $('#menu-btn').onclick = () => document.body.classList.toggle('menu-open');
+  $('#menu-close').onclick = closeMenu;
+  $('#card').onclick = (e) => { if (e.target.id === 'c-story') return; card.classList.toggle('min'); state.cardT = -1; };
   $('#w-story').onclick = () => { if (state.near) hooks.story(state.near.id); };
   function setExplore(on) {
     if (on && state.walk) setWalk(false);
@@ -93,6 +98,8 @@ export function createUI(ctx, director, atmo, camera, hooks) {
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'g' || e.key === 'G') { setWalk(!state.walk); return; }
+    if (e.key === 'm' || e.key === 'M') { document.body.classList.toggle('menu-open'); return; }
+    if (e.key === 'Escape') closeMenu();
     if (state.walk) { if ((e.key === 't' || e.key === 'T') && state.near) hooks.story(state.near.id); if (e.key === 'h' || e.key === 'H') $('#btn-hide').click(); return; }
     if (e.code === 'Space') { e.preventDefault(); $('#btn-play').click(); } else if (e.code === 'ArrowRight') $('#btn-next').click(); else if (e.code === 'ArrowLeft') $('#btn-prev').click();
     else if (e.key === 'e' || e.key === 'E') setExplore(!state.explore); else if (e.key === 'h' || e.key === 'H') $('#btn-hide').click(); else if (e.key === 'f' || e.key === 'F') $('#btn-fs').click();
@@ -114,8 +121,9 @@ export function createUI(ctx, director, atmo, camera, hooks) {
       state.shown = ci; card.classList.remove('in'); void card.offsetWidth;
       idxEl.textContent = c.nav === false ? (ci === 0 ? 'PROLOGUE' : 'EPILOGUE') : String(nav.findIndex(o => o.i === ci) + 1).padStart(2, '0') + ' / ' + String(nav.length).padStart(2, '0');
       zhEl.textContent = c.zh; enEl.textContent = c.en + (c.th ? '  ·  ' + c.th : ''); descEl.textContent = c.desc; tagEl.textContent = c.tag || '';
-      card.classList.add('in'); nav.forEach(o => o.c.dot.classList.toggle('on', o.i === ci));
+      card.classList.add('in'); if (innerWidth < 760) { card.classList.add('min'); state.cardT = -1; } else { card.classList.remove('min'); state.cardT = 7; } nav.forEach(o => o.c.dot.classList.toggle('on', o.i === ci));
     }
+    if (state.cardT > 0) { state.cardT -= dt; if (state.cardT <= 0) card.classList.add('min'); }
     const target = c.dist == null ? 0 : c.dist; state.dist += (target - state.dist) * Math.min(1, dt * 2.2);
     distEl.textContent = fmtDist(Math.max(0, state.dist)); distRing.style.setProperty('--p', Math.min(1, Math.log10(1 + state.dist) / Math.log10(12500)));
     tlFill.style.width = (director.time / director.total * 100) + '%';

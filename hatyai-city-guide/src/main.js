@@ -91,7 +91,7 @@ async function main() {
     tod: (k) => { todMode = k; },
     sound: (btn) => { const on = sound.toggle(); btn.classList.toggle('on', on); },
     started: () => { sound.ready(); },
-    walk: (on, ch) => { walking = on; if (on) { controls.enabled = false; explore = false; const a = (ch && ch.anchor && ch.id !== 'intro' && ch.id !== 'outro') ? ch.anchor : [-38, 40]; player.enable(a[0], a[1]); } else player.disable(); },
+    walk: (on, ch) => { walking = on; if (on) { controls.enabled = false; explore = false; const a = (ch && ch.anchor && !['intro', 'outro', 'lee'].includes(ch.id)) ? ch.anchor : [-40, 34]; player.enable(a[0], a[1]); } else player.disable(); },
     teleport: (c) => { player.spawnNear(c.anchor[0], c.anchor[1]); player._cam = null; },
     style: (i) => { post.style.uniforms.uMode.value = i; },
     story: (id) => { director.playing = false; story.open(STORY_FOR[id] || 'street'); },
