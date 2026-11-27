@@ -55,6 +55,7 @@ const QUALITY = {
 let qName = params.get('q') || (() => { try { return localStorage.getItem('lub-q'); } catch { return null; } })() || (TOUCH ? 'low' : 'medium');
 if (!QUALITY[qName]) qName = 'medium';
 const Q = QUALITY[qName];
+const LITE = TOUCH && qName === 'low';   // phones on the default setting: no post-processing, shadows refreshed every other frame
 
 /* ------------------------------------------------------------ renderer */
 const canvas = $('#world');
@@ -89,7 +90,7 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 60
 status('讀取地圖資料…');
 const hintData = fetch('data/hint.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
 const [base, LM, TI] = await Promise.all(['data/base.json', 'data/landmarks.json', 'data/tiles/index.json'].map((u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); })));
-const M = makeMaterials(TOUCH || qName === 'low' ? 'assets/tex_s' : 'assets/tex');
+const M = makeMaterials(qName === 'low' ? 'assets/tex_s' : 'assets/tex');   // phones that pick 中/高 get the full-size textures
 const STREAM_R = TOUCH ? 380 : qName === 'low' ? 520 : 800;   // metres of city kept around the player
 /* ------------------------------------------------------------ sky & light */
 // sky dome tuned to the summer photos: deep blue zenith, pale horizon, warm glow around the sun
@@ -740,7 +741,7 @@ const GradeShader = {
     }`,
 };
 let gradePass = null;
-{
+if (!LITE) {
   const dprC = Math.min(devicePixelRatio, Q.dpr);
   composer = new EffectComposer(renderer); composer.setPixelRatio(dprC); composer.setSize(innerWidth, innerHeight);
   composer.addPass(new RenderPass(scene, camera));
@@ -1221,6 +1222,22 @@ function renderSafe() {
   if (++checks > 0 && looksBlank()) { if (++blankRun >= 5) { blankRun = 0; degrade('blank picture'); } } else blankRun = 0;
 }
 const clock = new THREE.Clock(); let simT = 0, frameN = 0;
+// dynamic resolution: when the frame rate drops, render fewer pixels (down to 60 % of the chosen sharpness) and go back up
+// when there is headroom; a one-time tip suggests the quality menu when a phone has lots of spare speed or none at all
+const dyn = { base: Math.min(devicePixelRatio, Q.dpr), k: 1, ema: 16.7, t: 0, fast: 0, slow: 0, tipped: false };
+function dynRes(dt) {
+  if (!started || window.__storyOpen || dt <= 0) return;
+  dyn.ema += (dt * 1000 - dyn.ema) * 0.05; dyn.t += dt; if (dyn.t < 2) return; dyn.t = 0;
+  const fps = 1000 / dyn.ema, min = TOUCH ? 0.6 : 0.7; let k = dyn.k;
+  if (fps < 27 && k > min) k = Math.max(min, k - 0.1); else if (fps > 50 && k < 1) k = Math.min(1, k + 0.05);
+  if (k !== dyn.k) { dyn.k = k; const r = Math.max(0.5, dyn.base * k); renderer.setPixelRatio(r); renderer.setSize(innerWidth, innerHeight); if (composer) { composer.setPixelRatio(r); composer.setSize(innerWidth, innerHeight); } }
+  if (TOUCH && !dyn.tipped) {
+    dyn.fast = fps > 55 && k === 1 ? dyn.fast + 1 : 0; dyn.slow = fps < 18 && k <= min ? dyn.slow + 1 : 0;
+    if (dyn.fast >= 8 && qName !== 'high') { dyn.tipped = true; toast('這支手機很順，想要更漂亮可以在 ☰ → 畫質 調高'); }
+    if (dyn.slow >= 5 && qName !== 'low') { dyn.tipped = true; toast('畫面有點卡，可以在 ☰ → 畫質 改成「低」'); }
+  }
+}
+window.__dyn = dyn;
 function frame() {
   requestAnimationFrame(frame);
   if (window.__storyOpen) { clock.getDelta(); return; }   // story film on top: pause the 3D world (saves battery on phones)
@@ -1282,6 +1299,8 @@ function frame() {
   if (!inShop) { notes.update(dt, fx, fz, !!window.__storyOpen); fountain.update(dt, fx, fz); }
   beaconU.uTime.value = simT; for (const b of beacons) { const d = Math.hypot(b.g.position.x - fx, b.g.position.z - fz); b.g.visible = d > 12; b.ring.scale.setScalar(1 + 0.15 * Math.sin(simT * 2)); }
   if (gradePass) gradePass.uniforms.uTime.value = (gradePass.uniforms.uTime.value + 0.017) % 100;
+  if (LITE) { sun.shadow.autoUpdate = false; if ((frameN & 1) === 0) sun.shadow.needsUpdate = true; }
+  dynRes(dt);
   renderSafe();
   // perf
   const now = performance.now(), ft = now - perf.last; perf.last = now; perf.frames++; perf.acc += ft; perf.worst = Math.max(perf.worst, ft);

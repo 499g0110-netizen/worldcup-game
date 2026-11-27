@@ -151,6 +151,7 @@ body.clean .hud:not(#bMenu):not(#stick):not(#prompt):not(#actBtn):not(#speedo) {
 #walletBox { position: fixed; z-index: 7; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); padding: 6px 12px; font: 600 13px var(--f-mono); color: #fff; }
 body.touch #walletBox { bottom: calc(env(safe-area-inset-bottom, 0px) + 120px); right: 12px; opacity: .8; }
 body.inshop #mapBox { display: none; }
+#tools label { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -170,7 +171,7 @@ body.inshop #mapBox { display: none; }
   <button class="tb" id="bView" type="button">視角<kbd>V</kbd></button>
   <button class="tb" id="bClean" type="button">隱藏介面（看風景）</button>
   <label><input type="checkbox" id="autoIntro"> 自動介紹</label>
-  <label>畫質 <select id="qSel"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select></label>
+  <label>畫質 <select id="qSel"><option value="high">高（最美，較耗電）</option><option value="medium">中</option><option value="low">低（手機最順）</option></select></label>
 </div>
 <button class="glass hud tb" id="bMenu" type="button" aria-label="選單">☰</button>
 <button class="glass hud tb" id="bInfo" type="button" hidden>ℹ</button>
@@ -215,7 +216,7 @@ body.inshop #mapBox { display: none; }
   <div class="credit">地理資料 © OpenStreetMap contributors（ODbL）· 材質 Poly Haven（CC0）· 角色與動作 Adobe Mixamo（經 three.js 範例）</div>
 </div></div>
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
 </script>
 <script type="module" src="js/main.js"></script>
 </body>
