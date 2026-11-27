@@ -16,6 +16,7 @@ import { loadHuman, updateLocomotion, makeBike, makeCar, twoBoneIK } from './act
 import { InfoCards } from './ui.js';
 import { openStory } from './stories.js';
 import { Shops, SHOPS } from './shops.js';
+import { buildNiederegger } from './niederegger.js';
 import { hasStory } from './stories.js';
 import { ROUTE } from './stories2.js';
 import { Traffic } from './traffic.js';
@@ -545,6 +546,8 @@ const holsten = buildHolstentor(scene); extraColliders.push(...holsten.colliders
 const salz = buildSalzspeicher(scene); extraColliders.push(...salz.colliders);
 const rathausHero = buildRathaus(scene); extraColliders.push(...rathausHero.colliders);
 const marienG = buildMarien(scene);
+const niedHero = buildNiederegger(scene); extraColliders.push(...niedHero.colliders);
+SHOPS[0].door = [niedHero.door.x, niedHero.door.z]; { const l = LM.landmarks.find((q) => q.id === 'niederegger'); if (l) l.local_xz_m = [niedHero.door.x, niedHero.door.z]; }
 const hint = await hintData.then((h) => (h ? buildHint(scene, h) : null)); window.__hint = hint;
 const bridgeSet = buildBridges(scene, { bridges: base.bridges || [], rings: base.rings || [], inWater, oldTown: (x, z) => Math.hypot((x - 30) / 345, (z + 100) / 780) < 1.15 }); extraColliders.push(...bridgeSet.colliders);
 const shedG = buildShed(scene);
@@ -673,7 +676,7 @@ function outsideDoor(sh) {   // a pavement point in front of the shop's door
   void L; return { x: r.x, z: r.z, yaw: Math.atan2(dx, dz) };
 }
 // a gilded projecting sign over each shop door (readable from along the street, glows a little at dusk)
-for (const [sh, text, bg, fg] of [[SHOPS[0], 'Café Niederegger · seit 1806', '#f3ead0', '#7a1f2b'], [SHOPS[1], 'FANGFRISCH · Fisch & Bier', '#23424f', '#f4f1e6']]) {
+for (const [sh, text, bg, fg] of [[SHOPS[1], 'FANGFRISCH · Fisch & Bier', '#23424f', '#f4f1e6']]) {
   const r = nearestRoadPoint(sh.door[0], sh.door[1], ['pedestrian', 'footway', 'living_street', 'residential', 'service', 'tertiary', 'unclassified']); if (!r) continue;
   const c = document.createElement('canvas'); c.width = 512; c.height = 160; const g = c.getContext('2d');
   g.fillStyle = '#d9ac3c'; g.fillRect(0, 0, 512, 160); g.fillStyle = bg; g.fillRect(8, 8, 496, 144); g.fillStyle = fg; g.font = '700 38px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 256, 82);

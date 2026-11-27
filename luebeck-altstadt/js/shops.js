@@ -84,7 +84,7 @@ class Room {
   light(x, y, z, s = 3, mat = this.m.pool) { const p = this.plane(s, s, mat, x, 0.03, z, 0, -Math.PI / 2); p.renderOrder = 2; return p; }
   downlights(nx, nz, x0, z0, dx, dz, y) { const geo = new THREE.CylinderGeometry(0.14, 0.14, 0.04, 14), im = new THREE.InstancedMesh(geo, this.m.glow, nx * nz), mm = new THREE.Matrix4(); let i = 0; for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++) { mm.makeTranslation(x0 + a * dx, y, z0 + b * dz); im.setMatrixAt(i++, mm); } this.g.add(im); }
   stand(id, cat, x, z, r, name) { this.stands.push({ id, cat, x: this.base.x + x, z: this.base.z + z, r, name }); }
-  npc(look, x, z, yaw, scale = 1) { const h = createMannequin(this.g, { ...randomLook(), ...look, height: (look.height || 1) * scale }); h.root.position.set(x, 0, z); h.root.rotation.y = yaw; this.npcs.push(h); return h; }
+  npc(look, x, z, yaw, scale = 1) { const h = createMannequin(this.g, { ...randomLook(), ...look, height: (look.height || 1) * scale }); h.root.position.set(x, 0, z); h.root.rotation.y = yaw; h.n = { x, z, yaw, hx: x, hz: z, hy: yaw, staff: look.top !== undefined, tx: null, tz: null, wait: Math.random() * 4, speed: 0, greetT: -99, bubble: null, waveT: 0 }; this.npcs.push(h); return h; }
   chair(x, z, yaw, mat) { const c = new THREE.Group(); const seat = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.46), mat); seat.position.y = 0.46; const back = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.5, 0.07), mat); back.position.set(0, 0.76, -0.2); c.add(seat, back); for (const [lx, lz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.46, 6), this.m.iron); l.position.set(lx, 0.23, lz); c.add(l); } c.position.set(x, 0, z); c.rotation.y = yaw; this.g.add(c); return c; }
   roundTable(x, z, r = 0.45, mat = this.m.woodL) { this.cyl(r, r, 0.04, mat, x, 0.72, z, 20); this.cyl(0.04, 0.04, 0.72, this.m.iron, x, 0, z, 8); this.cyl(0.25, 0.25, 0.03, this.m.iron, x, 0, z, 12); this.cols.push({ cx: x, cz: z, r: r + 0.05, h: 0.9 }); }
   product(kind, x, y, z, ry = 0, s = 1) {
@@ -246,15 +246,15 @@ export class Shops {
   }
   enter(id) { const R = this.build(id); this.env0 = this.scene.environmentIntensity; this.scene.environmentIntensity = 0.35; if (this.cur) this.cur.g.visible = false; R.g.visible = true; R.ambient.visible = true; this.cur = R; this.updateWallet(); return R.spawn; }
   leave() { if (!this.cur) return; if (this.env0 !== undefined) this.scene.environmentIntensity = this.env0; this.cur.g.visible = false; this.cur.ambient.visible = false; this.cur = null; this.nearStand = null; this.nearExit = false; this.closeBuy(); }
-  collide(nx, nz, r) {
-    const R = this.cur, bx = R.base.x, bz = R.base.z; let x = nx - bx, z = nz - bz;
+  collide(nx, nz, r) { const R = this.cur, [x, z] = this.colLocal(R, nx - R.base.x, nz - R.base.z, r); return [R.base.x + x, R.base.z + z]; }
+  colLocal(R, x, z, r) {
     x = Math.max(0.35, Math.min(R.W - 0.35, x)); z = Math.max(0.35, Math.min(R.D - 0.45, z));
     for (const c of R.cols) {
       if (c.h < 0.2) continue;
       if (c.r !== undefined) { const dx = x - c.cx, dz = z - c.cz, d = Math.hypot(dx, dz), m = c.r + r; if (d < m) { const k = m / (d || 1e-3); x = c.cx + (dx || 0.001) * k; z = c.cz + dz * k; } }
       else { const x0 = c.x0 - r, x1 = c.x1 + r, z0 = c.z0 - r, z1 = c.z1 + r; if (x > x0 && x < x1 && z > z0 && z < z1) { const p = [x - x0, x1 - x, z - z0, z1 - z], i = p.indexOf(Math.min(...p)); if (i === 0) x = x0; else if (i === 1) x = x1; else if (i === 2) z = z0; else z = z1; } }
     }
-    return [bx + x, bz + z];
+    return [x, z];
   }
   camBlocked(wx, y, wz) {
     const R = this.cur; if (!R) return false; const x = wx - R.base.x, z = wz - R.base.z;
@@ -264,10 +264,34 @@ export class Shops {
   }
   update(dt, P) {
     const R = this.cur; if (!R) return; this.t += dt;
-    for (const h of R.npcs) updateLocomotion(h, 0, dt);
+    this.stepNpcs(R, dt, P);
     let best = null, bd = 1e9; for (const s of R.stands) { const d = Math.hypot(P.x - s.x, P.z - s.z); if (d < s.r && d < bd) { bd = d; best = s; } }
     this.nearStand = best; this.nearExit = Math.hypot(P.x - R.exit.x, P.z - R.exit.z) < 2.2;
     if (this.box && !this.box.hidden && this.nearStand !== this.openStand) this.closeBuy();
+  }
+  say(h, text) {
+    const n = h.n; if (!n.bubble) { const c = document.createElement('canvas'); c.width = 384; c.height = 96; n.bctx = c.getContext('2d'); n.btex = new THREE.CanvasTexture(c); n.btex.colorSpace = THREE.SRGBColorSpace; n.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: n.btex, transparent: true, depthTest: false, fog: false })); n.bubble.scale.set(1.9, 0.48, 1); n.bubble.position.y = 2.25; n.bubble.renderOrder = 10; h.root.add(n.bubble); }
+    const g = n.bctx; g.clearRect(0, 0, 384, 96); g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.roundRect(4, 4, 376, 70, 22); g.fill(); g.beginPath(); g.moveTo(180, 72); g.lineTo(192, 92); g.lineTo(204, 72); g.fill(); g.fillStyle = '#2a2a30'; g.font = '700 34px "Noto Sans TC", "PingFang TC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 192, 40); n.btex.needsUpdate = true; n.bubble.visible = true; n.bubbleT = 3.2; n.waveT = 3.2;
+  }
+  stepNpcs(R, dt, P) {
+    const px = P.x - R.base.x, pz = P.z - R.base.z, GREET = ['Willkommen! 歡迎光臨', 'Guten Tag! 您好', 'Moin! 需要幫忙嗎？'];
+    for (const h of R.npcs) {
+      const n = h.n, dp = Math.hypot(px - n.x, pz - n.z); let speed = 0, want = null;
+      if (n.bubble && n.bubbleT > 0) { n.bubbleT -= dt; if (n.bubbleT <= 0) n.bubble.visible = false; }
+      if (n.waveT > 0) n.waveT -= dt;
+      if (n.staff) {
+        if (dp < 4.5) { want = Math.atan2(px - n.x, pz - n.z); if (this.t - n.greetT > 22) { n.greetT = this.t; this.say(h, GREET[Math.floor(Math.random() * GREET.length)]); } }
+        else { want = n.hy; }
+      } else {
+        if (n.tx === null) { n.wait -= dt; if (n.wait <= 0) { for (let k = 0; k < 12; k++) { const tx = 1.2 + Math.random() * (R.W - 2.4), tz = 1.6 + Math.random() * (R.D - 3.6); if (this.colLocal(R, tx, tz, 0.45).every((v, i) => Math.abs(v - [tx, tz][i]) < 0.01)) { n.tx = tx; n.tz = tz; break; } } n.wait = 2 + Math.random() * 6; } }
+        else { const dx = n.tx - n.x, dz = n.tz - n.z, d = Math.hypot(dx, dz); if (d < 0.35) { n.tx = null; } else { want = Math.atan2(dx, dz); speed = dp < 1.1 ? 0 : 1.15; if (n.stuck > 2) { n.tx = null; n.stuck = 0; } } }
+        if (dp < 2.2 && speed === 0 && want === null) want = Math.atan2(px - n.x, pz - n.z);   // glance at the visitor
+      }
+      if (want !== null) { let d = want - n.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); n.yaw += d * (1 - Math.exp(-dt * 6)); }
+      if (speed > 0) { const nx = n.x + Math.sin(n.yaw) * speed * dt, nz = n.z + Math.cos(n.yaw) * speed * dt, [cx, cz] = this.colLocal(R, nx, nz, 0.3); if (Math.hypot(cx - nx, cz - nz) > 0.02) n.stuck = (n.stuck || 0) + dt; n.x = cx; n.z = cz; }
+      h.root.position.set(n.x, 0, n.z); h.root.rotation.y = n.yaw; updateLocomotion(h, speed, dt);
+      if (n.waveT > 0 && h.bones.RightArm) { const k = Math.min(1, n.waveT / 0.4); h.bones.RightArm.rotation.z = -2.5 * k; h.bones.RightForeArm.rotation.z = -0.4 + Math.sin(this.t * 9) * 0.45 * k; }
+    }
   }
   /* ---- buying */
   initUI() {
