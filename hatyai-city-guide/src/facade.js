@@ -163,7 +163,14 @@ vec3 fWallCol;
     fEmit += wallc*0.05*night*smoothstep(9.0, 0.0, v);
     // lit windows
     float litWin = win * lit;
-    fEmit += litCol * litWin * night * (1.15 + 1.3*heartMask);
+    // interior read-through: ceiling-light gradient, furniture band, side curtains, occasional TV flicker
+    float inside = mix(0.45, 1.0, smoothstep(0.15, 0.85, cell.y));
+    inside *= 1.0 - 0.55*smoothstep(0.42, 0.3, cell.y)*step(0.35, rnd2);
+    float cur = step(0.6, fh21(vec2(wi+seed*3., fi+7.)));
+    inside *= 1.0 - 0.6*cur*(smoothstep(0.32, 0.2, abs(cell.x-0.5)*-1.0+0.5));
+    float tv = step(0.93, rnd2) * (0.75 + 0.25*sin(uTime*7.0 + rnd*40.0));
+    vec3 lc = mix(litCol, vec3(0.55,0.7,1.0), tv*0.6);
+    fEmit += lc * litWin * night * inside * (0.85 + 1.6*heartMask);
     fRough = mix(0.88, 0.07, win);
     fMetal = win*0.55;
     if (st < 0.5 && fi < 0.5) { fRough = 0.8; fMetal = 0.0; }

@@ -52,6 +52,11 @@ export function buildExtras(ctx) {
     signPlane(signTex([{ text: 'LEE GARDENS 夜市', font: 'bold 70px "Noto Sans TC",system-ui,sans-serif' }, { text: 'ตลาดโต้รุ่ง · NIGHT MARKET', font: '38px "Noto Sans Thai",system-ui,sans-serif' }], { w: 768, h: 170, bg: '#1b0c24', fg: '#ffd27a', border: '#ff6a4a' }), 16, 3.5, -3, 8.2, 31, 0);
     signPlane(signTex([{ text: 'LEE GARDENS 夜市', font: 'bold 70px "Noto Sans TC",system-ui,sans-serif' }], { w: 768, h: 130, bg: '#1b0c24', fg: '#ffd27a', border: '#ff6a4a' }), 16, 2.7, -3, 8.2, 31.2, Math.PI);
     for (let i = 0; i < 160; i++) ctx.people.add(-24 + rnd() * 52, 0.15, 34 + rnd() * 92, 1);
+    // gate posts for the sign + paved plaza
+    for (const sx of [-10.5, 4.5]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 10, 12), new THREE.MeshStandardMaterial({ color: 0x8a1c1c, roughness: 0.5 })); p.position.set(sx, 5, 31.1); p.castShadow = true; scene.add(p); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 10), new THREE.MeshStandardMaterial({ color: 0xe6c274, metalness: 0.8, roughness: 0.3 })); cap.position.set(sx, 10.2, 31.1); scene.add(cap); }
+    { const pt = ctx.roadMats.cobble.map.clone(); pt.needsUpdate = true; pt.repeat.set(16, 26);
+      const pv = new THREE.Mesh(new THREE.PlaneGeometry(64, 108), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      pv.rotation.set(-Math.PI / 2, 0, 0.11); pv.position.set(-1, 0.07, 78); pv.receiveShadow = true; scene.add(pv); }
     ctx.leeNight = { x: 0, z: 78 };
   }
 

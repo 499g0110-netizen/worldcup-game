@@ -4,6 +4,7 @@ import { DATA, ribbon, ribGeo, groundY } from './world.js';
 import { clamp, mulberry32, signTex, canvasTex, pca, glowTex } from './util.js';
 import { GlowSet } from './props.js';
 import { Humans } from './life.js';
+import { buildLeeGroundFloor } from './mcd.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -45,6 +46,7 @@ export function buildLandmarks(ctx) {
   ctx.signMats = []; ctx.nightMats = []; ctx.blink = new GlowSet('blink', 40); ctx.glowSets.push(ctx.blink);
   ctx.update = ctx.update || [];
   const people = new Humans(ctx, 4600); ctx.people = people;
+  ctx.signMats = ctx.signMats || []; ctx.nightMats = ctx.nightMats || [];
   const add = (geo, mat, x, y, z, ry = 0, cast = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = cast; m.receiveShadow = true; scene.add(m); return m; };
   const stdMat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8 }, o));
   const signMat = (tex, glow = 1.0) => { const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.5, roughness: 0.6 }); m.userData.k = glow; ctx.signMats.push(m); return m; };
@@ -60,7 +62,8 @@ export function buildLandmarks(ctx) {
   {
     const LG = ring(find('Lee Gardens Plaza')[0].p);
     const B = batches.at(0, 0);
-    B.prism(LG, 0, 15, { style: 4, color: C('#d9d0ba'), seed: 0.21, roofColor: C('#8b8a85') });
+    B.prism(LG, 5.4, 9.6, { style: 4, color: C('#d9d0ba'), seed: 0.21, roofColor: C('#8b8a85'), vOff: 5 });
+    buildLeeGroundFloor(ctx, LG);
     // tower: cream fins + green bands (matches photos), long axis along the street (N–S)
     B.box(-17, 0, 30, 40, -0.11, 15, 80, { style: 2, color: C('#e9e5d6'), seed: 0.37, resetU: true, roofColor: C('#8a8a86') });
     // roof plant, tanks, dome
@@ -89,7 +92,6 @@ export function buildLandmarks(ctx) {
     for (const sx of [-1, 1]) { const t = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.3, 10, 24, Math.PI), am); t.position.x = sx * 1.0; t.scale.y = 1.35; arches.add(t); for (const k of [-1, 1]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.001, 8), am); } }
     arches.scale.setScalar(1.7); arches.position.set(-33.5, 10.6, 27.5); arches.rotation.y = -0.12; scene.add(arches);
     add(new THREE.CylinderGeometry(0.22, 0.28, 8.5, 8), stdMat(0xcfcfcf, { metalness: 0.7, roughness: 0.4 }), -33.5, 4.2, 27.5);
-    signPlane(signTex([{ text: "McDonald's", font: 'bold 74px system-ui,sans-serif' }], { w: 512, h: 120, bg: '#171717', fg: '#ffffff' }), 9, 1.9, -23.5, 4.3, 21.3, 0, 1.0);
     ctx.blink.add(-33.5, 11.5, 27.5, 12, C('#ffc24a'));
   }
 
