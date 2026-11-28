@@ -5,6 +5,7 @@ import { clamp, mulberry32, signTex, canvasTex, pca, glowTex } from './util.js';
 import { GlowSet } from './props.js';
 import { Humans } from './life.js';
 import { buildLeeGroundFloor } from './mcd.js';
+import { reserve2 } from './landmarks2.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -25,6 +26,7 @@ export function reserve(ctx, occ) {
     if (b.p.some(p => Math.abs(p[0]) > 7000 || Math.abs(p[1]) > 7000)) continue;
     occ.poly(ring(b.p), 4);
   }
+  reserve2(occ);
   occ.mark(-18, 4, 90, 60, -0.11, 4);                       // Lee Gardens + portal
   occ.mark(-80, 8, 56, 42, 0, 2);                           // Centara
   occ.mark(-82, 96, 62, 62, 0, 2);                          // Regency (round podium)
@@ -285,7 +287,7 @@ export function buildLandmarks(ctx) {
     wlightGlow.add(bb.cx, 9, bb.cz, 14, red); for (let i = 0; i < 10; i++) wlightGlow.add(bb.cx + (rnd() - 0.5) * 16, 5.5, bb.cz + (rnd() - 0.5) * 16, 4, red);
   }
   // malls & department stores
-  const mallDef = [['Diana', 30, '#e8d8c0', 'DIANA'], ['โอเดียน', 22, '#d8d2c4', 'ODEON'], ['Robinson', 22, '#d9d9d6', 'ROBINSON'], ['Central Hatyai', 32, '#e3dccc', 'CENTRAL'], ["Lotus's", 12, '#d9d9d6', 'LOTUS']];
+  const mallDef = [['Diana', 30, '#e8d8c0', 'DIANA'], ['โอเดียน', 22, '#d8d2c4', 'ODEON'], ['Robinson', 22, '#d9d9d6', 'ROBINSON'], ["Lotus's", 12, '#d9d9d6', 'LOTUS']];
   for (const [key, h, col, label] of mallDef) for (const b of find(key)) {
     const P = ring(b.p); extrude(P, 0, h, 4, C(col), rnd(), { roofColor: C('#80807c') });
     const bb = bbox(P); const pc = pca(P);

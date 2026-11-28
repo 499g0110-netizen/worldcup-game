@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, canvasTex } from './util.js';
 import { GlowSet } from './props.js';
-import { PHOTO } from './phototex.js';
 
 // =====================================================================
 //  Street frontage dressing: shop signboards (Thai / Chinese / English),
@@ -131,25 +130,6 @@ export function buildShopfronts(ctx) {
       glow.add(f.x + f.fnx * 1.3, 2.4, f.z + f.fnz * 1.3, 4, warm); });
     hullM.count = boats.length; pot.count = boats.length * 2; tab.count = boats.length * 2;
     for (const m of [hullM, pot, tab]) { m.frustumCulled = false; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.castShadow = true; scene.add(m); }
-  }
-  // ---- photographed facades (rectified from the reference photo) on the Sino-Portuguese shophouses ----
-  {
-    const peds = ctx.pediments || []; const n = peds.length;
-    if (n) {
-      const mk = (tex) => { const g = new THREE.PlaneGeometry(1, 1); const a = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4); g.setAttribute('aUvRect', a);
-        const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0.0 });
-        m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('void main() {', 'attribute vec4 aUvRect;\nvoid main() {').replace('#include <uv_vertex>', '#include <uv_vertex>\n vMapUv = uv * aUvRect.zw + aUvRect.xy;'); };
-        const im = new THREE.InstancedMesh(g, m, n); im.receiveShadow = true; im.frustumCulled = false; scene.add(im); return { im, a }; };
-      const up2 = mk(PHOTO.facades()), low = mk(PHOTO.arcade()); const rr = mulberry32(55);
-      peds.forEach((p, i) => { const yaw = Math.atan2(p.fnx, p.fnz); Q.setFromAxisAngle(up, yaw); const cell = Math.floor(rr() * 4), flip = rr() < 0.5;
-        const top = p.h + 0.3, bot = 3.9, hh = top - bot;
-        M.compose(V.set(p.x + p.fnx * 0.07, bot + hh / 2, p.z + p.fnz * 0.07), Q, Sc.set(p.w, hh, 1)); up2.im.setMatrixAt(i, M);
-        const u0 = (cell % 2) * 0.5, v0 = cell < 2 ? 0.5 : 0.0; up2.a.setXYZW(i, flip ? u0 + 0.5 : u0, v0, flip ? -0.5 : 0.5, 0.5);
-        M.compose(V.set(p.x + p.fnx * 0.06, 1.95, p.z + p.fnz * 0.06), Q, Sc.set(p.w, 3.9, 1)); low.im.setMatrixAt(i, M); low.a.setXYZW(i, 0, 0, Math.max(1, Math.round(p.w / 5)), 1);
-      });
-      low.im.material.map.wrapS = THREE.RepeatWrapping;
-      for (const o of [up2, low]) { o.im.instanceMatrix.needsUpdate = true; o.a.needsUpdate = true; }
-    }
   }
   // ---- ornate curved pediments on top of the Sino-Portuguese shophouses ----
   const peds = ctx.pediments || [];
