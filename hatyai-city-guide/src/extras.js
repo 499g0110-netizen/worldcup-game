@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DATA } from './world.js';
 import { mulberry32, signTex, canvasTex, pca } from './util.js';
 import { GlowSet } from './props.js';
+import { PHOTO } from './phototex.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -124,11 +125,12 @@ export function buildExtras(ctx) {
       g.font = 'bold 92px system-ui,sans-serif'; g.fillStyle = '#1e6a5a'; g.fillText('Greenway', w / 2, 140);
       const word = 'Street Life', cols = ['#d33a5a', '#e8742a', '#2a7ad0', '#7a3aa8', '#e8a31d', '#1f8a4c'], f = 'bold italic 104px system-ui,sans-serif'; g.font = f; let x = w / 2 - g.measureText(word).width / 2; g.textAlign = 'left';
       [...word].forEach((ch, i) => { g.fillStyle = ch === ' ' ? '#000' : (i === 0 || i === 7 ? cols[i % 6] : '#2a2a30'); g.fillText(ch, x, 255); x += g.measureText(ch).width; }); }, { clamp: true });
-    const sMat = new THREE.MeshStandardMaterial({ map: sTex, emissiveMap: sTex, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.7 }); ctx.signMats.push(sMat); sMat.userData.k = 0.55;
+    const gwT = PHOTO.greenway(); const sMat = new THREE.MeshStandardMaterial({ map: gwT, emissiveMap: gwT, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.7 }); ctx.signMats.push(sMat); sMat.userData.k = 0.55;
     const front = new THREE.Shape(); front.moveTo(-W / 2 - 0.5, 4.2); front.lineTo(W / 2 + 0.5, 4.2); front.absarc(0, 4.2, W / 2 + 0.5, 0, Math.PI, false);
     const hole = new THREE.Path(); hole.moveTo(-W / 2 + 0.6, 4.2); hole.lineTo(W / 2 - 0.6, 4.2); hole.absarc(0, 4.2, W / 2 - 0.6, 0, Math.PI, false);
     const fasc = new THREE.Mesh(new THREE.PlaneGeometry(W, 6.4), sMat); fasc.position.set(x0 + L / 2 + 0.2, 7.9, 0); fasc.rotation.y = Math.PI / 2; G.add(fasc);
     gp(new THREE.BoxGeometry(0.3, 1.4, W + 1), fab, x0 + L / 2 + 0.1, 4.4, 0);
+    { const inT = PHOTO.greenwayIn(); const bk = new THREE.Mesh(new THREE.PlaneGeometry(W - 1, 6), new THREE.MeshStandardMaterial({ map: inT, emissiveMap: inT, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })); bk.position.set(x0 - L / 2 + 0.3, 3, 0); bk.rotation.y = Math.PI / 2; G.add(bk); ctx.signMats.push(bk.material); }
     // stalls inside the tent: clothes, toys, souvenirs, snacks
     const items = []; for (let x = x0 - L / 2 + 3; x < x0 + L / 2 - 2; x += 3.6) for (const z of [-11, -6.5, 6.5, 11]) { const [wx, wz] = toW(x, z); items.push({ x: wx, z: wz, rot: rot + Math.PI / 2 + (z > 0 ? Math.PI : 0) }); }
     nightGroups.push(makeStalls(ctx, items, glow, rnd, 'gw'));
@@ -145,7 +147,7 @@ export function buildExtras(ctx) {
       g.shadowColor = '#3affb0'; g.fillStyle = '#7dffc8'; g.font = 'bold 84px system-ui,sans-serif'; g.fillText('Greenway', w / 2, 90);
       const f = 'bold 64px system-ui,sans-serif'; g.font = f; const t = 'FOOD STATION', cols = ['#ff4a6a', '#ffb02a', '#3ad0ff', '#c46aff']; let x = w / 2 - g.measureText(t).width / 2; g.textAlign = 'left';
       [...t].forEach((ch, i) => { g.shadowColor = g.fillStyle = cols[i % 4]; g.fillText(ch, x, 175); x += g.measureText(ch).width; }); }, { clamp: true });
-    const nm = new THREE.MeshStandardMaterial({ map: neon, emissiveMap: neon, emissive: 0xffffff, emissiveIntensity: 1.0 }); ctx.signMats.push(nm); nm.userData.k = 1.4;
+    const fdT = PHOTO.food(); const nm = new THREE.MeshStandardMaterial({ map: fdT, emissiveMap: fdT, emissive: 0xffffff, emissiveIntensity: 1.0 }); ctx.signMats.push(nm); nm.userData.k = 1.4;
     const np = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.1), nm); np.position.set(fx - 11.05, 7.2, fz); np.rotation.y = -Math.PI / 2; G.add(np);
     for (let i = 0; i < 10; i++) { const [wx, wz] = toW(fx - 9 + (i % 5) * 4.5, fz - 6 + Math.floor(i / 5) * 12); glow.add(wx, 7.8, wz, 4, C('#ffb04a')); glow.add(wx, 3.6, wz, 3.5, C('#ffcf7a')); }
     const red = std(0xd0302a, { emissive: 0xff5020, emissiveIntensity: 0.4 }); ctx.nightMats.push({ mat: red, base: 0.2, k: 1.4 });

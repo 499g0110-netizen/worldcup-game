@@ -331,7 +331,7 @@ export async function fillCity(ctx, progress) {
     if (fl >= 12) style = rnd() < 0.55 ? 1 : 5; else if (fl >= 7) style = rnd() < 0.5 ? 5 : (rnd() < 0.5 ? 1 : 0); else if (fl <= 2 && d0 > 1000) style = rnd() < 0.5 ? 6 : 0;
     if (!frontage && style === 0 && fl > 2) style = rnd() < 0.5 ? 5 : 0;
     let pastel = null;
-    if (frontage && fl >= 2 && fl <= 4 && d0 < 1900 && rnd() < 0.68) { style = 7; pastel = SINO[Math.floor(rnd() * SINO.length)].clone(); }
+    if (frontage && fl >= 2 && fl <= 4 && d0 < 2200 && rnd() < 0.8) { style = 7; pastel = SINO[Math.floor(rnd() * SINO.length)].clone(); }
     const c = pastel || col().clone().multiplyScalar(0.85 + rnd() * 0.25);
     const batch = batches.at(cx, cz);
     const house = fl <= 2 && d0 > 1300 && rnd() < 0.55;
@@ -339,7 +339,7 @@ export async function fillCity(ctx, progress) {
       batch.box(cx, cz, w, d, rot, 0, h - 0.4, { style: 6, color: c, seed: rnd(), roof: false });
       batch.gable(cx, cz, w, d, rot, h - 0.4, 2.4, ROOFS[Math.floor(rnd() * ROOFS.length)].clone().multiplyScalar(0.9 + rnd() * 0.3), rnd());
     } else {
-      batch.box(cx, cz, w, d, rot, 0, h, { style, color: c, seed: rnd(), roofColor: ROOFS[Math.floor(rnd() * ROOFS.length)] });
+      batch.box(cx, cz, w, d, rot, 0, h, { style, color: c, seed: rnd(), roofColor: ROOFS[Math.floor(rnd() * ROOFS.length)], styleFn: style === 7 ? (i, n) => (n[0] * fnx + n[2] * fnz > 0.7 ? 7 : 6) : null });
       if (style === 7) (ctx.pediments || (ctx.pediments = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, h, c: c.clone(), s: rnd() });
       if (frontage && (style === 0 || style === 5 || style === 7) && d0 < 2600) (ctx.shopfronts || (ctx.shopfronts = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, rot, fl, d0, h });
       if (fl >= 3 && rnd() < 0.55) tanks.push([cx + (rnd() - 0.5) * w * 0.4, h, cz + (rnd() - 0.5) * d * 0.4, 0.8 + rnd() * 0.5]);

@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 const res = await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.argv.includes('--dev'), format: 'iife', write: false, target: 'es2020',
-  loader: { '.json': 'json' }, legalComments: 'none', logLevel: 'info',
+  loader: { '.json': 'json', '.webp': 'dataurl' }, legalComments: 'none', logLevel: 'info',
 });
 let js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const logo = 'data:image/webp;base64,' + fs.readFileSync('src/logo.webp').toString('base64');

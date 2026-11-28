@@ -5,6 +5,7 @@ import { clamp, mulberry32, signTex, canvasTex, pca, glowTex, smooth } from './u
 import { GlowSet } from './props.js';
 import { Humans } from './life.js';
 import { waterPatch } from './world.js';
+import { PHOTO } from './phototex.js';
 
 const C = (h) => new THREE.Color(h);
 const ring = (p) => (p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]) ? p.slice(0, -1) : p;
@@ -224,6 +225,8 @@ export function buildAirport(ctx) {
     // big rooftop lettering on the landside & airside parapets (as in the photos)
     const letters = signTex([{ text: 'ท่าอากาศยานหาดใหญ่   HAT YAI INTERNATIONAL AIRPORT', font: 'bold 64px "Noto Sans Thai",system-ui,sans-serif' }], { w: 2048, h: 128, bg: '#f2f2ee', fg: '#1a2a4a' });
     const lm = new THREE.MeshStandardMaterial({ map: letters, emissiveMap: letters, emissive: 0xffffff, emissiveIntensity: 0.2 }); ctx.signMats.push(lm); lm.userData.k = 0.4;
+    { const tt = PHOTO.terminal(3); const fm = new THREE.MeshStandardMaterial({ map: tt, roughness: 0.5, metalness: 0.2 });
+      for (const s of [1, -1]) { const fp = new THREE.Mesh(new THREE.PlaneGeometry(200, 13.5), fm); fp.position.set(bb.cx + vx * 24.6 * s, 6.8, bb.cz + vz * 24.6 * s); fp.rotation.y = Math.atan2(vx * s, vz * s); scene.add(fp); } }
     for (const s of [1, -1]) { const lp = new THREE.Mesh(new THREE.PlaneGeometry(150, 5), lm); lp.position.set(bb.cx + vx * 26 * s, 15.6, bb.cz + vz * 26 * s); lp.rotation.y = Math.atan2(vx * s, vz * s); scene.add(lp); }
     // curbside canopy on the landside + gate number board
     const can = new THREE.Mesh(new THREE.BoxGeometry(200, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.4, metalness: 0.3 })); can.position.set(bb.cx - vx * 32, 6.5, bb.cz - vz * 32); can.rotation.y = -rot; can.castShadow = true; scene.add(can);
@@ -404,6 +407,11 @@ function buildBuddhaComplex(ctx, bx, by, bz, glow) {
   for (let i = 0; i < 7; i++) { const x = -18 + i * 6, z = 17; let y = 0.4, r = 1.4; for (let k = 0; k < 7; k++) { hp(new THREE.CylinderGeometry(r * 0.85, r, 0.8, 10), i % 3 === 1 ? gold : white, x, y + 0.4, z); y += 0.8; r *= 0.78; } hp(new THREE.ConeGeometry(0.25, 2.4, 8), i % 3 === 1 ? gold : white, x, y + 1.2, z);
     if (i % 2 === 0) { hp(new THREE.CylinderGeometry(0.06, 0.08, 3.6, 6), white, x + 3, 1.8, z + 1); const gl = hp(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.8 }), x + 3, 3.7, z + 1); const w = new THREE.Vector3(); gl.getWorldPosition(w); glow.add(w.x, w.y, w.z, 6, C('#fff2d6')); } }
   const hw = new THREE.Vector3(); H.updateMatrixWorld(); H.localToWorld(hw.set(0, 8, 12)); glow.add(hw.x, hw.y, hw.z, 40, C('#ffcf80'));
+  // replace the procedural hall with the photographed hall (sky keyed out), front and back
+  H.children.forEach((o, i) => { if (i > 0) o.visible = false; });
+  { const tt = PHOTO.temple(); const tm = new THREE.MeshStandardMaterial({ map: tt, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.15 });
+    for (const [z, ry] of [[9.5, 0], [-9.5, Math.PI]]) { const card = new THREE.Mesh(new THREE.PlaneGeometry(48, 36), tm); card.position.set(0, 18, z); card.rotation.y = ry; card.castShadow = true; H.add(card); }
+    for (const sx of [-1, 1]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.5, 12, 19), H.children[1].material); side.position.set(sx * 21, 6.5, 0); H.add(side); } }
   ctx.ornateHall = { x: ox, z: oz };
   buildCableAndElephant(ctx, glow);
 }
