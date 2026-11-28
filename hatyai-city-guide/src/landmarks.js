@@ -310,6 +310,7 @@ export function buildLandmarks(ctx) {
   const done = new Set(['Lee Gardens Plaza', 'Kim Yong Market', 'ตลาดกิมหยง', 'สถานีรถไฟ', 'ถาวรวราราม', 'เลียนฮัวเกาะ', 'Diana', 'โอเดียน', 'Robinson', 'Central Hatyai', "Lotus's", 'สงขลานครินทร์', 'สถานีขนส่ง', 'ตลาดน้ำคลองแห', 'กรีนเวย์', 'พระพุทธมงคลมหาราช']);
   for (const b of DATA.blds) {
     if ([...done].some(k => b.n.includes(k))) continue;
+    if (['sports_centre', 'stadium', 'park', 'pitch'].includes(b.t)) continue;
     if (['reservoir', 'residential', 'religious', 'neighbourhood', 'parking'].includes(b.t) || b.c === 'landuse' || b.c === 'place') continue;
     if (b.p.some(p => Math.abs(p[0]) > 7000 || Math.abs(p[1]) > 7000)) continue;
     const P = ring(b.p); if (P.length < 3) continue; const bb = bbox(P); if (bb.w < 8 || bb.d < 8) continue;

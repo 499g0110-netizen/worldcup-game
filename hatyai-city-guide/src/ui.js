@@ -92,6 +92,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
   $('#btn-explore').onclick = () => setExplore(!state.explore);
   const STYLES = ['寫實', '水彩', '剪紙']; let styleI = 0;
   $('#btn-style').onclick = () => { styleI = (styleI + 1) % 3; $('#btn-style').textContent = '畫風：' + STYLES[styleI]; $('#btn-style').classList.toggle('on', styleI > 0); hooks.style(styleI); };
+  $('#c-fight').onclick = (e) => { e.stopPropagation(); hooks.fight && hooks.fight(); };
   $('#c-story').onclick = () => hooks.story(chs[Math.max(0, state.shown)].id);
   $('#btn-fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); };
   $('#btn-hide').onclick = () => { state.ui = !state.ui; document.body.classList.toggle('ui-off', !state.ui); };
@@ -123,7 +124,7 @@ export function createUI(ctx, director, atmo, camera, hooks) {
       state.shown = ci; card.classList.remove('in'); void card.offsetWidth;
       idxEl.textContent = c.nav === false ? (ci === 0 ? 'PROLOGUE' : 'EPILOGUE') : String(nav.findIndex(o => o.i === ci) + 1).padStart(2, '0') + ' / ' + String(nav.length).padStart(2, '0');
       zhEl.textContent = c.zh; enEl.textContent = c.en + (c.th ? '  ·  ' + c.th : ''); descEl.textContent = c.desc; tagEl.textContent = c.tag || '';
-      card.classList.add('in'); if (innerWidth < 760) { card.classList.add('min'); state.cardT = -1; } else { card.classList.remove('min'); state.cardT = 7; } nav.forEach(o => o.c.dot.classList.toggle('on', o.i === ci));
+      document.body.classList.toggle('ch-muaythai', c.id === 'muaythai'); card.classList.add('in'); if (innerWidth < 760) { card.classList.add('min'); state.cardT = -1; } else { card.classList.remove('min'); state.cardT = 7; } nav.forEach(o => o.c.dot.classList.toggle('on', o.i === ci));
     }
     if (state.cardT > 0) { state.cardT -= dt; if (state.cardT <= 0) card.classList.add('min'); }
     const target = c.dist == null ? 0 : c.dist; state.dist += (target - state.dist) * Math.min(1, dt * 2.2);

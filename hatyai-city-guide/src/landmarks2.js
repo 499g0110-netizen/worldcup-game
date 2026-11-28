@@ -26,7 +26,7 @@ export const L2 = {
   fruit: { x: -171, z: 69 },         // Santisuk market (OSM)
 };
 export function reserve2(occ) {
-  occ.mark(82, -1562, 44, 44, 0, 2); occ.mark(-55.3, 29.1, 13, 14, -0.14, 1); occ.mark(-139, -3, 30, 30, 0, 0);
+  occ.mark(82, -1562, 80, 80, 0, 2); occ.mark(-55.3, 29.1, 13, 14, -0.14, 1); occ.mark(-139, -3, 30, 30, 0, 0);
   occ.poly(L2.central, 30); occ.poly(L2.makroSite, 4);
   occ.mark(L2.chinda.x, L2.chinda.z, 30, 26, 0, 3); occ.mark(L2.iyara.x, L2.iyara.z, 10, 16, 0, 1); occ.mark(L2.hk.x, L2.hk.z, 70, 40, 0, 4);
 }

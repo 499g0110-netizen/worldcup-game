@@ -147,6 +147,8 @@ body #w-help.fade{opacity:0}
 body.walk .bar{display:none}
 body #joy{width:104px;height:104px;left:calc(env(safe-area-inset-left,0px) + 22px);bottom:calc(env(safe-area-inset-bottom,0px) + 28px);background:rgba(12,14,28,.18);border-color:rgba(255,255,255,.18)}
 body #joy i{width:40px;height:40px;margin:-20px 0 0 -20px;background:rgba(230,194,116,.45)}
+#c-fight{display:none;margin-top:8px;margin-left:6px;padding:6px 12px;font-size:12px;background:#b81c24;border:1px solid #ffd84a;color:#fff;border-radius:2px}
+body.ch-muaythai #c-fight{display:inline-block}body.ch-muaythai #card{opacity:1}
 #mt-enter{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);transform:translateX(-50%);z-index:12;display:none;padding:14px 22px;font-size:15px;letter-spacing:.1em;background:linear-gradient(180deg,#d8283a,#8a1018);color:#fff;border:2px solid #ffd84a;border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 body.mt-near #mt-enter{display:block}
 #mt-hud{position:fixed;inset:0;z-index:15;display:none;pointer-events:none;font-family:var(--sans)}
@@ -200,7 +202,7 @@ body #hud .brand img{width:clamp(90px,11vw,150px);height:auto;filter:drop-shadow
 <div id="hud">
   <div class="brand"><img src="LOGO_DATA" alt="合艾 Hat Yai"></div>
   <div id="topbtns"><button id="walk-mini" aria-label="角色漫遊" title="角色漫遊 (G)">🚶</button><button id="menu-btn" aria-label="選單" title="選單 (M)">☰</button></div>
-  <div id="card"><div id="c-idx"></div><div id="c-zh"></div><div id="c-en"></div><div id="c-desc"></div><div id="c-tag"></div><button id="c-story">▶ 故事動畫</button></div>
+  <div id="card"><div id="c-idx"></div><div id="c-zh"></div><div id="c-en"></div><div id="c-desc"></div><div id="c-tag"></div><button id="c-story">▶ 故事動畫</button><button id="c-fight">🥊 上擂台</button></div>
   <div id="tl"><div id="tl-track"><div id="tl-fill"></div><div id="tl-dots"></div></div></div>
   <div id="labels"></div>
   <div id="walk-hud"><div id="w-loc"><b id="w-name">—</b><span id="w-dist"></span></div><button id="w-story">▶ 這裡的故事</button><div id="w-help">WASD 移動 · Shift 奔跑 · 拖曳轉視角 · ☰ 選單可瞬間移動</div></div>

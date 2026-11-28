@@ -93,7 +93,7 @@ async function main() {
   const story = new StoryPlayer(document.getElementById('story'));
   const player = new Player(ctx, camera, canvas); let walking = false;
   const bout = new MuayThaiBout(ctx, camera);
-  const enterFight = () => { if (!walking || bout.active) return; document.body.classList.add('mt-on'); document.body.classList.remove('mt-near'); player.root.visible = false; bout.start(); };
+  const enterFight = () => { if (bout.active) return; director.playing = false; document.body.classList.add('mt-on'); document.body.classList.remove('mt-near'); player.root.visible = false; bout.start(); };
   bout.onExit = () => { document.body.classList.remove('mt-on'); if (walking) { player.root.visible = true; player.spawnNear(ctx.gym.entrance.x, ctx.gym.entrance.z); player._cam = null; } };
   document.getElementById('mt-enter').onclick = enterFight;
   addEventListener('keydown', (e) => { if ((e.key === 'f' || e.key === 'F') && document.body.classList.contains('mt-near')) { e.preventDefault(); enterFight(); } }, true);
@@ -104,6 +104,7 @@ async function main() {
     started: () => { audioUnlock(); sound.ready(); },
     walk: (on, ch) => { walking = on; if (on) { controls.enabled = false; explore = false; const a = (ch && ch.anchor && !['intro', 'outro', 'lee'].includes(ch.id)) ? ch.anchor : [-40, 34]; player.enable(a[0], a[1]); } else player.disable(); },
     teleport: (c) => { player.spawnNear(c.anchor[0], c.anchor[1]); player._cam = null; },
+    fight: () => enterFight(),
     style: (i) => { post.style.uniforms.uMode.value = i; },
     story: (id) => { director.playing = false; story.open(STORY_FOR[id] || 'street'); },
   });

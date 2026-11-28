@@ -65,6 +65,19 @@ export function buildMuayThaiGym(ctx) {
   FOOTPRINTS.push([[c0.x, c0.z], [c2.x, c2.z], [toW(W / 2, -D / 2 + 0.5).x, toW(W / 2, -D / 2 + 0.5).z], [toW(-W / 2, -D / 2 + 0.5).x, toW(-W / 2, -D / 2 + 0.5).z]]);
   const glow = new GlowSet('lamp', 60); ctx.glowSets.push(glow); const fr = toW(0, D / 2 + 0.5); glow.add(fr.x, 7.2, fr.z, 26, new THREE.Color('#ffcf80')); glow.build(scene);
   ctx.update.push((dt, t, S) => { glow.mat.uniforms.uInt.value = 0.1 + S.win; bags.forEach((b, i) => { b.rotation.z = Math.sin(t * 1.3 + i) * 0.03; }); });
+  // Jiranakhon Stadium grounds (OSM sports_centre): running track, football pitch, stands
+  { const T = new THREE.Group(); T.position.set(-32, 0, -1668); scene.add(T);
+    const oval = (rx, rz, n = 64) => { const s = new THREE.Shape(); for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2, x = Math.cos(a) * rx, z = Math.sin(a) * rz; i ? s.lineTo(x, z) : s.moveTo(x, z); } return s; };
+    const track = oval(84, 46); track.holes.push(oval(70, 34)); const tg = new THREE.ShapeGeometry(track, 64); tg.rotateX(Math.PI / 2);
+    const tm = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ color: 0xa8452e, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); tm.position.y = 0.06; tm.receiveShadow = true; T.add(tm);
+    const fg = new THREE.ShapeGeometry(oval(70, 34), 64); fg.rotateX(Math.PI / 2);
+    const fieldT = canvasTex(256, 128, (g, w, h) => { for (let i = 0; i < 12; i++) { g.fillStyle = i % 2 ? '#3f8a35' : '#468f3a'; g.fillRect(i * w / 12, 0, w / 12 + 1, h); } g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 2; g.strokeRect(40, 14, w - 80, h - 28); g.beginPath(); g.moveTo(w / 2, 14); g.lineTo(w / 2, h - 14); g.stroke(); g.beginPath(); g.arc(w / 2, h / 2, 14, 0, 7); g.stroke(); }, { clamp: true });
+    const fm = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: fieldT, roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    fm.position.y = 0.06; fm.receiveShadow = true; fg.computeBoundingBox(); const uv = fg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) + 70) / 140, (uv.getY(i) + 34) / 68); T.add(fm);
+    for (let i = 0; i < 4; i++) for (const s of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(80, 1.2, 2.2), std(i % 2 ? 0xd0d4d8 : 0x2a62c8)); st.position.set(0, 0.6 + i * 1.1, s * (50 + i * 2.2)); st.castShadow = st.receiveShadow = true; T.add(st); }
+    const roofS = new THREE.Mesh(new THREE.BoxGeometry(84, 0.3, 12), std(0xe8e8e4, { metalness: 0.4 })); roofS.position.set(0, 9.5, -56); roofS.castShadow = true; T.add(roofS);
+    for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 9.5, 8), std(0xcfd3d6)); c.position.set(-40 + i * 16, 4.75, -61); T.add(c); }
+  }
   const entrance = toW(0, D / 2 + 4);
   ctx.gym = { group: G, ring: R, yaw, entrance, x: GYM.x, z: GYM.z };
   return ctx.gym;
