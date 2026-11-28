@@ -155,7 +155,7 @@ export function buildLandmarks(ctx) {
     const awn = new THREE.MeshStandardMaterial({ map: awnTex, roughness: 0.8, side: THREE.DoubleSide });
     const stool = new THREE.MeshStandardMaterial({ color: 0x1fb86a, roughness: 0.5 }), metal = stdMat(0x9aa0a6, { metalness: 0.7, roughness: 0.35 }), woodM = stdMat(0x6b4a2a);
     const stoolG = new THREE.CylinderGeometry(0.22, 0.2, 0.42, 8), tabG = new THREE.BoxGeometry(1.2, 0.06, 0.7), awnG = new THREE.BoxGeometry(2.8, 0.06, 2.4), cartG = new THREE.BoxGeometry(1.5, 0.9, 0.8);
-    const N = 22; const stoolI = new THREE.InstancedMesh(stoolG, stool, N * 5), tabI = new THREE.InstancedMesh(tabG, metal, N), awnI = new THREE.InstancedMesh(awnG, awn, N), cartI = new THREE.InstancedMesh(cartG, metal, N);
+    const N = 0; const stoolI = new THREE.InstancedMesh(stoolG, stool, N * 5), tabI = new THREE.InstancedMesh(tabG, metal, N), awnI = new THREE.InstancedMesh(awnG, awn, N), cartI = new THREE.InstancedMesh(cartG, metal, N);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0); let si = 0;
     for (let i = 0; i < N; i++) {
       const s = SL - 28 - i * 7.4 - rnd() * 1.5; if (s < 20) break;

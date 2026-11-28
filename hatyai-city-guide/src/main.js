@@ -7,6 +7,7 @@ import { reserve, buildLandmarks } from './landmarks.js';
 import { buildFloatingMarket, buildPark, buildAirport } from './places.js';
 import { buildExtras } from './extras.js';
 import { buildLandmarks2 } from './landmarks2.js';
+import { buildLandmarks3 } from './landmarks3.js';
 import { buildShopfronts, buildParked } from './streetlife.js';
 import { buildTrees, treeLayout, buildStreetFurniture, GlowSet, glowUniforms } from './props.js';
 import { Traffic, Walkers } from './life.js';
@@ -48,6 +49,7 @@ async function main() {
   setProgress('水上市場、公園、機場…', 0.5); await nextFrame();
   buildFloatingMarket(ctx); buildPark(ctx); buildAirport(ctx); buildExtras(ctx); buildLandmarks2(ctx);
   await fillCity(ctx, setProgress);
+  buildLandmarks3(ctx);
   buildShopfronts(ctx);
 
   setProgress('合併建築幾何…', 0.8); await nextFrame();

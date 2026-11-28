@@ -136,7 +136,7 @@ export class Traffic {
     const cand = ctx.roads.filter(r => (r.cls === 'major' || r.cls === 'mid' || r.cobble) && r.osm && Math.hypot(r.pts[0][0], r.pts[0][1]) < 3200);
     this.roads = cand.map(r => { const cum = [0]; for (let i = 1; i < r.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1])); return { r, cum, L: cum[cum.length - 1] }; }).filter(o => o.L > 60);
     const totalL = this.roads.reduce((a, o) => a + o.L, 0);
-    const TYPES = [['sedan', 0.2], ['taxi', 0.1], ['grabcar', 0.08], ['tuk', 0.1], ['bike', 0.34], ['grabbike', 0.18]];
+    const TYPES = [['song', 0.06], ['sedan', 0.14], ['taxi', 0.1], ['grabcar', 0.08], ['tuk', 0.1], ['bike', 0.34], ['grabbike', 0.18]];
     const pick = () => { let t = rnd(); for (const [k, w] of TYPES) { if (t < w) return k; t -= w; } return 'bike'; };
     this.cars = [];
     for (let i = 0; i < N; i++) {
@@ -171,13 +171,18 @@ export class Traffic {
     const bikeG = mergeGeometries([ext(scooter, 0.32, '#3a3d44', 0.04), cyl(0.29, 0.1, 0, 0.29, 0.62, '#141414'), cyl(0.29, 0.1, 0, 0.29, -0.62, '#141414'),
       B(0.62, 0.04, 0.04, 0, 1.12, 0.6, '#222'), B(0.3, 0.12, 0.55, 0, 0.88, -0.35, '#1b1b1b'), rider, helm, visor,
       B(0.1, 0.45, 0.12, -0.14, 0.75, 0.12, '#2b3550'), B(0.1, 0.45, 0.12, 0.14, 0.75, 0.12, '#2b3550'), B(0.08, 0.35, 0.08, -0.2, 1.25, 0.25, '#ffffff'), B(0.08, 0.35, 0.08, 0.2, 1.25, 0.25, '#ffffff')]);
+    // songthaew: red pickup with covered bench-seat bed (Hat Yai shared taxi)
+    const songG = mergeGeometries([B(1.75, 0.75, 4.6, 0, 0.7, 0, '#ffffff'), B(1.7, 0.75, 1.5, 0, 1.45, 1.25, '#ffffff'), B(1.62, 0.5, 0.05, 0, 1.5, 2.0, '#1c2530'),
+      B(1.8, 0.08, 3.0, 0, 2.35, -0.75, '#ffffff'), ...[[-0.86, 0.5], [0.86, 0.5], [-0.86, -2.2], [0.86, -2.2]].map(([x, z]) => B(0.06, 1.3, 0.06, x, 1.7, z, '#dadada')),
+      B(0.04, 0.04, 2.8, -0.86, 1.6, -0.85, '#dadada'), B(0.04, 0.04, 2.8, 0.86, 1.6, -0.85, '#dadada'), B(0.04, 0.04, 2.8, -0.86, 1.95, -0.85, '#dadada'), B(0.04, 0.04, 2.8, 0.86, 1.95, -0.85, '#dadada'),
+      B(0.35, 0.4, 2.6, -0.62, 1.25, -0.85, '#3a3a3a'), B(0.35, 0.4, 2.6, 0.62, 1.25, -0.85, '#3a3a3a'), ...wheels(0.82, 1.45, 0.36), B(0.35, 0.12, 0.05, -0.55, 0.85, 2.31, '#fff6dc'), B(0.35, 0.12, 0.05, 0.55, 0.85, 2.31, '#fff6dc')]);
     const mats = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.45, envMapIntensity: 1.2 });
-    const counts = {}; this.cars.forEach(c => { c.grp = (c.k === 'sedan' || c.k === 'taxi' || c.k === 'grabcar') ? 'car' : c.k === 'tuk' ? 'tuk' : 'bike'; counts[c.grp] = (counts[c.grp] || 0) + 1; c.slot = counts[c.grp] - 1; });
-    this.g = { car: new THREE.InstancedMesh(carG, mats(), counts.car || 1), tuk: new THREE.InstancedMesh(tukG, mats(), counts.tuk || 1), bike: new THREE.InstancedMesh(bikeG, mats(), counts.bike || 1) };
+    const counts = {}; this.cars.forEach(c => { c.grp = (c.k === 'sedan' || c.k === 'taxi' || c.k === 'grabcar') ? 'car' : c.k === 'tuk' ? 'tuk' : c.k === 'song' ? 'song' : 'bike'; counts[c.grp] = (counts[c.grp] || 0) + 1; c.slot = counts[c.grp] - 1; });
+    this.g = { car: new THREE.InstancedMesh(carG, mats(), counts.car || 1), tuk: new THREE.InstancedMesh(tukG, mats(), counts.tuk || 1), bike: new THREE.InstancedMesh(bikeG, mats(), counts.bike || 1), song: new THREE.InstancedMesh(songG, mats(), counts.song || 1) };
     const pal = ['#f2f2f2', '#c9ccd1', '#2b2d31', '#8a1c1c', '#1d3c6e', '#a58a5c', '#3e6b46', '#e8e8e8'], tukPal = ['#e8402a', '#2a62c8', '#f0b020', '#e8742a', '#d0388a', '#25a05a'], bikePal = ['#d0d4d8', '#c0302a', '#2a50a0', '#e8c030', '#404550', '#f0f0f0'];
     const col = new THREE.Color();
     this.cars.forEach(c => {
-      if (c.k === 'taxi') col.set(Math.random() < 0.5 ? '#f2c314' : '#e8561c'); else if (c.k === 'grabcar' || c.k === 'grabbike') col.set('#00b14f'); else if (c.k === 'tuk') col.set(tukPal[Math.floor(rnd() * tukPal.length)]); else if (c.k === 'bike') col.set(bikePal[Math.floor(rnd() * bikePal.length)]); else col.set(pal[Math.floor(rnd() * pal.length)]);
+      if (c.k === 'song') col.set(rnd() < 0.8 ? '#c8221e' : '#2a62c8'); else if (c.k === 'taxi') col.set(Math.random() < 0.5 ? '#f2c314' : '#e8561c'); else if (c.k === 'grabcar' || c.k === 'grabbike') col.set('#00b14f'); else if (c.k === 'tuk') col.set(tukPal[Math.floor(rnd() * tukPal.length)]); else if (c.k === 'bike') col.set(bikePal[Math.floor(rnd() * bikePal.length)]); else col.set(pal[Math.floor(rnd() * pal.length)]);
       this.g[c.grp].setColorAt(c.slot, col);
     });
     for (const m of Object.values(this.g)) { m.frustumCulled = false; m.castShadow = false; ctx.scene.add(m); }

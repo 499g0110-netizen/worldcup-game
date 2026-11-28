@@ -71,7 +71,7 @@ export function buildExtras(ctx) {
     // stalls line both kerbs of the streets around the hotel and spill into the shophouse arcades;
     // some vendors sell straight from the back of a pickup truck
     const items = [], pickups = []; const near = (x, z) => Math.hypot(x + 10, z - 40) < 230;
-    for (const r of ctx.roads) { if (!r.osm || (r.cls === 'minor' && !r.cobble)) continue;
+    for (const r of ctx.roads) { if (!r.osm || r.cobble || r.cls === 'minor') continue;
       for (let i = 0; i < r.pts.length - 1; i++) { const a = r.pts[i], b = r.pts[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 4) continue;
         const ux = dx / L, uz = dz / L, nx = -uz, nz = ux;
         for (let s = 2; s < L - 2; s += 3.7) { const px = a[0] + ux * s, pz = a[1] + uz * s; if (!near(px, pz)) continue;
