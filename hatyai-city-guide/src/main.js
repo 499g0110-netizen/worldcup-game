@@ -13,7 +13,7 @@ import { createPost } from './post.js';
 import { Director } from './director.js';
 import { createUI } from './ui.js';
 import { Player } from './player.js';
-import { StoryPlayer, STORY_FOR } from './story.js';
+import { StoryPlayer, STORY_FOR, audioUnlock } from './story.js';
 import { waterUniforms } from './world.js';
 import { mulberry32, canvasTex } from './util.js';
 import { ribGeo } from './world.js';
@@ -91,8 +91,8 @@ async function main() {
   const ui = createUI(ctx, director, atmo, camera, {
     explore: (on) => { explore = on; controls.enabled = on; if (on) { controls.target.copy(lookNow); controls.update(); } },
     tod: (k) => { todMode = k; },
-    sound: (btn) => { const on = sound.toggle(); btn.classList.toggle('on', on); },
-    started: () => { sound.ready(); },
+    sound: (btn) => { audioUnlock(); const on = sound.toggle(); btn.classList.toggle('on', on); },
+    started: () => { audioUnlock(); sound.ready(); },
     walk: (on, ch) => { walking = on; if (on) { controls.enabled = false; explore = false; const a = (ch && ch.anchor && !['intro', 'outro', 'lee'].includes(ch.id)) ? ch.anchor : [-40, 34]; player.enable(a[0], a[1]); } else player.disable(); },
     teleport: (c) => { player.spawnNear(c.anchor[0], c.anchor[1]); player._cam = null; },
     style: (i) => { post.style.uniforms.uMode.value = i; },

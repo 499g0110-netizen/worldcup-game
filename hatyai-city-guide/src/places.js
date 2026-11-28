@@ -147,7 +147,7 @@ export function buildPark(ctx) {
   const clk = DATA.pois.find(p => p.n === 'หอนาฬิกา' || p.n === 'Hat Yai Clock Tower' && p.p[0] > 1000);
   const hillC = [4330, -3900];
   ctx.extraTrees = ctx.extraTrees || [];
-  for (let i = 0; i < 2600; i++) { const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 1250, tx = hillC[0] + Math.cos(a) * r, tz = hillC[1] + Math.sin(a) * r * 0.8; if (Math.hypot(tx - 4300, tz + 3860) < 120) continue; ctx.extraTrees.push([tx, tz, 1.6 + rnd() * 1.8]); }
+  for (let i = 0; i < 2600; i++) { const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 1250, tx = hillC[0] + Math.cos(a) * r, tz = hillC[1] + Math.sin(a) * r * 0.8; if (Math.hypot(tx - 4300, tz + 3860) < 120 || Math.hypot(tx - 4950, tz + 4370) < 95) continue; ctx.extraTrees.push([tx, tz, 1.6 + rnd() * 1.8]); }
   // winding road up the hill with lamps
   const pts = []; for (let i = 0; i <= 60; i++) { const t = i / 60, a = t * 5.2 - 0.6, r = 700 - t * 560; pts.push([hillC[0] + Math.cos(a) * r, hillC[1] + Math.sin(a) * r * 0.85]); }
   const o = { pos: [], uv: [], idx: [] }; ribbon(pts, 7, (x, z) => groundY(x, z) + 0.15, 24, o);
@@ -214,13 +214,29 @@ export function buildAirport(ctx) {
   {
     const T = ring(tm.p).map(p => [p[0], p[1]]); const bb = { cx: 0, cz: 0 }; T.forEach(p => { bb.cx += p[0] / T.length; bb.cz += p[1] / T.length; });
     const B = ctx.batches.at(bb.cx, bb.cz);
-    B.prism(T, 0, 12, { style: 4, color: C('#dcdad2'), seed: 0.31, roofColor: C('#a7a8a5') });
+    B.prism(T, 0, 12, { style: 1, color: C('#f2f2ee'), seed: 0.31, roofColor: C('#b8bab8') });
     const pc = pca(T), rot = Math.atan2(pc.uz, pc.ux);
     B.box(bb.cx, bb.cz, 240, 24, rot, 12, 3, { style: 6, color: C('#c5c7c8'), seed: 0.7 });
     ctx.terminal = { x: bb.cx, z: bb.cz, rot };
     const sg = signTex([{ text: 'HAT YAI INTERNATIONAL AIRPORT', font: 'bold 52px system-ui,sans-serif' }, { text: 'ท่าอากาศยานนานาชาติหาดใหญ่', font: '40px "Noto Sans Thai",system-ui,sans-serif' }], { w: 1024, h: 180, bg: '#16356a', fg: '#ffffff' });
     const smat = new THREE.MeshStandardMaterial({ map: sg, emissiveMap: sg, emissive: 0xffffff, emissiveIntensity: 0.5 }); ctx.signMats.push(smat);
     const sp = new THREE.Mesh(new THREE.PlaneGeometry(48, 8.4), smat); const cs = ctx.terminal; sp.position.set(bb.cx + vx * 52, 19, bb.cz + vz * 52); sp.rotation.y = Math.atan2(vx, vz); scene.add(sp);
+    // big rooftop lettering on the landside & airside parapets (as in the photos)
+    const letters = signTex([{ text: 'ท่าอากาศยานหาดใหญ่   HAT YAI INTERNATIONAL AIRPORT', font: 'bold 64px "Noto Sans Thai",system-ui,sans-serif' }], { w: 2048, h: 128, bg: '#f2f2ee', fg: '#1a2a4a' });
+    const lm = new THREE.MeshStandardMaterial({ map: letters, emissiveMap: letters, emissive: 0xffffff, emissiveIntensity: 0.2 }); ctx.signMats.push(lm); lm.userData.k = 0.4;
+    for (const s of [1, -1]) { const lp = new THREE.Mesh(new THREE.PlaneGeometry(150, 5), lm); lp.position.set(bb.cx + vx * 26 * s, 15.6, bb.cz + vz * 26 * s); lp.rotation.y = Math.atan2(vx * s, vz * s); scene.add(lp); }
+    // curbside canopy on the landside + gate number board
+    const can = new THREE.Mesh(new THREE.BoxGeometry(200, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.4, metalness: 0.3 })); can.position.set(bb.cx - vx * 32, 6.5, bb.cz - vz * 32); can.rotation.y = -rot; can.castShadow = true; scene.add(can);
+    for (let i = -9; i <= 9; i++) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 6.5, 10), new THREE.MeshStandardMaterial({ color: 0xc8c8c4, metalness: 0.6 })); col.position.set(bb.cx - vx * 37 + pc.ux * i * 11, 3.25, bb.cz - vz * 37 + pc.uz * i * 11); scene.add(col); }
+    const g5 = signTex([{ text: '5', font: 'bold 120px system-ui' }], { w: 128, h: 128, bg: '#f2c314', fg: '#111' }); const g5m = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ map: g5 })); g5m.position.set(bb.cx + vx * 26.2 - pc.ux * 60, 9, bb.cz + vz * 26.2 - pc.uz * 60); g5m.rotation.y = Math.atan2(vx, vz); scene.add(g5m);
+    // see-through departure hall: check-in sign, shops, people
+    const hallIn = new THREE.Group(); hallIn.position.set(bb.cx - vx * 18, 0, bb.cz - vz * 18); hallIn.rotation.y = -rot; scene.add(hallIn);
+    const ciTex = signTex([{ text: '↑ เคาน์เตอร์เช็คอิน  Check-in  16–30', font: 'bold 52px "Noto Sans Thai",system-ui' }], { w: 1024, h: 110, bg: '#141414', fg: '#f2c314' });
+    const ci = new THREE.Mesh(new THREE.PlaneGeometry(14, 1.5), new THREE.MeshStandardMaterial({ map: ciTex, emissiveMap: ciTex, emissive: 0xffffff, emissiveIntensity: 0.9 })); ci.position.set(0, 7, -2); hallIn.add(ci);
+    const shopCols = ['#e8742a', '#d0388a', '#1f8a4c', '#1d5fb8', '#c8281e'];
+    for (let i = 0; i < 8; i++) { const sm = new THREE.Mesh(new THREE.BoxGeometry(9, 4.5, 6), new THREE.MeshStandardMaterial({ color: shopCols[i % 5], emissive: shopCols[i % 5], emissiveIntensity: 0.25, roughness: 0.6 })); sm.position.set(-80 + i * 22, 2.25, 4); hallIn.add(sm); }
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(200, 20), new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.15, metalness: 0.2 })); fl.rotation.x = -Math.PI / 2; fl.position.y = 0.15; hallIn.add(fl);
+    for (let i = 0; i < 40; i++) ctx.people.add(bb.cx - vx * (14 + Math.random() * 8) + pc.ux * (Math.random() - 0.5) * 160, 0.15, bb.cz - vz * (14 + Math.random() * 8) + pc.uz * (Math.random() - 0.5) * 160, 1, undefined, 0.6, 4.5);
     // glow along the façade
     for (let i = -10; i <= 10; i++) { const p = new THREE.Vector3(bb.cx + pc.ux * i * 11 + vx * 46, 3, bb.cz + pc.uz * i * 11 + vz * 46); glowTW.add(p.x, 4, p.z, 10, C('#ffd9a0')); }
     // car park lamps
@@ -250,6 +266,10 @@ export function buildAirport(ctx) {
   };
   const tails = [0x1b4fa0, 0xd8392b, 0x1f8a4c, 0xe8a31d];
   for (let i = 0; i < 4; i++) { const p = A(-300 + i * 58, -132); const pl = mk(tails[i]); pl.position.set(p.x, 2.9, p.z); pl.rotation.y = Math.atan2(-vx, -vz) + (rnd() - 0.5) * 0.05; scene.add(pl); }
+  for (let i = 0; i < 4; i++) { const p = A(-300 + i * 58 + 14, -122);
+    const stair = new THREE.Mesh(new THREE.BoxGeometry(1.8, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 })); stair.position.set(p.x, 2.1, p.z); stair.rotation.set(0.45, Math.atan2(-vx, -vz), 0); stair.castShadow = true; scene.add(stair);
+    if (i === 1) { const fuel = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 7, 16), new THREE.MeshStandardMaterial({ color: 0xe8e8e4, metalness: 0.5, roughness: 0.3 })); fuel.rotation.z = Math.PI / 2; fuel.position.set(p.x + ux * 20, 2.2, p.z + uz * 20); fuel.rotation.y = -th; scene.add(fuel);
+      const cabT = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), new THREE.MeshStandardMaterial({ color: 0xc8282a })); cabT.position.set(p.x + ux * 25, 1.6, p.z + uz * 25); scene.add(cabT); } }
   const jet = mk(0xe6342a); scene.add(jet);
   const nav = new GlowSet('airport', 30); ctx.glowSets.push(nav);
   nav.add(0, 0, 0, 2, redc); nav.add(0, 0, 0, 2, green); nav.add(0, 0, 0, 6, white); nav.add(0, 0, 0, 3, white);
@@ -451,5 +471,5 @@ function buildCableAndElephant(ctx, glow) {
   glow.add(ex, ey + 16, ez, 70, C('#ffd9a8'));
   ctx.elephant = { x: ex, y: ey, z: ez };
   ctx.extraTrees = ctx.extraTrees || []; const rnd = mulberry32(17);
-  for (let i = 0; i < 700; i++) { const a = rnd() * 6.28, r = 45 + Math.sqrt(rnd()) * 700, x = 4980 + Math.cos(a) * r, z = -4380 + Math.sin(a) * r; ctx.extraTrees.push([x, z, 1.5 + rnd() * 1.6]); }
+  for (let i = 0; i < 700; i++) { const a = rnd() * 6.28, r = 95 + Math.sqrt(rnd()) * 650, x = 4980 + Math.cos(a) * r, z = -4380 + Math.sin(a) * r; ctx.extraTrees.push([x, z, 1.5 + rnd() * 1.6]); }
 }

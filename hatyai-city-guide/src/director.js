@@ -11,6 +11,10 @@ const zb = FM.zb;
 export function makeChapters(ctx) {
   const A = (u, v, h) => ctx.airport.A(u, v, h);
   const jetPos = new THREE.Vector3();
+  const peds = (ctx.pediments || []).filter(p => { const r = Math.hypot(p.x, p.z); return r > 250 && r < 650; });
+  const pd = peds[Math.floor(peds.length * 0.3)] || { x: -200, z: 300, fnx: 1, fnz: 0, w: 6 };
+  const ow = (a, b, y) => [pd.x + pd.fnx * a - pd.fnz * b, y, pd.z + pd.fnz * a + pd.fnx * b];
+  const el = ctx.elephant || { x: 4950, y: 160, z: -4370 }, cb = ctx.cable || { lx: 4310, lz: -3918, ux: 4980, uz: -4380 };
   return [
     { id: 'intro', zh: '合艾', en: 'HAT YAI', th: 'หาดใหญ่', tag: 'CINEMATIC CITY GUIDE', dist: null, anchor: [0, 0], dur: 11, tod: 0.62, nav: false,
       desc: '泰國南部最大的商業城市。這份導覽以李花園廣場酒店為原點，依真實座標向外展開：街區、市場、車站，一路到水上市場、山丘公園與機場。',
@@ -30,11 +34,14 @@ export function makeChapters(ctx) {
     { id: 'citystreet', zh: '城市街頭', en: 'Hat Yai Street Life', th: 'ถนนธรรมนูญวิถี', tag: '街頭', dist: 260, anchor: [-120, 175], dur: 16, tod: 0.8,
       desc: '沿著 Thamnoon Withi 路的街頭：機車與小客車穿梭、路燈一盞盞亮起、騎樓下的招牌與電線在暮色裡交織 —— 這就是合艾的日常。',
       poses: [{ p: [-335, 3.6, 198], l: [-120, 7, 172], fov: 58 }, { p: [-150, 3.1, 180], l: [90, 8, 158], fov: 62 }] },
+    { id: 'oldtown', zh: '彩色騎樓老街', en: 'Sino-Portuguese Shophouses', th: 'ตึกแถวชิโน-โปรตุกีส', tag: '文化 · 老街', dist: Math.round(Math.hypot(pd.x, pd.z) / 10) * 10, anchor: [pd.x, pd.z], dur: 16, tod: 0.25,
+      desc: '合艾不是大城市，而是一座悠閒的商貿小鎮。粉黃、天藍、橘紅的中葡式騎樓一字排開：拱形窗、木百葉、山花，一樓開店、二樓住家，騎樓下是遮陽的走廊。',
+      poses: [{ p: ow(12, -24, 2.2), l: ow(2, 6, 4.5), fov: 58 }, { p: ow(10, -4, 2.0), l: ow(1, 22, 4.0), fov: 60, tod: 0.35 }] },
     { id: 'kimyong', zh: 'Kim Yong 市場', en: 'Kim Yong Market', th: 'ตลาดกิมหยง', tag: '市場', dist: 320, anchor: [-215, -240], dur: 15, tod: 0.9,
       desc: '合艾最具代表性的市集之一：乾貨、伴手禮、零食與熟食，鐵皮棚頂下掛滿燈串。許多馬來西亞與新加坡旅客專程來此採買。',
       poses: [{ p: [-110, 40, -105], l: [-205, 8, -245], fov: 55 }, { p: [-190, 10, -208], l: [-214, 4, -262], fov: 64 }] },
     { id: 'station', zh: '合艾火車總站', en: 'Hat Yai Junction', th: 'สถานีรถไฟชุมทางหาดใหญ่', tag: '鐵道樞紐', dist: 490, anchor: [-447, 208], dur: 16, tod: 0.86,
-      desc: '泰國南線鐵路的大型轉運站，南下的支線通往馬來西亞邊境的 Padang Besar 與 Sungai Kolok。月台雨棚下，夜車緩緩進站。',
+      desc: '合艾因鐵路而生：二十世紀初南線鐵路通車後，華人移民在車站周邊開店，小站慢慢長成南泰的商貿重鎮。今天這裡仍是轉運大站，南下支線通往馬來西亞邊境的 Padang Besar 與 Sungai Kolok。',
       onEnter: () => { if (ctx.train) ctx.train.t = -230; },
       poses: [{ p: [-330, 26, 345], l: [-440, 7, 232], fov: 50 }, { p: [-385, 9.5, 145], l: [-445, 5, 225], fov: 60 }] },
     { id: 'clock', zh: '鐘樓與 Wat Thawon Wararam', en: 'Clock Tower & Wat Thawon Wararam', th: 'หอนาฬิกา · วัดถาวรวราราม', tag: '市區北側', dist: 670, anchor: [-166, -650], dur: 15, tod: 0.9,
@@ -52,6 +59,9 @@ export function makeChapters(ctx) {
     { id: 'park', zh: '帕普塔蒙空瑪哈拉大佛', en: 'Phra Phutthamongkhon Maharat · Municipal Park', th: 'พระพุทธมงคลมหาราช', tag: '約 5.8 km · 東北', dist: 5800, anchor: [4328, -3868], dur: 16, tod: 0.62,
       desc: '合艾市立公園山頂的大佛（พระพุทธมงคลมหาราช），旁邊就是纜車站。暮色中大佛被金色光線照亮，盤山步道的路燈在山坡上畫出一條光帶。造型為示意重建。',
       poses: [{ p: [3750, 190, -3420], l: [4328, 88, -3868], fov: 46 }, { p: [4175, 110, -3770], l: [4328, 92, -3868], fov: 52 }, { p: [4262, 84, -3812], l: [4328, 104, -3868], fov: 58 }] },
+    { id: 'elephant', zh: '大象神廟', en: 'Phra Phikanet Shrine (cable car)', th: 'พระพิฆเนศ', tag: '纜車 · 山頂 · 位置示意', dist: Math.round(Math.hypot(el.x, el.z) / 100) * 100, anchor: [el.x, el.z], dur: 18, tod: 0.5,
+      desc: '從大佛旁的纜車站搭紅色纜車，越過樹林上到更高的山頂，一尊巨大的象頭神（帕必卡內）坐在蓮花座上。祂是排除障礙、守護事業與藝術的神。（山頂位置為示意）',
+      poses: [{ p: [cb.lx + (cb.ux - cb.lx) * 0.35, el.y + 30, cb.lz + (cb.uz - cb.lz) * 0.35 + 30], l: [el.x, el.y + 14, el.z], fov: 48 }, { p: [el.x - 32, el.y + 9, el.z + 34], l: [el.x - 30, el.y + 13, el.z + 10], fov: 52 }] },
     { id: 'airport', zh: '合艾國際機場', en: 'Hat Yai International Airport · HDY', th: 'ท่าอากาศยานนานาชาติหาดใหญ่', tag: '約 11.6 km · 西南', dist: 11600, anchor: [-8650, 7700], dur: 30, tod: 1.0,
       desc: '南泰國的重要門戶，跑道方向 08/26。夜裡跑道邊燈與進場燈亮起，客機沿跑道加速離地，朝著遠處合艾的燈海爬升。',
       onEnter: () => { if (ctx.jet) ctx.jet.T = 0; },

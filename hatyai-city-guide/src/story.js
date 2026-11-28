@@ -25,8 +25,10 @@ export class StoryPlayer {
     const gg = this.grain.getContext('2d'), id = gg.createImageData(256, 256);
     for (let i = 0; i < id.data.length; i += 4) { const v = 200 + Math.random() * 55; id.data[i] = v; id.data[i + 1] = v - 6; id.data[i + 2] = v - 18; id.data[i + 3] = 255; }
     gg.putImageData(id, 0, 0); this.grainPat = null;
+    this.music = new ThaiMusic(); this.muted = false;
     root.querySelector('.st-close').onclick = () => this.close();
-    root.querySelector('.st-play').onclick = () => { this.playing = !this.playing; if (this.t >= this.dur) this.t = 0; };
+    const mb = root.querySelector('.st-mute'); if (mb) mb.onclick = () => { this.muted = !this.muted; mb.textContent = this.muted ? '♪ 開啟音樂' : '♪ 關閉音樂'; if (this.muted) this.music.stop(); else this.music.start(this.story.mood); };
+    root.querySelector('.st-play').onclick = () => { if (this.t >= this.dur) { this.t = 0; this.lastLine = -1; } this.playing = !this.playing; if (this.playing && !this.muted) this.music.start(this.story.mood || {}); else this.music.stop(); };
     root.querySelector('.st-style').onclick = (e) => { this.style = this.style === 'paper' ? 'water' : 'paper'; e.target.textContent = this.style === 'paper' ? '風格：剪紙' : '風格：水彩'; };
     this.sub = root.querySelector('.st-sub'); this.ttl = root.querySelector('.st-title');
     this._resize = () => { const r = this.cv.getBoundingClientRect(); this.cv.width = Math.round(r.width * Math.min(2, devicePixelRatio)); this.cv.height = Math.round(r.height * Math.min(2, devicePixelRatio)); };
@@ -34,11 +36,12 @@ export class StoryPlayer {
   }
   open(id) {
     this.story = STORIES[id] || STORIES.street; this.t = 0; this.playing = true; this.root.classList.add('on'); this._resize();
+    if (!this.muted) this.music.start(this.story.mood || {});
     this.ttl.innerHTML = `<b>${this.story.title}</b><small>${this.story.th}</small>`; this.lastLine = -1;
-    const loop = (now) => { if (!this.root.classList.contains('on')) return; const dt = Math.min(0.05, (now - (this.prev || now)) / 1000); this.prev = now; if (this.playing) this.t = Math.min(this.dur, this.t + dt); this.draw(); requestAnimationFrame(loop); };
+    const loop = (now) => { if (!this.root.classList.contains('on')) return; const dt = Math.min(0.05, (now - (this.prev || now)) / 1000); this.prev = now; if (this.playing) { this.t = this.t + dt; if (this.t >= this.dur) { this.t = this.dur; this.playing = false; this.music.stop(); } } this.draw(); requestAnimationFrame(loop); };
     this.prev = 0; requestAnimationFrame(loop);
   }
-  close() { this.root.classList.remove('on'); this.playing = false; }
+  close() { this.root.classList.remove('on'); this.playing = false; this.music.stop(); }
   // ---------------- drawing primitives ----------------
   shape(path, fill, depth = 1) {
     const g = this.g, s = this.S;
@@ -288,3 +291,164 @@ export const STORIES = {
     } },
 };
 export const STORY_FOR = { intro: 'street', lee: 'lee', nightmarket: 'lee', porkleg: 'lee', street: 'street', citystreet: 'street', kimyong: 'kimyong', station: 'street', clock: 'street', greenway: 'lee', central: 'street', floating: 'floating', park: 'buddha', airport: 'airport', outro: 'airport' };
+
+// =====================================================================
+//  Procedural Thai-style score (ranat xylophone, khim, ching cymbal, thon drum, drone)
+//  Generated live with WebAudio, so it needs no files and plays offline.
+//  iOS: WebAudio obeys the ringer switch unless an <audio> element is playing, so a
+//  silent looping clip is started on the same tap to put the page into playback mode.
+// =====================================================================
+let AC = null, unlockEl = null;
+function silentWav() {
+  const n = 4000, b = new Uint8Array(44 + n * 2), v = new DataView(b.buffer); const w = (o, s) => [...s].forEach((ch, i) => b[o + i] = ch.charCodeAt(0));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  let s = ''; b.forEach(x => s += String.fromCharCode(x)); return 'data:audio/wav;base64,' + btoa(s);
+}
+export function audioUnlock() {
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state !== 'running') AC.resume();
+    if (!unlockEl) { unlockEl = new Audio(silentWav()); unlockEl.loop = true; unlockEl.setAttribute('playsinline', ''); }
+    const p = unlockEl.play(); if (p && p.catch) p.catch(() => {});
+    // a one-sample buffer on the gesture also unlocks older Safari
+    const bs = AC.createBufferSource(); bs.buffer = AC.createBuffer(1, 1, 22050); bs.connect(AC.destination); bs.start(0);
+  } catch (e) {}
+  return AC;
+}
+export class ThaiMusic {
+  constructor() { this.on = false; }
+  start(mood = {}) {
+    const ac = audioUnlock(); if (!ac) return; this.stop(); this.on = true;
+    const root = mood.root || 293.66, bpm = mood.bpm || 96, seed = mood.seed || 7, scale = mood.scale || [0, 2, 4, 7, 9];
+    let s = seed; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const out = ac.createGain(); out.gain.value = 0; out.gain.linearRampToValueAtTime(0.55, ac.currentTime + 1.5);
+    const comp = ac.createDynamicsCompressor(); out.connect(comp); comp.connect(ac.destination); this.out = out;
+    const rev = ac.createConvolver(); const len = ac.sampleRate * 1.6, ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    rev.buffer = ir; const wet = ac.createGain(); wet.gain.value = 0.28; rev.connect(wet); wet.connect(out);
+    const note = (deg, oct = 0) => root * Math.pow(2, (scale[((deg % 5) + 5) % 5] + 12 * (oct + Math.floor(deg / 5))) / 12);
+    const ranat = (t, f, v = 0.22) => { for (const [m, g] of [[1, 1], [3.98, 0.25], [9.1, 0.08]]) { const o = ac.createOscillator(), e = ac.createGain(); o.type = 'sine'; o.frequency.value = f * m; e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(v * g, t + 0.005); e.gain.exponentialRampToValueAtTime(0.0008, t + 0.5 / Math.sqrt(m)); o.connect(e); e.connect(out); e.connect(rev); o.start(t); o.stop(t + 0.6); } };
+    const khim = (t, f, d) => { const o = ac.createOscillator(), e = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain(); o.type = 'triangle'; o.frequency.value = f; lfo.frequency.value = 11; lg.gain.value = 0.05; lfo.connect(lg); lg.connect(e.gain);
+      e.gain.setValueAtTime(0.07, t); e.gain.exponentialRampToValueAtTime(0.001, t + d); o.connect(e); e.connect(out); e.connect(rev); o.start(t); lfo.start(t); o.stop(t + d); lfo.stop(t + d); };
+    const noise = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const ching = (t, open) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain(); n.buffer = noise; f.type = 'bandpass'; f.frequency.value = 7200; f.Q.value = 6; e.gain.setValueAtTime(open ? 0.18 : 0.09, t); e.gain.exponentialRampToValueAtTime(0.001, t + (open ? 0.35 : 0.06)); n.connect(f); f.connect(e); e.connect(out); n.start(t); n.stop(t + 0.4); };
+    const thon = (t, f = 110) => { const o = ac.createOscillator(), e = ac.createGain(); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.18); e.gain.setValueAtTime(0.35, t); e.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.connect(e); e.connect(out); o.start(t); o.stop(t + 0.32); };
+    // drone
+    const drone = []; for (const f of [root / 2, root * 0.75]) { const o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 520; g.gain.value = 0.035; o.connect(lp); lp.connect(g); g.connect(out); o.start(); drone.push(o); }
+    this.drone = drone;
+    // composed phrase (4 bars of eighths) with variation; repeated as a looping tune
+    const phrase = []; let d = 5; for (let i = 0; i < 32; i++) { d += Math.round((r() - 0.5) * 3); d = Math.max(2, Math.min(11, d)); phrase.push(r() < 0.15 ? null : d); }
+    const beat = 60 / bpm; let step = 0; this.next = ac.currentTime + 0.15;
+    this.timer = setInterval(() => {
+      while (this.next < ac.currentTime + 0.35) {
+        const t = this.next, i = step % 32, bar = Math.floor(step / 32);
+        const dg = phrase[i]; if (dg !== null) ranat(t, note(dg + (bar % 2 && i > 16 ? 1 : 0), 1));
+        if (i % 2 === 0 && r() < 0.6) ranat(t, note((dg ?? 5) - 5, 1), 0.1);
+        if (i % 8 === 0) khim(t, note(phrase[i] ?? 5, 0), beat * 3.5);
+        if (i % 4 === 2) ching(t, true); else if (i % 4 === 0) ching(t, false);
+        if (i % 8 === 0 || i % 8 === 3 || (i % 8 === 6 && r() < 0.5)) thon(t, i % 8 === 0 ? 92 : 128);
+        this.next += beat / 2; step++;
+      }
+    }, 90);
+  }
+  stop() { if (this.timer) clearInterval(this.timer); this.timer = null; if (this.out && AC) { const g = this.out; g.gain.cancelScheduledValues(AC.currentTime); g.gain.setTargetAtTime(0, AC.currentTime, 0.3); setTimeout(() => g.disconnect(), 1500); } (this.drone || []).forEach(o => { try { o.stop(AC.currentTime + 1.2); } catch (e) {} }); this.drone = null; this.on = false; }
+}
+
+// ---------------- more pieces for the history / culture films ----------------
+function train(c, x, y, s = 1) {
+  const { S, t } = c; const k = s * S;
+  c.P.shape(p => { p.moveTo(x - 10 * k, y - 20 * k); p.lineTo(x + 120 * k, y - 20 * k); p.lineTo(x + 140 * k, y - 50 * k); p.lineTo(x + 140 * k, y - 85 * k); p.lineTo(x + 60 * k, y - 85 * k); p.lineTo(x + 60 * k, y - 110 * k); p.lineTo(x + 20 * k, y - 110 * k); p.lineTo(x + 20 * k, y - 85 * k); p.lineTo(x - 10 * k, y - 85 * k); p.closePath(); }, c.ink('#2a2a2e'), 1.2);
+  c.P.shape(p => p.rect(x + 95 * k, y - 80 * k, 30 * k, 22 * k), c.night > 0.3 ? '#ffd890' : c.ink('#8ab0c8'), 0.5);
+  for (let i = 0; i < 3; i++) { const ox = x - 10 * k - (i + 1) * 150 * k; c.P.shape(p => p.rect(ox, y - 80 * k, 140 * k, 60 * k), c.ink(i % 2 ? '#7a2a1a' : '#8a3a22'), 1.1); for (let w = 0; w < 5; w++) c.P.shape(p => p.rect(ox + 10 * k + w * 26 * k, y - 70 * k, 18 * k, 16 * k), c.night > 0.3 ? '#ffd890' : c.ink('#c8b090'), 0.3); }
+  for (let i = -3; i < 4; i++) c.P.shape(p => p.arc(x + i * 45 * k, y - 12 * k, 12 * k, 0, TAU), '#18181a', 0.5);
+  for (let i = 0; i < 5; i++) { const ph = (t * 0.6 + i * 0.2) % 1; c.P.shape(p => p.arc(x + 40 * k - ph * 160 * k, y - 120 * k - ph * 90 * k, (12 + ph * 30) * k, 0, TAU), `rgba(240,240,240,${0.55 * (1 - ph)})`, 0.2); }
+}
+function shophouseRow(c, y, n, scale = 1) {
+  const { W, S } = c; const cols = ['#e8c34a', '#4a9ad0', '#e8844a', '#8ac8a0', '#e89ab8', '#a08ad0', '#5ab8b0'];
+  const w = W / n * 1.02;
+  for (let i = 0; i < n; i++) { const x = i * W / n - c.cam.x * W * 0.25, h = (230 + (i * 47 % 60)) * S * scale, col = cols[i % cols.length];
+    c.P.shape(p => { p.rect(x, y - h, w, h); p.moveTo(x + w * 0.2, y - h); p.quadraticCurveTo(x + w * 0.5, y - h - 70 * S * scale, x + w * 0.8, y - h); }, c.ink(col), 1.2);
+    for (let k = 0; k < 3; k++) { const wx = x + w * (0.15 + k * 0.27), wy = y - h + 40 * S * scale; c.P.shape(p => { p.rect(wx, wy + 18 * S, w * 0.16, 50 * S * scale); p.arc(wx + w * 0.08, wy + 18 * S, w * 0.08, Math.PI, 0); }, c.night > 0.4 && (i + k) % 3 === 0 ? '#ffd890' : c.ink(k % 2 ? '#2a6a4a' : '#c8902a'), 0.5); }
+    c.P.shape(p => { p.moveTo(x + w * 0.1, y); p.lineTo(x + w * 0.1, y - 90 * S * scale); p.quadraticCurveTo(x + w * 0.5, y - 140 * S * scale, x + w * 0.9, y - 90 * S * scale); p.lineTo(x + w * 0.9, y); p.closePath(); }, c.ink('#2a2420'), 0.4);
+  }
+}
+function bowl(c, x, y, r) { const { S, t } = c; c.P.shape(p => { p.moveTo(x - r, y - r * 0.2); p.quadraticCurveTo(x, y + r * 0.9, x + r, y - r * 0.2); p.closePath(); }, c.ink('#e8e2d0'), 1); c.P.shape(p => p.ellipse(x, y - r * 0.2, r * 0.95, r * 0.25, 0, 0, TAU), c.ink('#7a2a12'), 0.5);
+  for (let i = 0; i < 3; i++) { const ph = (t * 0.5 + i / 3) % 1; const g = c.g; g.save(); g.globalAlpha = 0.5 * (1 - ph); g.strokeStyle = '#ffffff'; g.lineWidth = 3 * S; g.beginPath(); g.moveTo(x - r * 0.3 + i * r * 0.3, y - r * 0.4); g.bezierCurveTo(x - r * 0.5 + i * r * 0.3, y - r * (0.8 + ph), x + i * r * 0.2, y - r * (1.0 + ph), x - r * 0.2 + i * r * 0.3, y - r * (1.4 + ph)); g.stroke(); g.restore(); } }
+function standingBuddha(c, x, y, h) {
+  const { S } = c; const k = h / 300;
+  c.P.shape(p => { p.rect(x - 70 * k, y - 40 * k, 140 * k, 40 * k); p.rect(x - 50 * k, y - 70 * k, 100 * k, 30 * k); }, c.ink('#8e8f8c'), 1.4);
+  c.P.shape(p => { p.ellipse(x, y - 78 * k, 46 * k, 10 * k, 0, 0, TAU); }, c.ink('#e0b040', 0.4), 1.2);
+  c.P.shape(p => { p.moveTo(x - 30 * k, y - 80 * k); p.quadraticCurveTo(x - 24 * k, y - 170 * k, x - 34 * k, y - 230 * k); p.lineTo(x - 18 * k, y - 262 * k); p.lineTo(x + 18 * k, y - 262 * k); p.lineTo(x + 34 * k, y - 230 * k); p.quadraticCurveTo(x + 24 * k, y - 170 * k, x + 30 * k, y - 80 * k); p.closePath(); }, c.ink('#e6bb52', 0.4), 1.5);
+  c.P.shape(p => { p.moveTo(x + 30 * k, y - 230 * k); p.lineTo(x + 40 * k, y - 190 * k); p.lineTo(x + 30 * k, y - 160 * k); p.lineTo(x + 22 * k, y - 160 * k); p.lineTo(x + 30 * k, y - 195 * k); p.closePath(); }, c.ink('#d8aa40', 0.4), 1.2);
+  c.P.shape(p => { p.moveTo(x - 32 * k, y - 228 * k); p.lineTo(x - 38 * k, y - 160 * k); p.lineTo(x - 30 * k, y - 130 * k); p.lineTo(x - 24 * k, y - 160 * k); p.closePath(); }, c.ink('#d8aa40', 0.4), 1.2);
+  c.P.shape(p => p.ellipse(x, y - 280 * k, 15 * k, 19 * k, 0, 0, TAU), c.ink('#e6bb52', 0.4), 1.3);
+  c.P.shape(p => { p.moveTo(x - 6 * k, y - 296 * k); p.lineTo(x, y - 326 * k); p.lineTo(x + 6 * k, y - 296 * k); p.closePath(); }, c.ink('#e6bb52', 0.4), 1);
+}
+function ganesha(c, x, y, h) {
+  const { S } = c; const k = h / 260, pk = c.ink('#e8a0a8', 0.5), gd = c.ink('#e0b040', 0.4);
+  c.P.shape(p => { p.ellipse(x, y - 20 * k, 110 * k, 24 * k, 0, 0, TAU); }, c.ink('#f2efe6'), 1.3);
+  c.P.shape(p => p.ellipse(x, y - 60 * k, 90 * k, 40 * k, 0, 0, TAU), pk, 1.3);
+  c.P.shape(p => p.ellipse(x, y - 115 * k, 62 * k, 58 * k, 0, 0, TAU), pk, 1.4);
+  for (const s of [-1, 1]) { c.P.shape(p => p.ellipse(x + s * 62 * k, y - 190 * k, 30 * k, 44 * k, s * 0.2, 0, TAU), pk, 1.2); c.P.shape(p => p.arc(x + s * 95 * k, y - 150 * k, 14 * k, 0, TAU), gd, 0.8); c.P.shape(p => p.arc(x + s * 80 * k, y - 95 * k, 12 * k, 0, TAU), gd, 0.8); }
+  c.P.shape(p => p.ellipse(x, y - 190 * k, 40 * k, 44 * k, 0, 0, TAU), pk, 1.4);
+  c.P.shape(p => { p.moveTo(x - 10 * k, y - 175 * k); p.quadraticCurveTo(x - 14 * k, y - 120 * k, x + 18 * k, y - 112 * k); p.quadraticCurveTo(x + 26 * k, y - 118 * k, x + 14 * k, y - 124 * k); p.quadraticCurveTo(x + 4 * k, y - 140 * k, x + 10 * k, y - 175 * k); p.closePath(); }, pk, 1.1);
+  c.P.shape(p => { for (let i = 0; i < 5; i++) p.rect(x - (26 - i * 4) * k, y - (238 + i * 14) * k, (52 - i * 8) * k, 13 * k); }, gd, 1.1);
+  const g = c.g; g.save(); g.strokeStyle = 'rgba(255,220,140,.85)'; g.lineWidth = 5 * S; g.beginPath(); g.arc(x, y - 190 * k, 78 * k, 0, TAU); g.stroke(); g.restore();
+}
+function tent(c, x, y, w, h) { const { S } = c; c.P.shape(p => { p.moveTo(x - w / 2, y); p.lineTo(x - w / 2, y - h * 0.55); p.quadraticCurveTo(x, y - h * 1.3, x + w / 2, y - h * 0.55); p.lineTo(x + w / 2, y); p.closePath(); }, c.night > 0.4 ? '#fff1d8' : c.ink('#f4f2ee'), 1.3);
+  c.P.shape(p => p.rect(x - w * 0.42, y - h * 0.5, w * 0.84, h * 0.5), c.ink('#3a2a2a', 0.6), 0.5);
+  const g = c.g; g.save(); g.fillStyle = '#1e6a5a'; g.font = `bold ${h * 0.14}px system-ui`; g.textAlign = 'center'; g.fillText('Greenway', x, y - h * 0.78); g.fillStyle = '#d33a5a'; g.font = `bold italic ${h * 0.16}px system-ui`; g.fillText('Street Life', x, y - h * 0.6); g.restore(); }
+
+Object.assign(STORIES, {
+  history: { title: '合艾的誕生：鐵道小鎮', th: 'ประวัติหาดใหญ่', tod: [0.2, 0.75], pan: [0, 0.06], mood: { root: 261.6, bpm: 84, seed: 11 },
+    lines: ['二十世紀初，南線鐵路通到這片平原，火車站周圍開始聚集人潮。', '華人移民在車站旁蓋起店屋，街道一條條延伸出去，今天的尼帕烏提路就是那時的骨架。', '泰人、華人與馬來穆斯林在這裡做生意、通婚、比鄰而居。', '鐵路帶來了商機，一個小站就這樣長成了南泰國的商貿重鎮。'],
+    draw(c) { const { W, H, S, t } = c; hills(c, 0.55, 0.05, '#7a8ab0', 4, 0.05, 0.4); shophouseRow(c, H * 0.66, 7, 0.9);
+      c.P.shape(p => p.rect(0, H * 0.66, W, H * 0.34), c.ink('#6a6460'), 0.3); c.P.shape(p => { p.rect(0, H * 0.84, W, 6 * S); p.rect(0, H * 0.87, W, 6 * S); }, c.ink('#3a3a3a'), 0.3);
+      train(c, ((t * 60 * S) % (W * 1.8)) - W * 0.3, H * 0.85, 1.1);
+      for (let i = 0; i < 6; i++) person(c, ((i * 190 * S + t * 15 * S * (i % 2 ? 1 : -1)) % W + W) % W, H * 0.72, 0.95, ['#e0e0e0', '#2a62c8', '#c8402a', '#f0b020'][i % 4], 1, i, i % 3 === 0); } },
+  oldtown: { title: '彩色騎樓老街', th: 'ตึกแถวชิโน-โปรตุกีส', tod: [0.15, 0.85], pan: [0, 0.08], mood: { root: 293.7, bpm: 92, seed: 21 },
+    lines: ['南泰的中葡式（Sino-Portuguese）騎樓：拱窗、百葉、山花與粉彩外牆。', '一樓是店，樓上是家，騎樓下的走廊替行人遮陽擋雨。', '褪色的油漆與糾結的電線，是小鎮慢慢生活的痕跡。', '傍晚，鐵捲門拉起又放下，嘟嘟車和機車從門口經過。'],
+    draw(c) { const { W, H, S, t } = c; shophouseRow(c, H * 0.74, 6, 1.25);
+      const g = c.g; g.save(); g.strokeStyle = c.ink('#1a1a1a'); g.lineWidth = 1.4 * S; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(0, H * (0.2 + k * 0.015)); g.quadraticCurveTo(W * 0.5, H * (0.28 + k * 0.015), W, H * (0.18 + k * 0.02)); g.stroke(); } g.restore();
+      c.P.shape(p => p.rect(0, H * 0.74, W, H * 0.26), c.ink('#4a4a50'), 0.3);
+      const lane = (y, items, v) => items.forEach((f, i) => { const x = ((i * W * 0.5 + t * v * S) % (W * 1.6)) - W * 0.3; f(x, y); });
+      lane(H * 0.9, [(x, y) => tuktuk(c, x, y, '#e8402a', 1), (x, y) => moto(c, x, y, '#2a50a0', 1.1, true), (x, y) => car(c, x, y, '#c9ccd1', 1)], 80);
+      for (let i = 0; i < 5; i++) person(c, ((i * 230 * S + t * 18 * S) % W + W) % W, H * 0.77, 0.95, ['#e0e0e0', '#2a62c8', '#c8402a'][i % 3], 1, i); } },
+  food: { title: '船麵與豬腳飯', th: 'ก๋วยเตี๋ยวเรือ · ข้าวขาหมู', tod: [0.5, 1.0], pan: [0, 0.03], zoom: 1.1, mood: { root: 329.6, bpm: 104, seed: 31 },
+    lines: ['船麵：碗小、湯濃，一碗幾口就吃完，大家一疊一疊地點。', '它源自泰國中部運河上的小船攤販，後來上了岸，船形的攤位還留著。', '夜市裡另一個排隊名物是滷得軟嫩的豬腳飯，配酸菜和辣醋。', '合艾的吃，一半在店裡，一半在路邊。'],
+    draw(c) { const { W, H, S, t } = c; shophouseRow(c, H * 0.6, 5, 0.9); c.P.shape(p => p.rect(0, H * 0.6, W, H * 0.4), c.ink('#5a5048'), 0.3);
+      longtail(c, W * 0.3, H * 0.74, '#a33a1a', 1.1, false); for (const dx of [-40, 10, 60]) c.P.shape(p => p.ellipse(W * 0.3 + dx * S, H * 0.7, 22 * S, 10 * S, 0, 0, TAU), c.ink('#c0c4c8'), 0.6);
+      for (let i = 0; i < 7; i++) bowl(c, W * (0.55 + (i % 4) * 0.1), H * (0.8 + Math.floor(i / 4) * 0.08) - (i % 4 === 3 ? 0 : 0), 34 * S);
+      c.P.shape(p => p.rect(W * 0.52, H * 0.84, W * 0.44, 10 * S), c.ink('#8a5a36'), 0.6);
+      lanterns(c, 0, W, H * 0.4, 16); for (let i = 0; i < 5; i++) person(c, W * (0.1 + i * 0.09), H * 0.95, 1.1, ['#c8402a', '#2a62c8', '#f0b020', '#1f8a4c', '#e0e0e0'][i], 0.2, i); } },
+  greenway: { title: 'Greenway 夜市', th: 'กรีนเวย์ สตรีทไลฟ์', tod: [0.6, 1.0], pan: [-0.02, 0.04], zoom: 1.08, mood: { root: 349.2, bpm: 112, seed: 41 },
+    lines: ['傍晚，白色拱頂帳篷亮起燈，Greenway 夜市開張了。', '衣服、玩具、手機殼、紀念品，一攤接一攤。', '隔壁的 Food Station 飄出烤肉和炒河粉的香味。', '在地人和觀光客一起逛到深夜，這是合艾的夜生活。'],
+    draw(c) { const { W, H, S, t } = c; c.P.shape(p => p.rect(0, H * 0.72, W, H * 0.28), c.ink('#4a4a50'), 0.3); tent(c, W * 0.42, H * 0.74, W * 0.62, H * 0.5);
+      for (let i = 0; i < 6; i++) stall(c, W * (0.18 + i * 0.096), H * 0.74, 60 * S, ['#d33a5a', '#2a7ad0', '#e8a31d', '#1f8a4c'][i % 4], '#f2f2ec');
+      c.P.shape(p => p.rect(W * 0.78, H * 0.38, W * 0.2, H * 0.34), c.ink('#2a2c30'), 1.2); for (let i = 0; i < 10; i++) c.P.shape(p => p.rect(W * 0.785 + i * W * 0.019, H * 0.4, 5 * S, H * 0.14), c.ink('#9a6a3a'), 0.3);
+      const g = c.g; g.save(); g.font = `bold ${22 * S}px system-ui`; g.fillStyle = '#7dffc8'; g.fillText('FOOD STATION', W * 0.79, H * 0.6); g.restore(); lanterns(c, W * 0.77, W, H * 0.62, 6);
+      for (let i = 0; i < 14; i++) person(c, ((i * 110 * S + t * 16 * S * (i % 2 ? 1 : -1)) % W + W) % W, H * (0.86 + (i % 3) * 0.04), 1 + (i % 3) * 0.1, ['#c8402a', '#2a62c8', '#f0b020', '#e0e0e0', '#1f8a4c', '#7a2d9a'][i % 6], 1, i); } },
+  elephant: { title: '大象神廟', th: 'พระพิฆเนศ · เขาคอหงส์', tod: [0.3, 0.7], pan: [0, 0.03], zoom: 1.1, mood: { root: 246.9, bpm: 76, seed: 51 },
+    lines: ['從大佛旁搭上紅色纜車，越過整片樹林往更高的山頂。', '山頂坐著巨大的象頭神，泰國人稱祂為帕必卡內（Phra Phikanet）。', '祂是排除障礙、守護藝術與事業的神，香客帶著萬壽菊花環前來祈願。', '回頭望，合艾的屋頂在山腳下鋪成一片。'],
+    draw(c) { const { W, H, S, t } = c; hills(c, 0.7, 0.14, '#3f6a4a', 6, 0.1, 1); const g = c.g;
+      g.save(); g.strokeStyle = c.ink('#222'); g.lineWidth = 1.5 * S; g.beginPath(); g.moveTo(-10, H * 0.78); g.lineTo(W * 0.62, H * 0.32); g.stroke(); g.restore();
+      const k = (t * 0.035) % 1, cx = lerp(-10, W * 0.62, k), cy = lerp(H * 0.78, H * 0.32, k); c.P.shape(p => p.rect(cx - 20 * S, cy + 12 * S, 40 * S, 30 * S), c.ink('#c8202a'), 1);
+      ganesha(c, W * 0.74, H * 0.74, H * 0.62);
+      for (let i = 0; i < 14; i++) c.P.shape(p => p.arc(W * (0.6 + i * 0.022), H * 0.75, 7 * S, 0, TAU), '#ff8a1a', 0.5);
+      for (let i = 0; i < 4; i++) person(c, W * (0.55 + i * 0.06), H * 0.82, 0.9, ['#e0e0e0', '#f0b020', '#c8402a', '#2a62c8'][i], 0, i); } },
+});
+STORIES.buddha.draw = function (c) { const { W, H, S, t } = c;
+  hills(c, 0.62, 0.12, '#7a8ab0', 3, 0.05, 0.5); hills(c, 0.76, 0.1, '#3f6a4a', 5, 0.1, 1);
+  standingBuddha(c, W * 0.4, H * 0.78, H * 0.68);
+  c.P.shape(p => { for (let i = 0; i < 18; i++) p.rect(W * 0.12 + i * W * 0.04, H * 0.76, 6 * S, 24 * S); p.rect(W * 0.12, H * 0.765, W * 0.72, 5 * S); }, c.ink('#f4f2ec'), 0.6);
+  for (const dx of [-0.14, 0.14]) { c.P.shape(p => { p.arc(W * (0.4 + dx), H * 0.73, 20 * S, Math.PI, 0); p.lineTo(W * (0.4 + dx), H * 0.66); p.closePath(); }, c.ink('#e0b040', 0.4), 1); }
+  templeRoof(c, W * 0.76, H * 0.72, 150 * S, '#b03a22');
+  const g = c.g; g.save(); g.strokeStyle = c.ink('#222'); g.lineWidth = 1.4 * S; g.beginPath(); g.moveTo(W * 0.55, H * 0.6); g.lineTo(W * 1.05, H * 0.15); g.stroke(); g.restore();
+  const k = (t * 0.03) % 1; c.P.shape(p => p.rect(lerp(W * 0.55, W * 1.05, k) - 18 * S, lerp(H * 0.6, H * 0.15, k) + 10 * S, 36 * S, 28 * S), c.ink('#c8202a'), 1);
+  for (let i = 0; i < 4; i++) { const x = W * (0.86 + i * 0.03); g.save(); g.strokeStyle = '#ddd'; g.lineWidth = 2 * S; g.beginPath(); g.moveTo(x, H * 0.76); g.lineTo(x, H * 0.5); g.stroke(); g.restore(); c.P.shape(p => p.rect(x, H * 0.5, 30 * S, 18 * S), i % 2 ? '#f2c414' : '#a51931', 0.4); }
+};
+STORIES.buddha.lines = ['合艾市立公園的山頂上，金色立佛帕普塔蒙空瑪哈拉面向整座城市。', '右手舉起作施無畏印，意思是「不要害怕」，守護著山下的人們。', '白色欄杆、金色小佛塔與紅頂涼亭圍繞著佛像，國旗在風中飄揚。', '旁邊的纜車還能載你上到更高的山頂，去拜大象神。'];
+STORIES.buddha.mood = { root: 261.6, bpm: 72, seed: 61 };
+STORIES.floating.mood = { root: 293.7, bpm: 88, seed: 71 }; STORIES.street.mood = { root: 329.6, bpm: 108, seed: 81 };
+STORIES.lee.mood = { root: 349.2, bpm: 100, seed: 91 }; STORIES.kimyong.mood = { root: 311.1, bpm: 96, seed: 101 }; STORIES.airport.mood = { root: 277.2, bpm: 90, seed: 111 };
+Object.assign(STORY_FOR, { station: 'history', clock: 'oldtown', oldtown: 'oldtown', porkleg: 'food', citystreet: 'oldtown', greenway: 'greenway', elephant: 'elephant', central: 'street', intro: 'history' });

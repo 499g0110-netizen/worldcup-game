@@ -22,6 +22,7 @@ const LABELS = [
   { zh: 'Lee Gardens 夜市', en: 'Night Market', x: 0, y: 12, z: 78, r: 420 },
   { zh: '秋哥國際豬腳飯', en: 'Inter Pork Leg with Rice', x: 30, y: 9, z: 56, r: 260 },
   { zh: 'Greenway Night Market', en: 'ตลาดกรีนเวย์', x: 1680, y: 12, z: 990, r: 1200 },
+  { zh: '大象神廟', en: 'Phra Phikanet (位置示意)', x: 4950, y: 190, z: -4370, r: 3000 },
   { zh: 'Kho Hong 山', en: 'เขาคอหงส์', x: 5400, y: 270, z: -1270, r: 4000 },
   { zh: '合艾國際機場 HDY', en: 'Hat Yai International Airport', x: -8650, y: 60, z: 7690, r: 3500 },
 ];
