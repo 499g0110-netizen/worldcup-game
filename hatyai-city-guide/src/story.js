@@ -327,7 +327,7 @@ export class ThaiMusic {
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
     rev.buffer = ir; const wet = ac.createGain(); wet.gain.value = 0.28; rev.connect(wet); wet.connect(out);
     const note = (deg, oct = 0) => root * Math.pow(2, (scale[((deg % 5) + 5) % 5] + 12 * (oct + Math.floor(deg / 5))) / 12);
-    const ranat = (t, f, v = 0.22) => { for (const [m, g] of [[1, 1], [3.98, 0.25], [9.1, 0.08]]) { const o = ac.createOscillator(), e = ac.createGain(); o.type = 'sine'; o.frequency.value = f * m; e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(v * g, t + 0.005); e.gain.exponentialRampToValueAtTime(0.0008, t + 0.5 / Math.sqrt(m)); o.connect(e); e.connect(out); e.connect(rev); o.start(t); o.stop(t + 0.6); } };
+    const ranat = (t, f, v = 0.22) => { for (const [m, g] of [[1, 1], [3.98, 0.25], [9.1, 0.08]]) { if (f * m > 18000) continue; const o = ac.createOscillator(), e = ac.createGain(); o.type = 'sine'; o.frequency.value = f * m; e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(v * g, t + 0.005); e.gain.exponentialRampToValueAtTime(0.0008, t + 0.5 / Math.sqrt(m)); o.connect(e); e.connect(out); e.connect(rev); o.start(t); o.stop(t + 0.6); } };
     const khim = (t, f, d) => { const o = ac.createOscillator(), e = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain(); o.type = 'triangle'; o.frequency.value = f; lfo.frequency.value = 11; lg.gain.value = 0.05; lfo.connect(lg); lg.connect(e.gain);
       e.gain.setValueAtTime(0.07, t); e.gain.exponentialRampToValueAtTime(0.001, t + d); o.connect(e); e.connect(out); e.connect(rev); o.start(t); lfo.start(t); o.stop(t + d); lfo.stop(t + d); };
     const noise = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
@@ -451,4 +451,4 @@ STORIES.buddha.lines = ['合艾市立公園的山頂上，金色立佛帕普塔�
 STORIES.buddha.mood = { root: 261.6, bpm: 72, seed: 61 };
 STORIES.floating.mood = { root: 293.7, bpm: 88, seed: 71 }; STORIES.street.mood = { root: 329.6, bpm: 108, seed: 81 };
 STORIES.lee.mood = { root: 349.2, bpm: 100, seed: 91 }; STORIES.kimyong.mood = { root: 311.1, bpm: 96, seed: 101 }; STORIES.airport.mood = { root: 277.2, bpm: 90, seed: 111 };
-Object.assign(STORY_FOR, { station: 'history', clock: 'oldtown', oldtown: 'oldtown', porkleg: 'food', citystreet: 'oldtown', greenway: 'greenway', elephant: 'elephant', central: 'street', intro: 'history' });
+Object.assign(STORY_FOR, { muaythai: 'history', station: 'history', clock: 'oldtown', oldtown: 'oldtown', porkleg: 'food', citystreet: 'oldtown', greenway: 'greenway', elephant: 'elephant', central: 'street', intro: 'history' });

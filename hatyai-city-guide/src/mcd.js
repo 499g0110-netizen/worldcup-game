@@ -29,7 +29,7 @@ export function buildLeeGroundFloor(ctx, LG) {
   const panelM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3dc, emissiveIntensity: 1.6 }); ctx.nightMats.push({ mat: panelM, base: 1.2, k: 1.0 });
   for (let x = -HX + 3; x < HX - 2; x += 4.2) for (let z = -HZ + 3; z < HZ - 2; z += 4.2) { const p = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.5), panelM); p.rotation.x = Math.PI / 2; p.position.set(x, FH - 0.07, z); g.add(p); }
   // interior lights so the inside reads from the street
-  for (const [x, z, c] of [[-24, 4, 0xffe1b0], [-10, 4, 0xffe1b0], [14, 2, 0xfff0d8]]) { const L = new THREE.PointLight(c, 40, 26, 1.6); L.position.set(x, 4.2, z); g.add(L); }
+  
 
   // ---- glass curtain wall with aluminium mullions ----
   const glass = new THREE.MeshPhysicalMaterial({ color: 0xbfd6dc, roughness: 0.04, metalness: 0.0, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4 });
@@ -88,7 +88,7 @@ export function buildLeeGroundFloor(ctx, LG) {
   const s2 = new THREE.Mesh(new THREE.PlaneGeometry(10, 1.95), sm); s2.position.set(-HX - 0.35, FH + 1.1, 8); s2.rotation.y = -Math.PI / 2; g.add(s2);
   box(12, 0.25, 2.2, -20, FH - 0.2, HZ + 1.1, red);              // entrance canopy
   // drive-through style glow at the door
-  const dg = new THREE.PointLight(0xffd08a, 18, 12, 1.8); dg.position.set(-20, 3.5, HZ + 2); g.add(dg);
+  /* light removed for performance */
 
   // ================= HOTEL LOBBY (x -2 … 33) =================
   const stone = std(0xd8cab0, { roughness: 0.35 }), gold = std(0xc9a24a, { metalness: 0.9, roughness: 0.25 });
@@ -120,7 +120,7 @@ export function buildLeeGroundFloor(ctx, LG) {
     const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.45, 4, 10), bronze); armL.position.set(0.12, 0.98, 0.05); armL.rotation.z = 1.2; S.add(armL);
     S.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     S.position.set(-12, 0.12, HZ + 3.2); S.rotation.y = 0; g.add(S);
-    const spot = new THREE.PointLight(0xffe0b0, 8, 6, 2); spot.position.set(-12, 3, HZ + 4.5); g.add(spot);
+    /* light removed for performance */
   }
   return g;
 }

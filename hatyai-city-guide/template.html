@@ -147,6 +147,28 @@ body #w-help.fade{opacity:0}
 body.walk .bar{display:none}
 body #joy{width:104px;height:104px;left:calc(env(safe-area-inset-left,0px) + 22px);bottom:calc(env(safe-area-inset-bottom,0px) + 28px);background:rgba(12,14,28,.18);border-color:rgba(255,255,255,.18)}
 body #joy i{width:40px;height:40px;margin:-20px 0 0 -20px;background:rgba(230,194,116,.45)}
+#mt-enter{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);transform:translateX(-50%);z-index:12;display:none;padding:14px 22px;font-size:15px;letter-spacing:.1em;background:linear-gradient(180deg,#d8283a,#8a1018);color:#fff;border:2px solid #ffd84a;border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+body.mt-near #mt-enter{display:block}
+#mt-hud{position:fixed;inset:0;z-index:15;display:none;pointer-events:none;font-family:var(--sans)}
+#mt-hud.on{display:block}body.mt-on #hud{display:none}
+#mt-hud button{pointer-events:auto}
+.mt-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:12px;align-items:center}
+.mt-side{flex:1;min-width:0}.mt-side b{display:block;font-size:12px;letter-spacing:.1em;text-shadow:0 1px 4px #000;margin-bottom:4px}.mt-side.r{text-align:right}
+.mt-hpA,.mt-hpB{height:14px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.35);border-radius:2px;overflow:hidden;display:flex}
+.mt-hpA i{display:block;height:100%;background:linear-gradient(90deg,#2a6ad8,#8ac8ff);transition:width .15s}
+.mt-hpB{justify-content:flex-end}.mt-hpB i{display:block;height:100%;background:linear-gradient(270deg,#d8283a,#ff9a8a);transition:width .15s}
+.mt-time{font-family:var(--serif);font-size:30px;min-width:52px;text-align:center;text-shadow:0 2px 6px #000}
+.mt-banner{position:absolute;top:24%;left:0;right:0;text-align:center;font-family:var(--serif);font-size:clamp(26px,5vw,54px);font-weight:700;color:#ffd84a;text-shadow:0 3px 0 #8a1018,0 0 24px rgba(0,0,0,.8);opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s}
+.mt-banner.show{opacity:1;transform:none}
+.mt-help{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.75);text-shadow:0 1px 4px #000}
+.mt-pad{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);display:none;gap:6px;flex-wrap:wrap}
+.mt-pad.l{left:max(14px,env(safe-area-inset-left,0px));width:170px}.mt-pad.r{right:max(14px,env(safe-area-inset-right,0px));width:220px;justify-content:flex-end}
+.mt-pad button{width:66px;height:52px;border-radius:10px;background:rgba(20,10,14,.55);border:1px solid rgba(255,216,74,.6);color:#fff;font-size:13px;touch-action:none;user-select:none;-webkit-user-select:none}
+.mt-pad.l button{width:50px}
+@media (pointer:coarse){.mt-pad{display:flex}.mt-help{display:none}}
+.mt-end{position:absolute;top:42%;left:0;right:0;display:none;justify-content:center;gap:10px}#mt-hud.over .mt-end{display:flex}
+.mt-end button{padding:12px 20px;background:#b81c24;border:1px solid #ffd84a;color:#fff;font-size:14px;border-radius:3px}
+.mt-x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 54px);right:max(16px,env(safe-area-inset-right,0px));width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.3);color:#fff}
 @media (max-width:760px){
   .bar{height:2.5vh}
   body #hud .brand{display:none}
@@ -183,6 +205,7 @@ body #hud .brand img{width:clamp(90px,11vw,150px);height:auto;filter:drop-shadow
   <div id="labels"></div>
   <div id="walk-hud"><div id="w-loc"><b id="w-name">—</b><span id="w-dist"></span></div><button id="w-story">▶ 這裡的故事</button><div id="w-help">WASD 移動 · Shift 奔跑 · 拖曳轉視角 · ☰ 選單可瞬間移動</div></div>
   <div id="joy"><i></i></div>
+  <button id="mt-enter">🥊 進入泰拳館 · 上擂台 (F)</button>
   <aside id="drawer" aria-label="選單">
     <div class="dr-head"><b>選單</b><button id="menu-close" aria-label="關閉">✕</button></div>
     <div class="dr-sec"><h4>模式</h4><div class="row"><button id="btn-walk" title="操作角色漫遊 (G)">🚶 角色漫遊</button><button id="btn-explore" title="自由探索 (E)"><span>自由探索</span></button></div></div>
@@ -193,6 +216,15 @@ body #hud .brand img{width:clamp(90px,11vw,150px);height:auto;filter:drop-shadow
     <div class="dr-sec"><h4>地圖</h4><canvas id="minimap" width="440" height="432"></canvas></div>
     <footer>地圖資料 © OpenStreetMap contributors (ODbL)。建築高度與立面為依照片估計的藝術重建，非精確測繪。</footer>
   </aside>
+</div>
+<div id="mt-hud">
+  <div class="mt-top"><div class="mt-side"><b>你 · 藍角</b><div class="mt-hpA"><i></i></div></div><div class="mt-time">90</div><div class="mt-side r"><b>紅角 · ค่ายหาดใหญ่</b><div class="mt-hpB"><i></i></div></div></div>
+  <div class="mt-banner"></div>
+  <div class="mt-help">A/D 移動 · J 刺拳 · K 直拳 · O 肘擊 · I 膝擊 · L 掃踢 · U 前蹬 · S 格擋 · Esc 離開</div>
+  <div class="mt-pad l"><button data-m="back">◀</button><button data-m="block">擋</button><button data-m="fwd">▶</button></div>
+  <div class="mt-pad r"><button data-m="jab">刺拳</button><button data-m="cross">直拳</button><button data-m="elbow">肘</button><button data-m="knee">膝</button><button data-m="kick">掃踢</button><button data-m="teep">前蹬</button></div>
+  <div class="mt-end"><button class="mt-again">再打一場</button><button class="mt-exit">離開擂台</button></div>
+  <button class="mt-exit mt-x">✕</button>
 </div>
 <div id="story"><canvas></canvas><div class="st-title"></div><div class="st-sub"></div><div class="st-ctl"><button class="st-play">❚❚ / ▶</button><button class="st-style">風格：剪紙</button><button class="st-mute">♪ 關閉音樂</button><button class="st-close">✕ 關閉</button></div><div class="st-bar"><i></i></div></div>
 <script>/*BUNDLE*/</script>

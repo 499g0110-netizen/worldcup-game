@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FOOTPRINTS } from './facade.js';
 import { groundY } from './world.js';
 import { pointInPoly, clamp } from './util.js';
+import { Fighter } from './fighter.js';
 
 // =====================================================================
 //  Walkable traveller: third-person character with procedural gait,
@@ -33,31 +34,14 @@ export class Player {
     this.pos = new THREE.Vector3(-30, 0, 40); this.vel = new THREE.Vector3(); this.heading = Math.PI; this.speed = 0;
     this.camYaw = Math.PI; this.camPitch = 0.32; this.camDist = 7.5; this.phase = 0; this.keys = {}; this.joy = { x: 0, y: 0 };
     this.grid = null;
-    // ---- character model ----
-    const skin = new THREE.MeshStandardMaterial({ color: 0xc99870, roughness: 0.7 });
-    const shirt = new THREE.MeshStandardMaterial({ color: 0xe8e1cf, roughness: 0.85 });
-    const pants = new THREE.MeshStandardMaterial({ color: 0x2f3e5a, roughness: 0.9 });
-    const shoe = new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.6 });
-    const hairM = new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: 0.6 });
-    const bagM = new THREE.MeshStandardMaterial({ color: 0x8a3b22, roughness: 0.8 });
-    const root = new THREE.Group(); this.root = root;
-    const hips = new THREE.Group(); hips.position.y = 0.95; root.add(hips); this.hips = hips;
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.2), pants); pelvis.castShadow = true; hips.add(pelvis);
-    const spine = new THREE.Group(); spine.position.y = 0.08; hips.add(spine); this.spine = spine;
-    const chest = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.32, 4, 12), shirt); chest.scale.set(1.15, 1, 0.75); chest.position.y = 0.28; chest.castShadow = true; spine.add(chest);
-    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.14), bagM); bag.position.set(0, 0.3, -0.17); bag.castShadow = true; spine.add(bag);
-    const neck = new THREE.Group(); neck.position.y = 0.55; spine.add(neck); this.neck = neck;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 18, 14), skin); head.scale.set(0.92, 1.08, 1); head.position.y = 0.13; head.castShadow = true; neck.add(head);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.122, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM); hair.position.set(0, 0.145, -0.01); neck.add(hair);
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), skin); nose.position.set(0, 0.12, 0.11); neck.add(nose);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 18), new THREE.MeshStandardMaterial({ color: 0xe6c274, roughness: 0.6 })); cap.position.set(0, 0.24, 0); neck.add(cap);
-    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.015, 0.12), cap.material); brim.position.set(0, 0.215, 0.12); neck.add(brim);
-    const mkArm = (s) => { const sh = new THREE.Group(); sh.position.set(s * 0.22, 0.47, 0); spine.add(sh); const up = limb(0.3, 0.055, 0.05, shirt); sh.add(up);
-      const el = new THREE.Group(); el.position.y = -0.3; up.add(el); const lo = limb(0.28, 0.045, 0.04, skin); el.add(lo); const hand = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), skin); hand.position.y = -0.3; lo.add(hand); return { sh, el }; };
-    const mkLeg = (s) => { const hp = new THREE.Group(); hp.position.set(s * 0.1, -0.05, 0); hips.add(hp); const up = limb(0.44, 0.08, 0.065, pants); hp.add(up);
-      const kn = new THREE.Group(); kn.position.y = -0.44; up.add(kn); const lo = limb(0.42, 0.06, 0.05, pants); kn.add(lo);
-      const an = new THREE.Group(); an.position.y = -0.42; lo.add(an); const f = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.24), shoe); f.position.set(0, -0.02, 0.05); f.castShadow = true; an.add(f); return { hp, kn, an }; };
-    this.armL = mkArm(-1); this.armR = mkArm(1); this.legL = mkLeg(-1); this.legR = mkLeg(1);
+    // ---- character model: detailed procedural traveller (shared with the Muay Thai fighters) ----
+    const F = new Fighter({ casual: true, shirt: 0xe8e1cf, shorts: 0x2f3e5a, skin: 0xc99870 }); this.fighter = F;
+    const root = F.group; this.root = root; const jj = F.j;
+    this.hips = jj.hips; this.spine = jj.spine; this.neck = jj.neck;
+    this.armL = { sh: jj.shL, el: jj.elL }; this.armR = { sh: jj.shR, el: jj.elR };
+    this.legL = { hp: jj.hipL, kn: jj.knL, an: jj.anL }; this.legR = { hp: jj.hipR, kn: jj.knR, an: jj.anR };
+    const capM = new THREE.MeshStandardMaterial({ color: 0xe6c274, roughness: 0.6 }); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.112, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), capM); cap.position.y = 0.13; jj.head.add(cap);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.012, 16, 1, false, -Math.PI / 2, Math.PI), capM); brim.position.set(0, 0.135, 0.08); brim.scale.z = 1.2; jj.head.add(brim);
     root.visible = false; ctx.scene.add(root);
     // blob shadow for night / far shots
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.45, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
@@ -130,7 +114,7 @@ export class Player {
     this.armL.sh.rotation.x = -s * armA; this.armR.sh.rotation.x = s * armA; this.armL.sh.rotation.z = -0.08; this.armR.sh.rotation.z = 0.08;
     this.armL.el.rotation.x = -(0.2 + 0.9 * rw * w); this.armR.el.rotation.x = -(0.2 + 0.9 * rw * w);
     const breathe = Math.sin(t * 1.8) * 0.012 * (1 - w);
-    this.hips.position.y = 0.95 - 0.03 * w - 0.04 * rw + Math.abs(c) * 0.05 * w + breathe;
+    this.hips.position.y = 0.98 - 0.03 * w - 0.04 * rw + Math.abs(c) * 0.05 * w + breathe;
     this.hips.rotation.y = s * 0.12 * w; this.spine.rotation.y = -s * 0.18 * w; this.spine.rotation.x = 0.06 * w + 0.16 * rw + breathe;
     this.neck.rotation.y = -this.spine.rotation.y * 0.6 + Math.sin(t * 0.4) * 0.15 * (1 - w);
     this.root.position.copy(this.pos); this.root.rotation.y = this.heading;

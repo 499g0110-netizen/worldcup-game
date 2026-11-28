@@ -141,7 +141,7 @@ export function buildLandmarks3(ctx) {
     // ground floor shop + awning, tables & red stools out front, parked motorbikes
     box(11.6, 3.6, 0.2, -0.6, 1.8, 2.6, new THREE.MeshPhysicalMaterial({ color: 0xe6eef0, transparent: true, opacity: 0.25, roughness: 0.05, depthWrite: false }));
     box(12.4, 0.25, 2.2, -0.6, 3.8, 3.6, std(0x4a2a22));
-    const inL = new THREE.PointLight(0xfff0d8, 10, 12, 1.6); inL.position.set(-0.6, 3, 1); G.add(inL);
+    /* light removed for performance */
     for (let i = 0; i < 4; i++) { box(0.9, 0.05, 0.9, -4 + i * 2.4, 0.75, 5.2, std(0xd0d4d8, { metalness: 0.8 })); for (const s of [-0.6, 0.6]) box(0.35, 0.45, 0.35, -4 + i * 2.4 + s, 0.23, 5.2, std(0xd8282a)); }
     FOOTPRINTS.push([[x - 6.5, z - 4], [x + 6.5, z - 4], [x + 6.5, z + 4], [x - 6.5, z + 4]]);
     G.updateMatrixWorld(); const w = new THREE.Vector3(-3.4, 12, 3); G.localToWorld(w); glow.add(w.x, w.y, w.z, 12, C('#ffcf70'));

@@ -17,9 +17,9 @@ function humanGeometry() {
   };
   const skin = new THREE.Color('#d9a67e'), jeans = new THREE.Color('#2b3550'), white = new THREE.Color(1, 1, 1), hair = new THREE.Color('#1a1512');
   const box = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
-  add(box(0.42, 0.58, 0.25, 0, 1.2, 0), 0, white, 1);              // torso (shirt)
-  add(box(0.4, 0.2, 0.24, 0, 0.98, 0), 0, jeans, 0);                // hips
-  const head = new THREE.SphereGeometry(0.12, 10, 8); head.translate(0, 1.66, 0); add(head, 0, skin, 2);
+  { const t = new THREE.CapsuleGeometry(0.17, 0.3, 6, 16); t.scale(1.25, 1, 0.72); t.translate(0, 1.2, 0); add(t, 0, white, 1); }   // torso (shirt)
+  { const h = new THREE.CapsuleGeometry(0.16, 0.08, 6, 14); h.scale(1.2, 1, 0.75); h.translate(0, 0.96, 0); add(h, 0, jeans, 0); }   // hips
+  const head = new THREE.SphereGeometry(0.115, 16, 12); head.scale(0.92, 1.1, 1); head.translate(0, 1.66, 0); add(head, 0, skin, 2);
   const hr = new THREE.SphereGeometry(0.128, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55); hr.translate(0, 1.68, -0.01); add(hr, 0, hair, 0);
   add(box(0.06, 0.1, 0.06, 0, 1.52, 0), 0, skin, 2);                // neck
   // face: eyes (whites + pupils), brows, nose, mouth, ears
@@ -34,10 +34,10 @@ function humanGeometry() {
   add(box(0.045, 0.01, 0.012, 0, 1.612, 0.106), 0, lip, 0);
   add(box(0.15, 0.07, 0.26, -0.11, 0.035, 0.04), 1, dark, 0); add(box(0.15, 0.07, 0.26, 0.11, 0.035, 0.04), 2, dark, 0);
 
-  add(box(0.15, 0.92, 0.17, -0.11, 0.48, 0), 1, jeans, 0);          // legs
-  add(box(0.15, 0.92, 0.17, 0.11, 0.48, 0), 2, jeans, 0);
-  add(box(0.09, 0.58, 0.1, -0.27, 1.2, 0), 3, white, 3);            // arms (sleeve top, skin lower via mask 3)
-  add(box(0.09, 0.58, 0.1, 0.27, 1.2, 0), 4, white, 3);
+  { const g = new THREE.CapsuleGeometry(0.075, 0.78, 6, 12); g.translate(-0.1, 0.5, 0); add(g, 1, jeans, 0); }
+  { const g = new THREE.CapsuleGeometry(0.075, 0.78, 6, 12); g.translate(0.1, 0.5, 0); add(g, 2, jeans, 0); }
+  { const g = new THREE.CapsuleGeometry(0.046, 0.5, 6, 10); g.translate(-0.26, 1.18, 0); add(g, 3, white, 3); }
+  { const g = new THREE.CapsuleGeometry(0.046, 0.5, 6, 10); g.translate(0.26, 1.18, 0); add(g, 4, white, 3); }
   return mergeGeometries(parts);
 }
 function humanMaterial(uniforms) {

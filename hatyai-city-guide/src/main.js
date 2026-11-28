@@ -8,6 +8,7 @@ import { buildFloatingMarket, buildPark, buildAirport } from './places.js';
 import { buildExtras } from './extras.js';
 import { buildLandmarks2 } from './landmarks2.js';
 import { buildLandmarks3 } from './landmarks3.js';
+import { buildMuayThaiGym, MuayThaiBout } from './muaythai.js';
 import { buildShopfronts, buildParked } from './streetlife.js';
 import { buildTrees, treeLayout, buildStreetFurniture, GlowSet, glowUniforms } from './props.js';
 import { Traffic, Walkers } from './life.js';
@@ -49,7 +50,7 @@ async function main() {
   setProgress('水上市場、公園、機場…', 0.5); await nextFrame();
   buildFloatingMarket(ctx); buildPark(ctx); buildAirport(ctx); buildExtras(ctx); buildLandmarks2(ctx);
   await fillCity(ctx, setProgress);
-  buildLandmarks3(ctx);
+  buildLandmarks3(ctx); buildMuayThaiGym(ctx);
   buildShopfronts(ctx);
 
   setProgress('合併建築幾何…', 0.8); await nextFrame();
@@ -91,6 +92,11 @@ async function main() {
   const sound = makeSound();
   const story = new StoryPlayer(document.getElementById('story'));
   const player = new Player(ctx, camera, canvas); let walking = false;
+  const bout = new MuayThaiBout(ctx, camera);
+  const enterFight = () => { if (!walking || bout.active) return; document.body.classList.add('mt-on'); document.body.classList.remove('mt-near'); player.root.visible = false; bout.start(); };
+  bout.onExit = () => { document.body.classList.remove('mt-on'); if (walking) { player.root.visible = true; player.spawnNear(ctx.gym.entrance.x, ctx.gym.entrance.z); player._cam = null; } };
+  document.getElementById('mt-enter').onclick = enterFight;
+  addEventListener('keydown', (e) => { if ((e.key === 'f' || e.key === 'F') && document.body.classList.contains('mt-near')) { e.preventDefault(); enterFight(); } }, true);
   const ui = createUI(ctx, director, atmo, camera, {
     explore: (on) => { explore = on; controls.enabled = on; if (on) { controls.target.copy(lookNow); controls.update(); } },
     tod: (k) => { todMode = k; },
@@ -104,7 +110,7 @@ async function main() {
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); post.setSize(innerWidth, innerHeight); });
 
   // debugging / screenshot hooks
-  window.__guide = { player, story, STORY_FOR, THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
+  window.__guide = { bout, player, story, STORY_FOR, THREE, scene, camera, director, atmo, ctx, renderer, post, setCam: (p, l, fov = 50) => { director.playing = false; window.__manual = { p, l, fov }; } };
   if (params.has('ch')) { const i = +params.get('ch'); director.seekChapter(i); director.time = director.chapters[i].t0 + (params.has('u') ? +params.get('u') * director.chapters[i].dur : 0.01); director.playing = false; }
   if (params.has('t')) { director.setTime(+params.get('t')); director.playing = false; }
   if (params.has('ui') && params.get('ui') === '0') document.body.classList.add('ui-off');
@@ -117,7 +123,8 @@ async function main() {
   const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.1); elapsed += dt;
     const ev = director.update(dt);
-    if (walking) { const lk = player.update(dt, elapsed, atmo.state.win); if (lk) lookNow.copy(lk); camera.fov += (55 - camera.fov) * Math.min(1, dt * 4); ui.walkHud(player.pos); }
+    if (bout.active) { const lk = bout.update(dt); if (lk) lookNow.copy(lk); }
+    else if (walking) { const nearGym = Math.hypot(player.pos.x - ctx.gym.entrance.x, player.pos.z - ctx.gym.entrance.z) < 10; document.body.classList.toggle('mt-near', nearGym); const lk = player.update(dt, elapsed, atmo.state.win); if (lk) lookNow.copy(lk); camera.fov += (55 - camera.fov) * Math.min(1, dt * 4); ui.walkHud(player.pos); }
     else if (window.__manual) { const m = window.__manual; camera.position.set(...m.p); lookNow.set(...m.l); camera.lookAt(lookNow); camera.fov = m.fov; }
     else if (!explore) {
       camera.position.copy(ev.pos); lookNow.copy(ev.look);
@@ -129,7 +136,7 @@ async function main() {
     } else { controls.update(); camera.getWorldDirection(v3); lookNow.copy(camera.position).addScaledVector(v3, Math.max(60, camera.position.y)); }
     camera.updateProjectionMatrix();
     // time of day
-    const target = todMode === 'auto' ? (walking ? 0.78 : ev.tod) : todMode === 'cycle' ? 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 80) : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
+    const target = todMode === 'auto' ? (bout.active ? 0.85 : walking ? 0.78 : ev.tod) : todMode === 'cycle' ? 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 / 80) : ({ day: 0.0, dusk: 0.4, night: 1.0 })[todMode];
     if (!params.has('tod')) atmo.set(target, !!window.__manual);
     sunFocus.copy(lookNow).y = 0; atmo.followCamera(camera.position);
     atmo.update(dt, sunFocus);

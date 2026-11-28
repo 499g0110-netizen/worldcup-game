@@ -26,7 +26,7 @@ export const L2 = {
   fruit: { x: -171, z: 69 },         // Santisuk market (OSM)
 };
 export function reserve2(occ) {
-  occ.mark(-55.3, 29.1, 13, 14, -0.14, 1); occ.mark(-139, -3, 30, 30, 0, 0);
+  occ.mark(82, -1562, 44, 44, 0, 2); occ.mark(-55.3, 29.1, 13, 14, -0.14, 1); occ.mark(-139, -3, 30, 30, 0, 0);
   occ.poly(L2.central, 30); occ.poly(L2.makroSite, 4);
   occ.mark(L2.chinda.x, L2.chinda.z, 30, 26, 0, 3); occ.mark(L2.iyara.x, L2.iyara.z, 10, 16, 0, 1); occ.mark(L2.hk.x, L2.hk.z, 70, 40, 0, 4);
 }
@@ -195,7 +195,7 @@ export function buildLandmarks2(ctx) {
     // interior: row of reclining massage chairs (white towels, yellow runner) with black stools
     for (let i = 0; i < 5; i++) { const zz = -6 + i * 2.2; const bed = box(1.0, 0.25, 2.0, -2.2, 0.7, zz, std(0xf4f2ee, { roughness: 0.9 })); const bk = box(1.0, 0.9, 0.2, -2.9, 1.05, zz, std(0xf4f2ee)); bk.position.set(-2.9 + 0.0, 1.05, zz); bk.rotation.z = 0.9; bk.position.x = -2.7; box(0.25, 0.27, 2.02, -2.2, 0.72, zz, std(0xf2b81a));
       box(0.6, 0.5, 0.6, -0.8, 0.45, zz, std(0x1a1a1a)); if (i % 2 === 0) { const k = ctx.people.add(0, 0, 0, 1, undefined, 0.04, 1.2, 1); const wp = new THREE.Vector3(-2.2, 0.35, zz); G.updateMatrixWorld(); G.localToWorld(wp); if (k >= 0) { ctx.people.items[k].x = wp.x; ctx.people.items[k].y = wp.y - 0.4; ctx.people.items[k].z = wp.z; } } }
-    const lamp = new THREE.PointLight(0xffe0b0, 12, 14, 1.6); lamp.position.set(0, 3.6, -1); G.add(lamp);
+    /* light removed for performance */
     const turf = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.2), std(0x3f8a3a, { roughness: 1 })); turf.rotation.x = -Math.PI / 2; turf.position.set(0, 0.14, 7.6); G.add(turf);
     for (let i = 0; i < 7; i++) box(0.12, 0.08, 0.28, -3 + (i % 4) * 0.35, 0.16, 6.4 + Math.floor(i / 4) * 0.35, std([0x1a1a1a, 0xd04a7a, 0x2a4a8a, 0xc8a080][i % 4]));
     G.updateMatrixWorld(); const w = new THREE.Vector3(0, 5.95, 6.6); G.localToWorld(w); glow.add(w.x, w.y - 0.5, w.z, 5, C('#ffc070'));
