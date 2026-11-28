@@ -743,6 +743,7 @@ export function openStory(id) {
   addEventListener('keydown', key, true);
   box.querySelector('.x').onclick = close;
   box.onclick = (e) => { if (e.target === box) close(); };
+  box.onpointerdown = () => audio.kick();
   window.__storySeek = (v) => { time = v; playing = false; };   // test hook
   for (const ev of ['pointerdown', 'touchstart', 'wheel']) box.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
   cancelAnimationFrame(rafId);

@@ -218,10 +218,35 @@ const SHOTS = {
   creak: [4, 2, (t) => tone(t, 180, 0.6, 0.06, 'sawtooth', 240, 0.2)],
 };
 
+/* ------------------------------------------------------------------ phones: unlocking sound
+ * iPhone/iPad: Web Audio only starts inside a tap, and it is silenced by the ring/silent switch. Playing a looping silent
+ * <audio> element during a film (and asking for the "playback" audio session where Safari supports it) moves the page
+ * into the media category, so the music plays even with the switch on silent. Android/Chrome also needs the first resume
+ * to happen inside a tap, so every tap on the film, and the very first tap on the page, unlocks the audio again. */
+let silentEl = null;
+function silentAudio() {
+  if (silentEl) return silentEl;
+  const sr = 8000, n = sr / 2, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  silentEl = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))); silentEl.loop = true; silentEl.preload = 'auto'; silentEl.setAttribute('playsinline', ''); silentEl.setAttribute('webkit-playsinline', '');
+  return silentEl;
+}
+export function unlockAudio() {
+  try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
+  const a = graph(); if (!a) return;
+  if (a.ctx.state !== 'running') a.ctx.resume?.().catch?.(() => {});
+  try { const b = a.ctx.createBuffer(1, 1, 22050), src = a.ctx.createBufferSource(); src.buffer = b; src.connect(a.ctx.destination); src.start(0); } catch { /* */ }
+}
+{
+  const first = () => { unlockAudio(); for (const ev of ['pointerup', 'touchend', 'click', 'keydown']) removeEventListener(ev, first, true); };
+  for (const ev of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, first, true);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && document.querySelector('#story.on') && A && A.ctx.state !== 'running') A.ctx.resume?.().catch?.(() => {}); });
+}
+
 export class StoryAudio {
   constructor() { this.muted = false; try { this.muted = localStorage.getItem('lub-mute') === '1'; } catch { /* */ } this.active = []; this.amb = []; }
   start(story) {   // must be called from a user gesture (opening the film)
-    if (!graph()) return; const { ctx } = A; ctx.resume?.();
+    unlockAudio(); if (!A) return; const { ctx } = A; silentAudio().play().catch(() => {});
     this.stopAll(); this.score = P[story.music || 'prelude_harpsi'](); this.sfx = story.sfx || []; this.scene = -2; this.lastNow = null; this.cursor = 0; this.nextShot = {};
     A.master.gain.cancelScheduledValues(ctx.currentTime); A.master.gain.setValueAtTime(this.muted ? 0 : 1.3, ctx.currentTime);
   }
@@ -232,12 +257,14 @@ export class StoryAudio {
     for (const v of this.active) { try { v.g.gain.cancelScheduledValues(t); v.g.gain.setTargetAtTime(0, t, fade / 3); } catch { /* */ } }
     this.active = []; for (const a of this.amb) a?.stop(); this.amb = [];
   }
-  close() { this.stopAll(0.4); if (A && A.ctx.state === 'running') setTimeout(() => { if (!document.querySelector('#story.on')) A.ctx.suspend(); }, 700); }
+  kick() { unlockAudio(); if (silentEl && silentEl.paused && document.querySelector('#story.on')) silentEl.play().catch(() => {}); }   // any tap on the film re-unlocks sound
+  close() { this.stopAll(0.4); silentEl?.pause(); if (A && A.ctx.state === 'running') setTimeout(() => { if (!document.querySelector('#story.on')) A.ctx.suspend(); }, 700); }
   // called every frame by the film player
   update(time, playing, sceneIdx) {
     if (!A || !this.score) return; const { ctx } = A;
-    if (!playing) { if (ctx.state === 'running') ctx.suspend(); return; }
-    if (ctx.state === 'suspended') { ctx.resume(); return; }
+    if (!playing) { if (!this.paused) { this.paused = true; this.stopAll(0.15); for (const a of this.amb) a?.stop(); this.amb = []; this.scene = -3; } return; }   // pause: silence, but keep the context running (resuming outside a tap fails on phones)
+    if (this.paused) { this.paused = false; this.lastNow = null; }
+    if (ctx.state !== 'running') { ctx.resume?.().catch?.(() => {}); return; }
     const now = ctx.currentTime;
     if (this.lastNow == null || Math.abs(time - (this.lastTime + (now - this.lastNow))) > 0.25) { this.stopAll(); this.cursor = time; this.scene = -2; }   // seek / restart
     this.lastTime = time; this.lastNow = now;
