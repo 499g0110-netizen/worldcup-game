@@ -155,6 +155,9 @@ body #joy i{width:40px;height:40px;margin:-20px 0 0 -20px;background:rgba(230,19
   body #tl{left:12px;right:12px;bottom:calc(2.5vh + 6px)}
   body .dot.on span{display:none}
 }
+#logo-big{display:block;width:min(560px,86vw);height:auto;margin:0 auto 6px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6))}
+body #hud .brand img{width:clamp(90px,11vw,150px);height:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.6))}
+@media (max-width:760px){body #hud .brand{display:block;left:10px}body #hud .brand img{width:92px}body.walk #hud .brand{display:none}}
 </style>
 </head>
 <body>
@@ -164,8 +167,8 @@ body #joy i{width:40px;height:40px;margin:-20px 0 0 -20px;background:rgba(230,19
 <div id="intro">
   <div class="in">
     <div class="k">CINEMATIC CITY GUIDE · 7.0058°N 100.4717°E</div>
-    <h1>合艾</h1>
-    <h2>HAT YAI &nbsp;·&nbsp; หาดใหญ่</h2>
+    <img id="logo-big" src="LOGO_DATA" alt="合艾 Hat Yai 泰國南部商貿小鎮">
+    
     <p>以 OpenStreetMap 的真實座標重建。從李花園廣場酒店出發，由市中心向外：石板街、Kim Yong 市場、火車總站，一路飛到水上市場、山丘公園與機場。</p>
     <div id="loader"><div id="ld-track"><div id="ld-bar"></div></div><div id="ld-txt">準備中…</div></div>
     <button id="start" disabled>載入中</button>
@@ -173,7 +176,7 @@ body #joy i{width:40px;height:40px;margin:-20px 0 0 -20px;background:rgba(230,19
 </div>
 
 <div id="hud">
-  <div class="brand"><b>合艾 HAT YAI</b>CITY GUIDE</div>
+  <div class="brand"><img src="LOGO_DATA" alt="合艾 Hat Yai"></div>
   <div id="topbtns"><button id="walk-mini" aria-label="角色漫遊" title="角色漫遊 (G)">🚶</button><button id="menu-btn" aria-label="選單" title="選單 (M)">☰</button></div>
   <div id="card"><div id="c-idx"></div><div id="c-zh"></div><div id="c-en"></div><div id="c-desc"></div><div id="c-tag"></div><button id="c-story">▶ 故事動畫</button></div>
   <div id="tl"><div id="tl-track"><div id="tl-fill"></div><div id="tl-dots"></div></div></div>

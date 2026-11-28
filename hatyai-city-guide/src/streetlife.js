@@ -25,6 +25,7 @@ const SIGNS = [
   ['ร้านทอง แม่ทองสุก', '金店', '#c01818', '#ffe9a0', 'gold'], ['ชาบู', 'SHABU 火鍋', '#1a1a1a', '#ff5a3a', 'food'],
   ['เสื้อผ้า', 'FASHION 服飾', '#e0508a', '#ffffff', 'shop'], ['ขนมไทย', 'THAI DESSERT', '#2a8a5a', '#fff3c8', 'food'],
   ['ไก่ทอดหาดใหญ่', 'HAT YAI FRIED CHICKEN', '#a33a10', '#ffe08a', 'food'], ['รองเท้า', 'SHOES 鞋店', '#333a48', '#f2f2f2', 'shop'],
+  ['ก๋วยเตี๋ยวเรือ', '船麵 BOAT NOODLES', '#1d4a7a', '#ffd27a', 'boat'], ['เรือ ก๋วยเตี๋ยว', '船仔麵 15฿', '#8a2a14', '#fff0c8', 'boat'], ['ก๋วยเตี๋ยวเรืออยุธยา', 'BOAT NOODLE 船麵', '#0e6b5a', '#ffffff', 'boat'],
 ];
 const COLS = 8, ROWS = Math.ceil(SIGNS.length / COLS);
 
@@ -68,13 +69,16 @@ export function buildShopfronts(ctx) {
   const pink = new THREE.Color('#ff5ab4'), purple = new THREE.Color('#b46aff'), warm = new THREE.Color('#ffc078');
   const awCols = ['#c8281e', '#1d5fb8', '#1f8a4c', '#e8a31d', '#7a2d9a', '#e8742a', '#2a2a2a', '#d0d0c8'];
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), C = new THREE.Color();
-  let si = 0, ai = 0, ci = 0, pi = 0, li = 0;
+  let si = 0, ai = 0, ci = 0, pi = 0, li = 0; const boats = [];
   const setUv = (idx, k) => uvRect.setXYZW(idx, (k % COLS) / COLS, 1 - (Math.floor(k / COLS) + 1) / ROWS, 1 / COLS, 1 / ROWS);
   for (const f of fronts) {
     const yaw = Math.atan2(f.fnx, f.fnz); Q.setFromAxisAngle(up, yaw);
     const ox = f.fnx, oz = f.fnz;           // outward normal (toward street)
     // pick sign; ~22% massage near the centre
-    let k = Math.floor(rnd() * SIGNS.length); if (f.d0 < 1300 && rnd() < 0.22) k = Math.floor(rnd() * 5);
+    let k = Math.floor(rnd() * SIGNS.length); const rr = rnd(); if (f.d0 < 1300 && rr < 0.2) k = Math.floor(rnd() * 5); else if (rr < 0.36) k = SIGNS.length - 1 - Math.floor(rnd() * 3);
+    const isBoat = SIGNS[k][4] === 'boat';
+    if (rnd() < 0.4) (ctx.parkSpots || (ctx.parkSpots = [])).push({ x: f.x + f.fnx * 3.0 + (-f.fnz) * (rnd() - 0.5) * f.w * 0.5, z: f.z + f.fnz * 3.0 + f.fnx * (rnd() - 0.5) * f.w * 0.5, yaw: Math.atan2(-f.fnz, f.fnx) });
+    if (isBoat) boats.push(f);
     const isMassage = SIGNS[k][4] === 'massage';
     const sw = Math.min(f.w * 0.86, 7.5);
     M.compose(V.set(f.x + ox * 0.12, 3.75, f.z + oz * 0.12), Q, Sc.set(sw, sw * 0.375 > 1.6 ? 1.6 : sw * 0.375, 1)); signs.setMatrixAt(si, M); setUv(si, k); si++;
@@ -111,4 +115,41 @@ export function buildShopfronts(ctx) {
   glow.build(scene);
   ctx.update.push((dt, t, S) => { glow.mat.uniforms.uInt.value = 0.05 + 1.1 * S.win; });
   ctx.massageCount = li;
+  // ---- boat-noodle shops: a little wooden boat on the pavement holding the soup pots ----
+  {
+    const hull = new THREE.BoxGeometry(1.0, 0.45, 2.6); const hp = hull.attributes.position; for (let i = 0; i < hp.count; i++) if (Math.abs(hp.getZ(i)) > 1.2) { hp.setX(i, hp.getX(i) * 0.3); hp.setY(i, hp.getY(i) + 0.15); } hull.computeVertexNormals();
+    const hullM = new THREE.InstancedMesh(hull, new THREE.MeshStandardMaterial({ roughness: 0.7 }), boats.length || 1);
+    const pot = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.28, 0.25, 0.4, 12), new THREE.MeshStandardMaterial({ color: 0xc0c4c8, metalness: 0.85, roughness: 0.25 }), (boats.length || 1) * 2);
+    const tab = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 0.06, 0.8), new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.6 }), (boats.length || 1) * 2);
+    const bcol = ['#a33a1a', '#1d5fb8', '#1f8a4c', '#6b3a1e'];
+    boats.forEach((f, i) => { const yaw = Math.atan2(f.fnx, f.fnz) + Math.PI / 2, rx = -f.fnz, rz = f.fnx, e = f.w * 0.25;
+      Q.setFromAxisAngle(up, yaw); M.compose(V.set(f.x + f.fnx * 1.3 + rx * e, 0.55, f.z + f.fnz * 1.3 + rz * e), Q, Sc.set(1, 1, 1)); hullM.setMatrixAt(i, M); C.set(bcol[i % 4]); hullM.setColorAt(i, C);
+      for (const k of [-0.5, 0.5]) { M.compose(V.set(f.x + f.fnx * 1.3 + rx * (e + k), 0.98, f.z + f.fnz * 1.3 + rz * (e + k)), Q, Sc.set(1, 1, 1)); pot.setMatrixAt(i * 2 + (k > 0 ? 1 : 0), M); }
+      for (const k of [-1, 1]) { M.compose(V.set(f.x + f.fnx * 2.6 + rx * (e * k - 0.3), 0.75, f.z + f.fnz * 2.6 + rz * (e * k - 0.3)), Q, Sc.set(1, 1, 1)); tab.setMatrixAt(i * 2 + (k > 0 ? 1 : 0), M);
+        const ci3 = ctx.people.add(f.x + f.fnx * 2.0 + rx * (e * k - 0.3), 0.1 - 0.42, f.z + f.fnz * 2.0 + rz * (e * k - 0.3), 1, undefined, 0.07, 1.4, 1); if (ci3 >= 0) ctx.people.items[ci3].rot = yaw - Math.PI / 2; }
+      glow.add(f.x + f.fnx * 1.3, 2.4, f.z + f.fnz * 1.3, 4, warm); });
+    hullM.count = boats.length; pot.count = boats.length * 2; tab.count = boats.length * 2;
+    for (const m of [hullM, pot, tab]) { m.frustumCulled = false; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.castShadow = true; scene.add(m); }
+  }
+  // ---- ornate curved pediments on top of the Sino-Portuguese shophouses ----
+  const peds = ctx.pediments || [];
+  if (peds.length) {
+    const sh = new THREE.Shape(); sh.moveTo(-0.5, 0); sh.lineTo(0.5, 0); sh.lineTo(0.5, 0.12); sh.bezierCurveTo(0.42, 0.12, 0.36, 0.3, 0.22, 0.34); sh.bezierCurveTo(0.14, 0.5, 0.06, 0.62, 0, 0.66); sh.bezierCurveTo(-0.06, 0.62, -0.14, 0.5, -0.22, 0.34); sh.bezierCurveTo(-0.36, 0.3, -0.42, 0.12, -0.5, 0.12); sh.closePath();
+    const pg = new THREE.ExtrudeGeometry(sh, { depth: 0.25, bevelEnabled: false, curveSegments: 10 });
+    const ped = new THREE.InstancedMesh(pg, new THREE.MeshStandardMaterial({ roughness: 0.7 }), peds.length);
+    const ball = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), peds.length * 2);
+    peds.forEach((p, i) => { const yaw = Math.atan2(p.fnx, p.fnz); Q.setFromAxisAngle(up, yaw); const k = p.s < 0.55 ? 1 : 0.7;
+      M.compose(V.set(p.x - p.fnx * 0.05, p.h, p.z - p.fnz * 0.05), Q, Sc.set(p.w * 0.92 * k, 2.4, 1)); ped.setMatrixAt(i, M); C.copy(p.c).lerp(new THREE.Color('#f4f0e6'), p.s < 0.4 ? 0.7 : 0.15); ped.setColorAt(i, C);
+      const rx = -p.fnz, rz = p.fnx; for (const s2 of [-1, 1]) { M.compose(V.set(p.x + rx * s2 * p.w * 0.46, p.h + 0.35, p.z + rz * s2 * p.w * 0.46), Q, Sc.set(1, 1, 1)); ball.setMatrixAt(i * 2 + (s2 > 0 ? 1 : 0), M); } });
+    for (const m of [ped, ball]) { m.frustumCulled = false; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.castShadow = true; scene.add(m); }
+  }
+}
+
+// parked cars along the kerbs (uses the traffic car model)
+export function buildParked(ctx, traffic) {
+  const spots = (ctx.parkSpots || []).filter(s => !ctx.hashAll || true).slice(0, 900); if (!spots.length) return;
+  const im = new THREE.InstancedMesh(traffic.g.car.geometry, traffic.g.car.material, spots.length); const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), C = new THREE.Color(); const rnd = mulberry32(3);
+  const pal = ['#d8dadc', '#f2f2f2', '#2b2d31', '#8a8f96', '#6a1c1c', '#1d3c6e', '#c9ccd1', '#f2f2f2'];
+  spots.forEach((s, i) => { Q.setFromAxisAngle(up, s.yaw + (rnd() < 0.5 ? 0 : Math.PI)); M.compose(new THREE.Vector3(s.x, 0.05, s.z), Q, new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, M); C.set(pal[Math.floor(rnd() * pal.length)]); im.setColorAt(i, C); });
+  im.frustumCulled = false; im.castShadow = true; ctx.scene.add(im);
 }

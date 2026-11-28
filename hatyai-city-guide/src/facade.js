@@ -83,6 +83,7 @@ vec3 fWallCol;
     else if (st < 3.5) { fhgt = 3.5; ww = 1.5; }
     else if (st < 4.5) { fhgt = 5.0; ww = 4.0; }
     else if (st < 5.5) { fhgt = 3.0; ww = 3.2; }
+    else if (st > 6.5) { fhgt = 3.7; ww = 2.7; }
     else { fhgt = 3.5; ww = 4.0; }
     float fi = floor(v/fhgt), wi = floor(u/ww);
     vec2 cell = vec2(fract(u/ww), fract(v/fhgt));
@@ -152,6 +153,38 @@ vec3 fWallCol;
       wallc = mix(wallc, wallc*0.7, rail*0.6);
       float bal = fbox(cell, vec2(0.52,0.18), vec2(0.98,0.5), aa)*step(0.5, rnd2);
       win = max(win, bal*0.9);
+    } else if (st > 6.5) {               // ---- Sino-Portuguese shophouse (colourful, arched, shuttered)
+      vec3 trim = mix(vec3(0.95,0.93,0.86), vec3(0.22,0.47,0.78), step(0.62, fh21(vec2(seed,2.2))));
+      float pil = 1.0 - fbox(cell, vec2(0.09,0.0), vec2(0.91,1.0), aa);
+      wallc = mix(base, trim, pil*0.85);
+      float cornice = fbox(cell, vec2(0.0,0.9), vec2(1.0,1.0), aa); wallc = mix(wallc, trim*0.95, cornice);
+      float shut = step(0.4, fh21(vec2(wi+seed*7.,5.)));
+      if (fi < 0.5) {
+        float arch = cell.y < 0.62 ? fbox(cell, vec2(0.14,0.0), vec2(0.86,0.62), aa) : 1.0 - smoothstep(0.33, 0.35, length((cell - vec2(0.5,0.62))*vec2(1.0,1.45)));
+        float gate = 0.82 + 0.18*step(0.5, fract(u*5.0));
+        vec3 deep = mix(vec3(0.045,0.04,0.035), vec3(0.34,0.35,0.36)*gate, shut);
+        wallc = mix(wallc, deep, arch); win = 0.0;
+        fEmit += arch*(1.0-shut)*vec3(1.0,0.78,0.5)*night*0.7;
+      } else {
+        float hi = 0.7;
+        float rect = fbox(cell, vec2(0.3,0.16), vec2(0.7,hi), aa);
+        float top = (1.0 - smoothstep(0.19, 0.21, length((cell-vec2(0.5,hi))*vec2(1.0,1.25)))) * step(hi, cell.y);
+        float wm = max(rect, top);
+        float open = step(0.6, rnd);
+        vec3 shutC = mix(vec3(0.14,0.42,0.3), vec3(0.78,0.56,0.16), step(0.55, fh21(vec2(seed,3.3))));
+        shutC = mix(shutC, vec3(0.2,0.4,0.7), step(0.8, fh21(vec2(seed,6.6))));
+        float louv = 0.78 + 0.22*step(0.5, fract(cell.y*36.0));
+        wallc = mix(wallc, shutC*louv, wm*(1.0-open));
+        win = wm*open;
+        float fan = top*step(0.8, fract(atan(cell.y-hi, cell.x-0.5)*2.6));
+        wallc = mix(wallc, trim, fan); win *= 1.0 - fan;
+        float med = 1.0 - smoothstep(0.045, 0.06, length((cell-vec2(0.5,0.85))*vec2(1.0,1.6)));
+        wallc = mix(wallc, trim, med);
+        litProb = max(litProb, 0.25);
+      }
+      float peel = smoothstep(0.62, 0.72, fvn(vec2(u*1.3, v*1.1) + seed*10.0));
+      wallc = mix(wallc, wallc*0.72 + vec3(0.07), peel*0.55);
+      wallc *= 1.0 - 0.25*smoothstep(0.35, 0.0, fract(v/fhgt))*step(0.7, fvn(vec2(u*0.8, v*0.3)));   // rain streaks
     } else {                              // ---- plain concrete
       win = fbox(cell, vec2(0.4,0.4), vec2(0.6,0.6), aa)*step(0.8, rnd);
     }

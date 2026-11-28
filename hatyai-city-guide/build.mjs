@@ -5,6 +5,7 @@ const res = await build({
   loader: { '.json': 'json' }, legalComments: 'none', logLevel: 'info',
 });
 let js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-const html = fs.readFileSync('template.html', 'utf8').replace('/*BUNDLE*/', () => js);
+const logo = 'data:image/webp;base64,' + fs.readFileSync('src/logo.webp').toString('base64');
+const html = fs.readFileSync('template.html', 'utf8').replaceAll('LOGO_DATA', logo).replace('/*BUNDLE*/', () => js);
 fs.writeFileSync('index.html', html);
 console.log('index.html', (html.length / 1024 / 1024).toFixed(2), 'MB');

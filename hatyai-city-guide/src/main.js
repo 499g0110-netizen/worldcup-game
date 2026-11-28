@@ -6,7 +6,7 @@ import { Atmosphere } from './sky.js';
 import { reserve, buildLandmarks } from './landmarks.js';
 import { buildFloatingMarket, buildPark, buildAirport } from './places.js';
 import { buildExtras } from './extras.js';
-import { buildShopfronts } from './streetlife.js';
+import { buildShopfronts, buildParked } from './streetlife.js';
 import { buildTrees, treeLayout, buildStreetFurniture, GlowSet, glowUniforms } from './props.js';
 import { Traffic, Walkers } from './life.js';
 import { createPost } from './post.js';
@@ -69,7 +69,7 @@ async function main() {
   const trees = treeLayout(ctx).concat(ctx.extraTrees || []);
   buildTrees(ctx, trees);
   buildStreetFurniture(ctx);
-  const traffic = new Traffic(ctx, 460); const walkers = new Walkers(ctx, null, 480);
+  const traffic = new Traffic(ctx, 460); buildParked(ctx, traffic); const walkers = new Walkers(ctx, null, 480);
   // far-field city lights (suburban glow seen from above)
   {
     const gs = new GlowSet('city', 40); const rnd = mulberry32(2024); const warm = new THREE.Color(1, 0.7, 0.36), white = new THREE.Color(0.85, 0.92, 1), amber = new THREE.Color(1, 0.55, 0.2);

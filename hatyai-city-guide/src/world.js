@@ -31,7 +31,8 @@ export function groundY(x, z) {
   let h = 0;
   const bump = (cx, cz, r, hh) => { const d = Math.hypot(x - cx, z - cz) / r; return d < 1 ? hh * Math.pow(1 - d * d, 2) : 0; };
   h += bump(5400, -1270, 1500, 250) + bump(6300, -2200, 1100, 150);       // Khao Kho Hong
-  h += bump(4330, -3900, 950, 75);                                          // Municipal Park hill
+  h += bump(4330, -3900, 950, 75);
+  h += bump(4980, -4380, 820, 165);                                          // higher peak: elephant shrine (cable car)                                          // Municipal Park hill
   const r = Math.hypot(x, z);
   const ring = smooth(9500, 16500, r) * (150 + 750 * fbm(x * 0.00028 + 3, z * 0.00028 + 9, 4)) * (0.35 + 0.65 * fbm(Math.atan2(z, x) * 2.4 + 5, 1.7, 3));
   h += ring * smooth(3200, 6500, Math.hypot(x - AIRPORT[0], z - AIRPORT[1]));
@@ -133,6 +134,7 @@ export function ribGeo(o) {
 
 // ---------------------------------------------------------------
 export const PALETTE = ['#e8dcc0', '#d9d2c0', '#c9c2b0', '#ece6d4', '#d8c9a8', '#bdb8a8', '#c4d0cf', '#d9b9a5', '#e3d5a1', '#9fb0a6', '#f0f0ea', '#cfc3ae', '#b9b0a0', '#e1c7b0'].map(h => new THREE.Color(h));
+export const SINO = ['#e8c34a', '#4a9ad0', '#5ab8b0', '#e8844a', '#e07a6a', '#8ac8a0', '#a08ad0', '#f0e0b0', '#e89ab8', '#efece4', '#7ab8e0', '#f2a65a'].map(h => new THREE.Color(h));
 export const ROOFS = ['#6a6a6a', '#7a5a4a', '#8a8a86', '#5a5f66', '#8c6a52'].map(h => new THREE.Color(h));
 
 export async function buildWorld(ctx, progress) {
@@ -318,15 +320,19 @@ export async function fillCity(ctx, progress) {
     if (occ.hit(cx, cz, w, d, rot, 0.6)) return false;
     // floors by zone
     let fl; const r = rnd();
-    if (d0 < 650) fl = 3 + Math.floor(Math.pow(r, 1.6) * 7); else if (d0 < 1500) fl = 2 + Math.floor(r * 5); else if (d0 < 3000) fl = 2 + Math.floor(r * 3); else fl = 1 + Math.floor(r * 2.4);
+    // Hat Yai is a low-rise market town: mostly 2–4 storey shophouses, a few mid-rise hotels
+    if (d0 < 700) fl = 2 + Math.floor(Math.pow(r, 1.5) * 3.2); else if (d0 < 1600) fl = 2 + Math.floor(r * 2.2); else fl = 1 + Math.floor(r * 2.4);
     if (uVal < 0.3) fl = Math.min(fl, 2);
-    if (rnd() < 0.035 && d0 < 1800) fl += 6 + Math.floor(rnd() * 10);
+    if (rnd() < 0.06 && d0 < 1200) fl += 2 + Math.floor(rnd() * 4);
+    if (rnd() < 0.006 && d0 < 900) fl += 6 + Math.floor(rnd() * 6);
     const fh = 3.3;
     const h = fl * fh + (fl > 1 ? 0.5 : 0.3);
     let style = 0;
     if (fl >= 12) style = rnd() < 0.55 ? 1 : 5; else if (fl >= 7) style = rnd() < 0.5 ? 5 : (rnd() < 0.5 ? 1 : 0); else if (fl <= 2 && d0 > 1000) style = rnd() < 0.5 ? 6 : 0;
     if (!frontage && style === 0 && fl > 2) style = rnd() < 0.5 ? 5 : 0;
-    const c = col().clone().multiplyScalar(0.85 + rnd() * 0.25);
+    let pastel = null;
+    if (frontage && fl >= 2 && fl <= 4 && d0 < 1900 && rnd() < 0.68) { style = 7; pastel = SINO[Math.floor(rnd() * SINO.length)].clone(); }
+    const c = pastel || col().clone().multiplyScalar(0.85 + rnd() * 0.25);
     const batch = batches.at(cx, cz);
     const house = fl <= 2 && d0 > 1300 && rnd() < 0.55;
     if (house) {
@@ -334,7 +340,8 @@ export async function fillCity(ctx, progress) {
       batch.gable(cx, cz, w, d, rot, h - 0.4, 2.4, ROOFS[Math.floor(rnd() * ROOFS.length)].clone().multiplyScalar(0.9 + rnd() * 0.3), rnd());
     } else {
       batch.box(cx, cz, w, d, rot, 0, h, { style, color: c, seed: rnd(), roofColor: ROOFS[Math.floor(rnd() * ROOFS.length)] });
-      if (frontage && (style === 0 || style === 5) && d0 < 2600) (ctx.shopfronts || (ctx.shopfronts = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, rot, fl, d0, h });
+      if (style === 7) (ctx.pediments || (ctx.pediments = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, h, c: c.clone(), s: rnd() });
+      if (frontage && (style === 0 || style === 5 || style === 7) && d0 < 2600) (ctx.shopfronts || (ctx.shopfronts = [])).push({ x: cx + fnx * d / 2, z: cz + fnz * d / 2, w, fnx, fnz, rot, fl, d0, h });
       if (fl >= 3 && rnd() < 0.55) tanks.push([cx + (rnd() - 0.5) * w * 0.4, h, cz + (rnd() - 0.5) * d * 0.4, 0.8 + rnd() * 0.5]);
     }
     occ.mark(cx, cz, w, d, rot, 0.4); count++;

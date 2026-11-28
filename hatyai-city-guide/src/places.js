@@ -305,8 +305,11 @@ function buildBuddhaComplex(ctx, bx, by, bz, glow) {
   put(new THREE.BoxGeometry(22, 4.5, 22), grey, 0, 2.25, 0); put(new THREE.BoxGeometry(17, 3.5, 17), grey, 0, 6.25, 0); put(new THREE.BoxGeometry(12, 1.2, 12), white, 0, 8.6, 0);
   for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; put(new THREE.BoxGeometry(3, 2.5, 0.2), stdMat(0x2a2a2a), Math.sin(a) * 8.6, 6, Math.cos(a) * 8.6); }
   put(new THREE.CylinderGeometry(5.2, 4.2, 1.6, 32), gold, 0, 10, 0); put(new THREE.CylinderGeometry(4.2, 5.4, 1.4, 32), gold, 0, 11.4, 0);
-  const robe = new THREE.LatheGeometry([[0.01, 0], [1.25, 0], [1.75, 0.6], [1.85, 3], [1.7, 6.5], [1.6, 9.5], [1.75, 12.5], [2.0, 15], [2.25, 16.4], [1.55, 17.3], [0.6, 17.7], [0.01, 17.8]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
-  const rb = put(robe, gold, 0, 12.1, 0); rb.scale.set(1, 1, 0.72);
+  const robe = new THREE.LatheGeometry([[0.01, 0], [1.5, 0], [2.15, 0.35], [2.25, 1.2], [1.95, 3], [1.75, 6.5], [1.7, 9.5], [1.9, 12.5], [2.3, 15], [2.6, 16.3], [2.2, 17.1], [1.2, 17.6], [0.6, 17.8], [0.01, 17.85]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+  const rb = put(robe, gold, 0, 12.1, 0); rb.scale.set(1, 1, 0.68);
+  for (let k = 0; k < 7; k++) { const f = put(new THREE.TorusGeometry(1.9 - k * 0.02, 0.05, 4, 30, Math.PI * 0.9), gold, 0, 13.5 + k * 1.5, 0.2, Math.PI / 2 - 0.15, 0); f.scale.set(1, 0.68, 1); }
+  for (const s of [-1, 1]) { put(new THREE.CapsuleGeometry(0.22, 0.9, 4, 8), gold, s * 1.18, 31.4, -0.05); }
+  put(new THREE.SphereGeometry(0.9, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), gold, 0, 32.5, -0.05);
   put(new THREE.CylinderGeometry(0.55, 0.65, 0.9, 16), gold, 0, 30.2, 0);
   const head = put(new THREE.SphereGeometry(1.25, 28, 22), gold, 0, 31.6, 0.05); head.scale.set(0.95, 1.12, 1);
   put(new THREE.SphereGeometry(0.75, 18, 14), gold, 0, 32.75, -0.05); put(new THREE.ConeGeometry(0.32, 1.6, 14), gold, 0, 34.0, -0.05);
@@ -382,4 +385,71 @@ function buildBuddhaComplex(ctx, bx, by, bz, glow) {
     if (i % 2 === 0) { hp(new THREE.CylinderGeometry(0.06, 0.08, 3.6, 6), white, x + 3, 1.8, z + 1); const gl = hp(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.8 }), x + 3, 3.7, z + 1); const w = new THREE.Vector3(); gl.getWorldPosition(w); glow.add(w.x, w.y, w.z, 6, C('#fff2d6')); } }
   const hw = new THREE.Vector3(); H.updateMatrixWorld(); H.localToWorld(hw.set(0, 8, 12)); glow.add(hw.x, hw.y, hw.z, 40, C('#ffcf80'));
   ctx.ornateHall = { x: ox, z: oz };
+  buildCableAndElephant(ctx, glow);
+}
+
+
+// =====================================================================
+//  Cable car from the Buddha terrace up to a higher peak with a giant
+//  elephant-headed deity (Phra Phikanet) shrine. Upper station position approximate.
+// =====================================================================
+function buildCableAndElephant(ctx, glow) {
+  const { scene } = ctx;
+  const st = DATA.blds.find(b => b.n.includes('พระพุทธมงคลมหาราช') && b.c === 'aerialway');
+  let lx = 4310, lz = -3918; if (st) { const P = ring(st.p); lx = 0; lz = 0; P.forEach(q => { lx += q[0] / P.length; lz += q[1] / P.length; }); }
+  const ux = 4980, uz = -4380; const ly = groundY(lx, lz) + 9, uy = groundY(ux, uz) + 12;
+  const std = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o));
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; scene.add(o); return o; };
+  // stations
+  const steel = std(0x9aa0a6, { metalness: 0.7, roughness: 0.35 });
+  for (const [x, y, z] of [[lx, ly, lz], [ux, uy, uz]]) { add(new THREE.BoxGeometry(14, 1, 10), std(0xe8e4d8), x, y - 0.5, z); add(new THREE.BoxGeometry(14, 0.6, 10), std(0xb8452a), x, y + 6, z); for (const [a, b] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) add(new THREE.CylinderGeometry(0.25, 0.25, 6, 8), steel, x + a, y + 3, z + b); glow.add(x, y + 5, z, 14, C('#ffd9a0')); }
+  // towers + two cables (up/down)
+  const dx = ux - lx, dz = uz - lz, L = Math.hypot(dx, dz), nx = -dz / L, nz = dx / L;
+  const cable = (t, side) => { const x = lx + dx * t + nx * side * 2.2, z = lz + dz * t + nz * side * 2.2; const y = ly + 7 + (uy - ly) * t - Math.sin(t * Math.PI) * 14; return new THREE.Vector3(x, y, z); };
+  for (const side of [-1, 1]) { const pts = []; for (let i = 0; i <= 80; i++) pts.push(cable(i / 80, side)); const g = new THREE.BufferGeometry().setFromPoints(pts); scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x222222 }))); }
+  for (let k = 1; k < 5; k++) { const t = k / 5, x = lx + dx * t, z = lz + dz * t, gy = groundY(x, z), top = cable(t, 0).y + 1.2; add(new THREE.CylinderGeometry(0.5, 0.9, top - gy, 8), steel, x, (top + gy) / 2, z); add(new THREE.BoxGeometry(1, 0.5, 6), steel, x, top, z).lookAt(x + nx, top, z + nz); }
+  // gondolas (red cabins, as on the logo)
+  const cab = new THREE.Group(); const cm = std(0xc8202a, { roughness: 0.4 }), gl = new THREE.MeshPhysicalMaterial({ color: 0x223344, roughness: 0.1, metalness: 0.3 });
+  const mkCab = () => { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), cm); b.position.y = -2.4; g.add(b); const w = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.9, 2.25), gl); w.position.y = -2.0; g.add(w); const r = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.1), steel); r.position.y = -0.65; g.add(r); g.traverse(o => o.castShadow = true); scene.add(g); return g; };
+  const cabs = []; for (let i = 0; i < 10; i++) cabs.push({ g: mkCab(), t: i / 10, side: i % 2 ? 1 : -1 });
+  ctx.update.push((dt) => { for (const c of cabs) { c.t = (c.t + dt * 0.012) % 1; const t = c.side > 0 ? c.t : 1 - c.t; const p = cable(t, c.side); c.g.position.copy(p); c.g.rotation.y = Math.atan2(dx, dz); } });
+  ctx.cable = { lx, lz, ux, uz };
+  // ---- elephant shrine on the upper peak ----
+  const ex = ux - 30, ez = uz + 10, ey = groundY(ex, ez);
+  add(new THREE.CylinderGeometry(32, 36, 4, 40), std(0xd8d0c0), ex, ey - 1, ez);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe0b040, metalness: 0.9, roughness: 0.25, emissive: 0x6a4008, emissiveIntensity: 0.12 }); ctx.nightMats.push({ mat: gold, base: 0.1, k: 1.0 });
+  const pink = new THREE.MeshStandardMaterial({ color: 0xe8a0a8, roughness: 0.45, metalness: 0.15 });
+  const E = new THREE.Group(); E.position.set(ex, ey + 1, ez); E.rotation.y = Math.atan2(-ex, -ez); scene.add(E);
+  const ep = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; E.add(o); return o; };
+  ep(new THREE.CylinderGeometry(9, 10, 2.4, 40), std(0xf2efe6), 0, 1.2, 0); ep(new THREE.CylinderGeometry(7.5, 8.5, 1.8, 40), gold, 0, 3.3, 0);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const pet = ep(new THREE.SphereGeometry(1.4, 10, 8), pink, Math.cos(a) * 7.6, 3.6, Math.sin(a) * 7.6); pet.scale.set(1, 0.6, 0.5); pet.rotation.y = -a; }
+  const legs = ep(new THREE.SphereGeometry(5.2, 28, 18), pink, 0, 6.5, 0.6); legs.scale.set(1.25, 0.5, 1.0);
+  const belly = ep(new THREE.SphereGeometry(4.0, 28, 20), pink, 0, 10.2, 0.3); belly.scale.set(1, 1.05, 0.95);
+  const chest = ep(new THREE.SphereGeometry(3.3, 24, 18), pink, 0, 13.4, -0.2); chest.scale.set(1.15, 0.9, 0.85);
+  ep(new THREE.TorusGeometry(3.4, 0.35, 8, 30), gold, 0, 11.6, 0.2, Math.PI / 2);                     // jewelled belt
+  for (let i = 0; i < 9; i++) ep(new THREE.SphereGeometry(0.4, 10, 8), std(0xff8a1a), Math.cos(i / 8 * Math.PI) * 2.6, 13.6 - Math.sin(i / 8 * Math.PI) * 1.6, 2.2); // marigold garland
+  const head = ep(new THREE.SphereGeometry(2.6, 26, 20), pink, 0, 17.2, 0.4); head.scale.set(1, 1.08, 1);
+  for (const s of [-1, 1]) { const ear = ep(new THREE.SphereGeometry(2.6, 20, 14), pink, s * 2.9, 17.2, -0.2, 0, s * 0.25, 0); ear.scale.set(0.25, 1.2, 1.0);
+    ep(new THREE.SphereGeometry(0.28, 10, 8), std(0x1a1414), s * 0.95, 17.8, 2.6);                     // eyes
+    ep(new THREE.ConeGeometry(0.28, 1.6, 10), std(0xf4f0e0), s * 0.9, 15.9, 2.6, Math.PI / 2 + 0.4, 0, 0); } // tusks
+  const trunkCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 16.6, 2.6), new THREE.Vector3(0, 14.6, 3.4), new THREE.Vector3(0.6, 12.6, 3.3), new THREE.Vector3(1.6, 11.8, 3.6), new THREE.Vector3(2.2, 12.6, 3.9)]);
+  ep(new THREE.TubeGeometry(trunkCurve, 30, 0.6, 12, false), pink, 0, 0, 0);
+  let cy = 19.6, cr = 1.9; for (let k = 0; k < 6; k++) { ep(new THREE.CylinderGeometry(cr * 0.82, cr, 0.9, 20), gold, 0, cy, 0.3); cy += 0.9; cr *= 0.8; } ep(new THREE.ConeGeometry(0.4, 2.4, 14), gold, 0, cy + 1.2, 0.3);
+  // four arms holding symbols
+  for (const s of [-1, 1]) {
+    ep(new THREE.CapsuleGeometry(0.75, 4.2, 6, 12), pink, s * 4.2, 14.2, 0.2, 0, 0, s * 0.9);
+    ep(new THREE.CapsuleGeometry(0.7, 3.6, 6, 12), pink, s * 4.6, 11.0, 1.4, -0.6, 0, -s * 0.3);
+    ep(new THREE.SphereGeometry(0.9, 12, 10), gold, s * 6.3, 16.0, 0.2);
+    ep(new THREE.SphereGeometry(0.8, 12, 10), s > 0 ? std(0xf2c040) : gold, s * 5.0, 9.4, 3.0);
+  }
+  const halo = ep(new THREE.TorusGeometry(5.2, 0.35, 8, 48), gold, 0, 17.5, -2.4);
+  // shrine pavilions, incense, flowers
+  const b = ctx.batches.at(ex, ez);
+  for (const [a, r] of [[0.9, 22], [-0.9, 22]]) { const px = ex + Math.cos(a + E.rotation.y) * r, pz = ez + Math.sin(a + E.rotation.y) * r;
+    b.box(px, pz, 8, 6, a, ey + 1, 3.2, { style: 6, color: C('#f2efe6'), seed: 0.4, collide: false }); b.gable(px, pz, 8, 6, a, ey + 4.2, 2.4, C('#c0442a'), 0.3, 0.9); glow.add(px, ey + 3, pz, 8, C('#ffcf80')); }
+  for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; glow.add(ex + Math.cos(a) * 12, ey + 2, ez + Math.sin(a) * 12, 6, C('#ffb050')); }
+  glow.add(ex, ey + 16, ez, 70, C('#ffd9a8'));
+  ctx.elephant = { x: ex, y: ey, z: ez };
+  ctx.extraTrees = ctx.extraTrees || []; const rnd = mulberry32(17);
+  for (let i = 0; i < 700; i++) { const a = rnd() * 6.28, r = 45 + Math.sqrt(rnd()) * 700, x = 4980 + Math.cos(a) * r, z = -4380 + Math.sin(a) * r; ctx.extraTrees.push([x, z, 1.5 + rnd() * 1.6]); }
 }
