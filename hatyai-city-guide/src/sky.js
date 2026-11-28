@@ -7,7 +7,7 @@ const KEYS = [
   { t: 0.00, zen: C('#2a68c8'), mid: C('#6fa8e6'), hor: C('#cfe3f5'), el: 52, az: 255, sun: C('#fff0d6'), si: 2.6, hs: C('#a9c6ef'), hg: C('#4a4638'), hi: 0.7, fog: C('#b4cbe2'), fd: 0.000042, win: 0.0, lamp: 0.0, stars: 0.0, bloom: 0.12, exp: 0.78, glow: 0.35, cloud: 0.52 },
   { t: 0.35, zen: C('#3a2a7a'), mid: C('#c0508a'), hor: C('#ff8f4a'), el: 3, az: 258, sun: C('#ff9550'), si: 2.1, hs: C('#8a6aa8'), hg: C('#3a2c3a'), hi: 0.62, fog: C('#c4708a'), fd: 0.00006, win: 0.45, lamp: 0.55, stars: 0.05, bloom: 0.42, exp: 1.0, glow: 1.0, cloud: 0.42 },
   { t: 0.62, zen: C('#1d0f46'), mid: C('#5c2a80'), hor: C('#b0508c'), el: -4, az: 262, sun: C('#b47ad0'), si: 0.45, hs: C('#6a66c4'), hg: C('#241c3a'), hi: 0.78, fog: C('#4e3472'), fd: 0.00006, win: 0.88, lamp: 0.92, stars: 0.35, bloom: 0.6, exp: 1.05, glow: 0.7, cloud: 0.46 },
-  { t: 1.00, zen: C('#04061a'), mid: C('#0c1438'), hor: C('#222350'), el: 40, az: 100, sun: C('#93aaff'), si: 0.9, hs: C('#2c3c80'), hg: C('#1a1a2c'), hi: 0.75, fog: C('#151b3e'), fd: 0.00008, win: 1.0, lamp: 1.0, stars: 1.0, bloom: 0.72, exp: 1.12, glow: 0.0, cloud: 0.56 },
+  { t: 1.00, zen: C('#04061a'), mid: C('#0c1438'), hor: C('#222350'), el: 40, az: 100, sun: C('#93aaff'), si: 0.9, hs: C('#3a4a90'), hg: C('#24243a'), hi: 0.95, fog: C('#151b3e'), fd: 0.00008, win: 1.0, lamp: 1.0, stars: 1.0, bloom: 0.72, exp: 1.12, glow: 0.0, cloud: 0.56 },
 ];
 const SCALARS = ['el', 'az', 'si', 'hi', 'fd', 'win', 'lamp', 'stars', 'bloom', 'exp', 'glow', 'cloud'];
 const COLORS = ['zen', 'mid', 'hor', 'sun', 'hs', 'hg', 'fog'];

@@ -198,7 +198,7 @@ export class Traffic {
     this.cars.forEach((c, i) => {
       c.s += c.v * dt * c.dir; if (c.s > c.ro.L) c.s = 0; if (c.s < 0) c.s = c.ro.L;
       const [x, z, dx, dz] = this.pos(c.ro, c.s); const bike = c.grp === 'bike', tuk = c.grp === 'tuk';
-      const lane = (c.ro.r.w * (bike ? 0.36 : 0.2)) * c.dir, fx = dx * c.dir, fz = dz * c.dir; const px = x - dz * lane, pz = z + dx * lane;
+      const lane = -(c.ro.r.w * (bike ? 0.36 : 0.2)) * c.dir,   /* Thailand drives on the LEFT */ fx = dx * c.dir, fz = dz * c.dir; const px = x - dz * lane, pz = z + dx * lane;
       this.q.setFromAxisAngle(this.up, Math.atan2(fx, fz));
       if (bike) this.q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.sin(t * 1.1 + c.ph) * 0.05));
       this.m.compose(this.v.set(px, 0.05, pz), this.q, this.sc); this.g[c.grp].setMatrixAt(c.slot, this.m);

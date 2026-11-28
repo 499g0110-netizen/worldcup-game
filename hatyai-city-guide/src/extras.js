@@ -68,16 +68,41 @@ export function buildExtras(ctx) {
   //  Lee Gardens night market: after dark the plaza south of the hotel fills with stalls
   // ------------------------------------------------------------------
   {
-    const items = []; const rot = -0.11;
-    for (const x of [-21, -12, 3, 12, 22]) for (let z = 36; z <= 124; z += 5.6) { if (Math.abs(x - 12) < 0.1 && z > 100) continue; const face = x < 0 ? 0 : Math.PI; items.push({ x: x + (rnd() - 0.5) * 0.4, z: z + (rnd() - 0.5) * 0.3, rot: face + rot * 0.5 }); }
+    // stalls line both kerbs of the streets around the hotel and spill into the shophouse arcades;
+    // some vendors sell straight from the back of a pickup truck
+    const items = [], pickups = []; const near = (x, z) => Math.hypot(x + 10, z - 40) < 230;
+    for (const r of ctx.roads) { if (!r.osm || (r.cls === 'minor' && !r.cobble)) continue;
+      for (let i = 0; i < r.pts.length - 1; i++) { const a = r.pts[i], b = r.pts[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 4) continue;
+        const ux = dx / L, uz = dz / L, nx = -uz, nz = ux;
+        for (let s = 2; s < L - 2; s += 3.7) { const px = a[0] + ux * s, pz = a[1] + uz * s; if (!near(px, pz)) continue;
+          for (const side of [-1, 1]) { if (rnd() < 0.15) continue;
+            if (rnd() < 0.12) { pickups.push({ x: px + nx * (r.w / 2 - 1.2) * side, z: pz + nz * (r.w / 2 - 1.2) * side, yaw: Math.atan2(ux, uz), nx: nx * side, nz: nz * side }); continue; }
+            const off = r.w / 2 + 0.55, Fx = nx * side, Fz = nz * side; items.push({ x: px + Fx * off, z: pz + Fz * off, rot: Math.atan2(-Fx, Fz) }); } } } }
+    for (const f of (ctx.shopfronts || [])) { if (!near(f.x, f.z) || rnd() < 0.4) continue; items.push({ x: f.x + f.fnx * 1.35, z: f.z + f.fnz * 1.35, rot: Math.atan2(-f.fnx, f.fnz) }); }
+    while (items.length > 300) items.splice(Math.floor(rnd() * items.length), 1);
     const g = makeStalls(ctx, items, glow, rnd, 'lee'); nightGroups.push(g);
-    for (const x of [-16.5, 7.5, 17.5]) strings(x, 32, x, 128, 4.8, 2.4);
-    for (let z = 36; z <= 124; z += 14) strings(-26, z, 27, z, 5.0, 2.4);
-    signPlane(signTex([{ text: 'LEE GARDENS 夜市', font: 'bold 70px "Noto Sans TC",system-ui,sans-serif' }, { text: 'ตลาดโต้รุ่ง · NIGHT MARKET', font: '38px "Noto Sans Thai",system-ui,sans-serif' }], { w: 768, h: 170, bg: '#1b0c24', fg: '#ffd27a', border: '#ff6a4a' }), 16, 3.5, -3, 8.2, 31, 0);
-    signPlane(signTex([{ text: 'LEE GARDENS 夜市', font: 'bold 70px "Noto Sans TC",system-ui,sans-serif' }], { w: 768, h: 130, bg: '#1b0c24', fg: '#ffd27a', border: '#ff6a4a' }), 16, 2.7, -3, 8.2, 31.2, Math.PI);
-    for (let i = 0; i < 160; i++) ctx.people.add(-24 + rnd() * 52, 0.15, 34 + rnd() * 92, 1);
-    // gate posts for the sign + paved plaza
-    for (const sx of [-10.5, 4.5]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 10, 12), new THREE.MeshStandardMaterial({ color: 0x8a1c1c, roughness: 0.5 })); p.position.set(sx, 5, 31.1); p.castShadow = true; scene.add(p); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 10), new THREE.MeshStandardMaterial({ color: 0xe6c274, metalness: 0.8, roughness: 0.3 })); cap.position.set(sx, 10.2, 31.1); scene.add(cap); }
+    // pickup-truck stalls: open bed with a tarp canopy, goods and a hanging bulb
+    { const PG = new THREE.Group(); const n = pickups.length || 1;
+      const mk = (geo, col) => { const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.4 }), n); im.castShadow = true; im.frustumCulled = false; PG.add(im); return im; };
+      const cab = mk(new THREE.BoxGeometry(1.8, 1.5, 2.2), 0xffffff), bed = mk(new THREE.BoxGeometry(1.8, 0.7, 2.4), 0xffffff), wheel = mk(new THREE.CylinderGeometry(0.36, 0.36, 1.86, 12), 0x141414);
+      const tarpM = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, 0.05, 3.2), new THREE.MeshStandardMaterial({ roughness: 0.8 }), n); tarpM.frustumCulled = false; PG.add(tarpM);
+      const goodsM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 0.35, 0.45), new THREE.MeshStandardMaterial({ roughness: 0.6 }), n * 8); goodsM.frustumCulled = false; PG.add(goodsM);
+      const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), U = new THREE.Vector3(0, 1, 0), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), col = new THREE.Color(); let gi = 0;
+      const pal = ['#f2f2ee', '#c8ccd0', '#2a2c30', '#8a1c1c', '#1d3c6e', '#a8a08a'];
+      pickups.forEach((p, i) => { Q.setFromAxisAngle(U, p.yaw); const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
+        const at = (f, h, y) => V.set(p.x + fx * f + p.nx * h, y, p.z + fz * f + p.nz * h);
+        M4.compose(at(1.4, 0, 1.15), Q, S1); cab.setMatrixAt(i, M4); M4.compose(at(-1.0, 0, 0.75), Q, S1); bed.setMatrixAt(i, M4); col.set(pal[i % pal.length]); cab.setColorAt(i, col); bed.setColorAt(i, col);
+        M4.compose(at(0.2, 0, 0.36), Q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)), S1); wheel.setMatrixAt(i, M4);
+        M4.compose(at(-1.0, 0.4, 2.7), Q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.18)), S1); tarpM.setMatrixAt(i, M4); col.set(TARPS[i % TARPS.length]); tarpM.setColorAt(i, col);
+        for (let k = 0; k < 8; k++) { M4.compose(at(-1.9 + (k % 4) * 0.55, -0.4 + Math.floor(k / 4) * 0.6, 1.3), Q, S1); goodsM.setMatrixAt(gi, M4); col.setHSL(rnd(), 0.6, 0.5); goodsM.setColorAt(gi, col); gi++; }
+        glow.add(at(-1.0, 0.3, 2.3).x, 2.3, V.z, 4.5, C('#ffcf80'));
+        const vi = ctx.people.add(at(-1.6, 0, 0).x, 1.1, V.z, 1); const ci = ctx.people.add(at(-1.0, 1.9, 0).x, 0.12, V.z, 1);
+      });
+      for (const m of [cab, bed, tarpM]) { m.count = pickups.length; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+      wheel.count = pickups.length; wheel.instanceMatrix.needsUpdate = true; goodsM.count = gi; goodsM.instanceMatrix.needsUpdate = true; goodsM.instanceColor.needsUpdate = true;
+      scene.add(PG); nightGroups.push(PG); }
+    // crowd strolling the kerbs and arcades
+    for (let i = 0; i < 220; i++) { const it = items[Math.floor(rnd() * items.length)]; if (!it) break; ctx.people.add(it.x - Math.sin(it.rot) * (1.6 + rnd() * 2.5), 0.12, it.z + Math.cos(it.rot) * (1.6 + rnd() * 2.5), 1); }
     { const pt = ctx.roadMats.cobble.map.clone(); pt.needsUpdate = true; pt.repeat.set(16, 26);
       const pv = new THREE.Mesh(new THREE.PlaneGeometry(64, 108), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
       pv.rotation.set(-Math.PI / 2, 0, 0.11); pv.position.set(-1, 0.07, 78); pv.receiveShadow = true; scene.add(pv); }

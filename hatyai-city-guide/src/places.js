@@ -318,6 +318,7 @@ function buildBuddhaComplex(ctx, bx, by, bz, glow) {
   const add = (geo, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; scene.add(o); return o; };
   // terrace on the hilltop
   add(new THREE.BoxGeometry(170, 6, 120), grass, bx - 30, by - 3, bz + 10);
+  (ctx.walkDecks = ctx.walkDecks || []).push([bx - 115, bx + 55, bz - 50, bz + 70, by]); (ctx.colliders = ctx.colliders || []).push([bx, bz, 12.5]);
   // ---- standing Buddha (faces south-west toward the city) ----
   const face = Math.atan2(-bx, -bz);                // turn toward Lee Gardens / the city
   const B = new THREE.Group(); B.position.set(bx, by, bz); B.rotation.y = face; scene.add(B);
@@ -447,6 +448,7 @@ function buildCableAndElephant(ctx, glow) {
   // ---- elephant shrine on the upper peak ----
   const ex = ux - 30, ez = uz + 10, ey = groundY(ex, ez);
   add(new THREE.CylinderGeometry(32, 36, 4, 40), std(0xd8d0c0), ex, ey - 1, ez);
+  (ctx.walkDecks = ctx.walkDecks || []).push([ex - 22, ex + 22, ez - 22, ez + 22, ey + 1]); (ctx.colliders = ctx.colliders || []).push([ex, ez, 10.5]);
   const gold = new THREE.MeshStandardMaterial({ color: 0xe0b040, metalness: 0.9, roughness: 0.25, emissive: 0x6a4008, emissiveIntensity: 0.12 }); ctx.nightMats.push({ mat: gold, base: 0.1, k: 1.0 });
   const pink = new THREE.MeshStandardMaterial({ color: 0xe8a0a8, roughness: 0.45, metalness: 0.15 });
   const E = new THREE.Group(); E.position.set(ex, ey + 1, ez); E.rotation.y = Math.atan2(-ex, -ez); scene.add(E);

@@ -63,7 +63,7 @@ export class Player {
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.45, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
     sh.rotation.x = -Math.PI / 2; sh.position.y = 0.03; root.add(sh);
     // personal lantern light so the character reads at night
-    this.lamp = new THREE.PointLight(0xffd7a0, 0, 14, 2); this.lamp.position.set(0, 2.4, 0.6); root.add(this.lamp);
+    this.lamp = new THREE.PointLight(0xffd7a0, 0, 14, 2); this.lamp.position.set(0, 2.2, 1.6); root.add(this.lamp);
     this._bind();
   }
   _bind() {
@@ -86,6 +86,7 @@ export class Player {
     }
   }
   blocked(x, z) {
+    for (const c of (this.ctx.colliders || [])) if (Math.hypot(x - c[0], z - c[1]) < c[2]) return true;
     if (!this.grid) return false;
     const i = Math.floor((x - GX0) / CELL), j = Math.floor((z - GZ0) / CELL);
     if (i < 0 || j < 0 || i >= GN || j >= GN) return false;
@@ -133,7 +134,7 @@ export class Player {
     this.hips.rotation.y = s * 0.12 * w; this.spine.rotation.y = -s * 0.18 * w; this.spine.rotation.x = 0.06 * w + 0.16 * rw + breathe;
     this.neck.rotation.y = -this.spine.rotation.y * 0.6 + Math.sin(t * 0.4) * 0.15 * (1 - w);
     this.root.position.copy(this.pos); this.root.rotation.y = this.heading;
-    this.lamp.intensity = night * 6;
+    this.lamp.intensity = night * 2.5;
     // ---- camera ----
     const cd = this.camDist, cp = this.camPitch;
     const tx = this.pos.x, ty = this.pos.y + 1.55, tz = this.pos.z;
